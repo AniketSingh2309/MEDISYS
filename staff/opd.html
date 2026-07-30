@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MEDISYS - OPD Booking &amp; Queue</title>
+<link rel="stylesheet" href="../style.css" />
+<link rel="stylesheet" href="../admin/admin.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="brand">
+      <img src="../logo.png" alt="Core5 MEDISYS" class="brand-logo" />
+    </div>
+    <div class="portal-header-right">
+      <span class="portal-user" id="portalUser"></span>
+      <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <main class="portal-main">
+    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
+    <h1>OPD Booking &amp; Queue</h1>
+    <p class="portal-subtitle">Search a patient, then book an appointment slot or issue a walk-in token.</p>
+
+    <div class="portal-card wizard-step">
+      <label for="patientSearch">Search by name, phone, or UHID</label>
+      <input type="text" id="patientSearch" placeholder="e.g. Ramesh, 98765xxxxx, PAT-CHG-000001" />
+      <div id="searchResults" class="staff-roster-grid patient-search-results"></div>
+      <p class="wizard-hint" id="selectedPatientHint"></p>
+    </div>
+
+    <div class="portal-card wizard-step" id="bookingSection" hidden>
+      <h2>Book Visit</h2>
+
+      <div class="wizard-grid">
+        <div>
+          <label for="departmentSelect">Department</label>
+          <select id="departmentSelect"><option value="">All Departments</option></select>
+        </div>
+        <div>
+          <label for="doctorSelect">Doctor</label>
+          <select id="doctorSelect"></select>
+        </div>
+        <div>
+          <label for="visitDate">Date</label>
+          <input type="date" id="visitDate" />
+        </div>
+      </div>
+
+      <p class="wizard-hint">Pick an available slot below, or skip straight to a walk-in token.</p>
+      <div class="slot-grid" id="slotGrid"></div>
+
+      <p class="form-error" id="opdFormError" role="alert" aria-live="polite"></p>
+
+      <div class="wizard-nav">
+        <button type="button" class="wizard-back-btn" id="walkInBtn">Issue Walk-in Token</button>
+        <button type="button" class="login-btn wizard-next-btn" id="bookSlotBtn" disabled>Book Selected Slot</button>
+      </div>
+
+      <p class="wizard-hint" id="bookingConfirmation"></p>
+    </div>
+
+    <h2 class="portal-section-title">Today's Queue</h2>
+    <div class="portal-card">
+      <table class="portal-table" id="queueTable">
+        <thead>
+          <tr><th>Token</th><th>Patient</th><th>Doctor</th><th>Time</th><th>Status</th></tr>
+        </thead>
+        <tbody id="queueTableBody"></tbody>
+      </table>
+      <p class="portal-empty" id="queueEmptyState" hidden>No visits yet today.</p>
+    </div>
+
+    <h2 class="portal-section-title">Patients Needing Admission</h2>
+    <div class="portal-card">
+      <p class="wizard-hint">Flagged by a doctor during consultation &mdash; pending bed allocation by a nurse.</p>
+      <table class="portal-table" id="needsAdmissionTable">
+        <thead>
+          <tr><th>Patient</th><th>Admitting Doctor</th><th>Requested</th><th>Status</th></tr>
+        </thead>
+        <tbody id="needsAdmissionTableBody"></tbody>
+      </table>
+      <p class="portal-empty" id="needsAdmissionEmptyState" hidden>No patients currently awaiting admission.</p>
+    </div>
+
+    <h2 class="portal-section-title">Patients Currently in Ward</h2>
+    <div class="portal-card">
+      <table class="portal-table" id="wardPatientsTable">
+        <thead>
+          <tr><th>Patient</th><th>Doctor</th><th>Ward</th><th>Bed</th><th>Admitted</th></tr>
+        </thead>
+        <tbody id="wardPatientsTableBody"></tbody>
+      </table>
+      <p class="portal-empty" id="wardPatientsEmptyState" hidden>No patients currently admitted.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-left">
+      <span class="footer-brand">CORE5 <strong>MEDISYS</strong></span>
+      <small>HOSPITAL PORTAL</small>
+    </div>
+    <div class="footer-right">&copy;2026 Core5. All rights reserved.</div>
+  </footer>
+
+  <script src="opd.js"></script>
+</body>
+</html>
