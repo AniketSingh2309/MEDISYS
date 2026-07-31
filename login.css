@@ -1,0 +1,217 @@
+html,
+body {
+  height: 100%;
+}
+
+.lp-page {
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+  background: #eaf3fa;
+}
+
+.lp-bg-image {
+  position: absolute;
+  left: 0;
+  top: -1.5%;
+  width: 100%;
+  height: 113%;
+  object-fit: fill;
+  object-position: center;
+  display: block;
+}
+
+/* Card sits on top of the full-screen image, aligned to the right */
+.lp-right {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 40px 8%;
+  overflow: hidden;
+}
+
+.lp-card {
+  width: 420px;
+  max-width: 100%;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(20, 40, 80, 0.14);
+  padding: 40px 40px 32px;
+}
+
+.lp-card-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #eaf2fb;
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.lp-card h2 {
+  text-align: center;
+  margin: 0 0 4px;
+  color: var(--navy);
+  font-size: 24px;
+}
+
+.lp-card-subtitle {
+  text-align: center;
+  color: var(--gray-text);
+  font-size: 14px;
+  margin: 0 0 26px;
+}
+
+.lp-field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0 0 6px;
+}
+
+.lp-input-wrap {
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.lp-input-wrap input {
+  width: 100%;
+  padding: 12px 14px 12px 40px;
+  border: 1px solid #d7dee6;
+  border-radius: 8px;
+  background: #f7f9fb;
+  font-size: 14px;
+  outline: none;
+}
+
+.lp-input-wrap input:focus {
+  border-color: var(--teal);
+  background: #fff;
+}
+
+.lp-input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8a97a8;
+  display: flex;
+}
+
+.lp-toggle-password {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+}
+
+.lp-captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.lp-captcha-code {
+  background: #eef3f8;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--navy);
+  font-style: italic;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.lp-captcha-refresh-btn {
+  background: none;
+  border: none;
+  color: var(--teal);
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 2px;
+}
+
+.lp-captcha-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #d7dee6;
+  border-radius: 8px;
+  background: #f7f9fb;
+  font-size: 14px;
+  outline: none;
+}
+
+.lp-captcha-row input:focus {
+  border-color: var(--teal);
+  background: #fff;
+}
+
+.lp-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 18px;
+  color: var(--gray-text);
+}
+
+.lp-remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.lp-forgot-link {
+  color: var(--teal-dark);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.lp-forgot-link:hover {
+  text-decoration: underline;
+}
+
+.lp-submit-btn {
+  width: 100%;
+  background: var(--navy);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.lp-submit-btn:hover {
+  background: var(--navy-dark);
+}
+
+@media (max-width: 900px) {
+  .lp-bg-image {
+    display: none;
+  }
+  .lp-right {
+    justify-content: center;
+    padding: 32px 20px 48px;
+  }
+}

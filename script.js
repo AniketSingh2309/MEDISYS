@@ -33,6 +33,7 @@
     togglePasswordBtn.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
   });
 
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     formError.style.color = "";
@@ -53,7 +54,7 @@
       return;
     }
 
-    const submitBtn = form.querySelector(".login-btn");
+    const submitBtn = form.querySelector(".lp-submit-btn");
     submitBtn.disabled = true;
 
     try {

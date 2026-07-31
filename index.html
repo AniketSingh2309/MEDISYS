@@ -5,81 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>MEDISYS - Smarter Healthcare. Better Outcomes.</title>
 <link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="login.css?v=9" />
 </head>
 <body>
 
-  <!-- Top contact bar -->
-  <div class="top-bar">
-    <span class="top-bar-title">MEDISYS - Healthcare Software Solutions</span>
-    <span class="top-bar-contacts">
-      <span>&#9742; 040-27788200</span>
-      <span>&#128222; 070-88200</span>
-      <span>&#128241; 07989347336, 07989349125, 07989298838, 07989342031</span>
-    </span>
-  </div>
+  <div class="lp-page">
+    <img src="login-bg.png" alt="Empowering Hospitals. Enhancing Care. MEDISYS HMIS" class="lp-bg-image" />
 
-  <!-- Header / navigation -->
-  <header class="site-header">
-    <div class="brand">
-      <img src="logo.png" alt="Core5 MEDISYS" class="brand-logo" />
-    </div>
-    <nav class="main-nav">
-      <a href="#home">HOME</a>
-      <a href="#about">ABOUT</a>
-      <a href="#features">FEATURES</a>
-      <a href="#gallery">GALLERY</a>
-    </nav>
-  </header>
+    <div class="lp-right">
+      <form class="lp-card" id="loginForm" novalidate>
+        <div class="lp-card-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V7l8-4 8 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 11h.01M15 11h.01M12 11h.01M9 7h.01M15 7h.01M12 7h.01"/></svg>
+        </div>
+        <h2>Sign in</h2>
+        <p class="lp-card-subtitle">Access your HMIS dashboard</p>
 
-  <!-- Hero / login section -->
-  <main class="hero">
-    <div class="hero-bg" aria-hidden="true"></div>
+        <label class="lp-field-label" for="userId">User ID</label>
+        <div class="lp-input-wrap">
+          <span class="lp-input-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 21c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2"/></svg>
+          </span>
+          <input type="text" id="userId" name="userId" placeholder="Enter User ID" autocomplete="username" required />
+        </div>
 
-    <div class="hero-left">
-      <h1>Welcome to</h1>
-      <img src="logo.png" alt="Core5 MEDISYS - Smarter Healthcare. Better Outcomes." class="hero-logo-img" />
-    </div>
-
-    <div class="hero-right">
-      <form class="login-card" id="loginForm" novalidate>
-        <h2>User Login</h2>
-
-        <label class="visually-hidden" for="userId">User ID</label>
-        <input type="text" id="userId" name="userId" placeholder="Enter User ID here" autocomplete="username" required />
-
-        <label class="visually-hidden" for="password">Password</label>
-        <div class="password-field">
-          <input type="password" id="password" name="password" placeholder="Enter Password here" autocomplete="current-password" required />
-          <button type="button" class="toggle-password" id="togglePassword" aria-label="Show password">
-            <svg id="eyeIcon" viewBox="0 0 24 24" width="20" height="20"><path fill="#666" d="M12 5c-5 0-9.3 3.1-11 7 1.7 3.9 6 7 11 7s9.3-3.1 11-7c-1.7-3.9-6-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
+        <label class="lp-field-label" for="password">Password</label>
+        <div class="lp-input-wrap">
+          <span class="lp-input-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          </span>
+          <input type="password" id="password" name="password" placeholder="Enter Password" autocomplete="current-password" required />
+          <button type="button" class="lp-toggle-password" id="togglePassword" aria-label="Show password">
+            <svg id="eyeIcon" viewBox="0 0 24 24" width="18" height="18"><path fill="#8a97a8" d="M12 5c-5 0-9.3 3.1-11 7 1.7 3.9 6 7 11 7s9.3-3.1 11-7c-1.7-3.9-6-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
           </button>
         </div>
 
-        <div class="captcha-row">
-          <button type="button" class="captcha-refresh" id="refreshCaptcha" aria-label="Refresh captcha">&#8635;</button>
-          <span class="captcha-code" id="captchaCode"></span>
+        <label class="lp-field-label" for="captchaInput">Captcha</label>
+        <div class="lp-captcha-row">
+          <span class="lp-captcha-code" id="captchaCode"></span>
+          <button type="button" class="lp-captcha-refresh-btn" id="refreshCaptcha" aria-label="Refresh captcha">&#8635;</button>
           <input type="text" id="captchaInput" name="captcha" placeholder="Enter Captcha" autocomplete="off" required />
+        </div>
+
+        <div class="lp-options-row">
+          <label class="lp-remember"><input type="checkbox" id="rememberMe" /> Remember me</label>
+          <a href="#" class="lp-forgot-link">Forgot Password?</a>
         </div>
 
         <p class="form-error" id="formError" role="alert" aria-live="polite"></p>
 
-        <button type="submit" class="login-btn">LOGIN</button>
-        <a href="#" class="forgot-link">Forgot Password?</a>
+        <button type="submit" class="lp-submit-btn">LOGIN</button>
       </form>
     </div>
-  </main>
-
-  <!-- Footer -->
-  <footer class="site-footer">
-    <div class="footer-left">
-      <span class="footer-brand">CORE5 <strong>MEDISYS</strong></span>
-      <small>HEALTHCARE SOFTWARE SOLUTIONS</small>
-    </div>
-    <div class="footer-center">
-      For best experience, use the latest version of Chrome, Edge, or Firefox.
-    </div>
-    <div class="footer-right">&copy;2026 Core5. All rights reserved.</div>
-  </footer>
+  </div>
 
   <script src="script.js"></script>
 </body>
