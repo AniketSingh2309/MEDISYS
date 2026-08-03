@@ -52,6 +52,13 @@ async function ensureSchema(connection) {
   await ensureColumn(connection, "medisys_hmis", "hospitals", "short_code", "VARCHAR(10)");
   await ensureColumn(connection, "medisys_hmis", "hospitals", "admin_user_id", "VARCHAR(50)");
   await ensureColumn(connection, "medisys_hmis", "user_directory", "account_type", "VARCHAR(20) NOT NULL DEFAULT 'staff'");
+  await ensureColumn(
+    connection,
+    "medisys_hmis",
+    "hospitals",
+    "nurse_assignment_mode",
+    "ENUM('ward_based','doctor_team') NOT NULL DEFAULT 'ward_based'"
+  );
 }
 
 async function ensureColumn(connection, schema, table, column, definition) {
@@ -132,10 +139,13 @@ async function ensureTenantSchema(connection, dbName) {
     CREATE TABLE IF NOT EXISTS \`${dbName}\`.wards (
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
+      department_id INT NULL,
       created_by VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await ensureColumn(connection, dbName, "wards", "department_id", "INT NULL");
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS \`${dbName}\`.beds (
@@ -208,6 +218,8 @@ async function ensureTenantSchema(connection, dbName) {
     )
   `);
 
+  await ensureColumn(connection, dbName, "ipd_admissions", "assigned_nurse_id", "VARCHAR(50) NULL");
+
   await connection.query(`
     CREATE TABLE IF NOT EXISTS \`${dbName}\`.doctor_orders (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -242,6 +254,108 @@ async function ensureTenantSchema(connection, dbName) {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS \`${dbName}\`.test_catalog (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(150) NOT NULL,
+      category VARCHAR(30) NOT NULL,
+      department VARCHAR(50),
+      sample_type VARCHAR(50),
+      price DECIMAL(10,2) NOT NULL DEFAULT 0,
+      turnaround_hours INT NOT NULL DEFAULT 24,
+      is_panel BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS \`${dbName}\`.lab_orders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      opd_visit_id INT NULL,
+      ipd_admission_id INT NULL,
+      patient_uhid VARCHAR(30) NOT NULL,
+      test_id INT NOT NULL,
+      doctor_user_id VARCHAR(50) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      assigned_to VARCHAR(50) NULL,
+      result_notes TEXT NULL,
+      result_file_path VARCHAR(255) NULL,
+      result_file_name VARCHAR(255) NULL,
+      completed_by VARCHAR(50) NULL,
+      completed_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await ensureColumn(connection, dbName, "lab_orders", "result_notes", "TEXT NULL");
+  await ensureColumn(connection, dbName, "lab_orders", "result_file_path", "VARCHAR(255) NULL");
+  await ensureColumn(connection, dbName, "lab_orders", "result_file_name", "VARCHAR(255) NULL");
+  await ensureColumn(connection, dbName, "lab_orders", "completed_by", "VARCHAR(50) NULL");
+  await ensureColumn(connection, dbName, "lab_orders", "completed_at", "TIMESTAMP NULL");
+
+  await seedTestCatalog(connection, dbName);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS \`${dbName}\`.nurse_shift_roster (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nurse_user_id VARCHAR(50) NOT NULL,
+      ward_id INT NOT NULL,
+      shift VARCHAR(20) NOT NULL,
+      day_of_week TINYINT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS \`${dbName}\`.doctor_nurse_teams (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      doctor_user_id VARCHAR(50) NOT NULL,
+      nurse_user_id VARCHAR(50) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
+async function seedTestCatalog(connection, dbName) {
+  const [[{ cnt }]] = await connection.query(`SELECT COUNT(*) AS cnt FROM \`${dbName}\`.test_catalog`);
+  if (cnt > 0) return;
+
+  const tests = [
+    ["CBC (Complete Blood Count)", "Hematology", "Pathology", "Blood", 300, 6],
+    ["ESR", "Hematology", "Pathology", "Blood", 150, 6],
+    ["Hemoglobin (Hb)", "Hematology", "Pathology", "Blood", 100, 4],
+    ["Peripheral Smear", "Hematology", "Pathology", "Blood", 250, 12],
+    ["LFT (Liver Function Test)", "Biochemistry", "Pathology", "Blood", 600, 12],
+    ["KFT (Kidney Function Test)", "Biochemistry", "Pathology", "Blood", 600, 12],
+    ["Blood Sugar (Fasting)", "Biochemistry", "Pathology", "Blood", 100, 4],
+    ["Blood Sugar (PP)", "Biochemistry", "Pathology", "Blood", 100, 4],
+    ["Lipid Profile", "Biochemistry", "Pathology", "Blood", 700, 12],
+    ["Electrolytes (Na/K/Cl)", "Biochemistry", "Pathology", "Blood", 400, 6],
+    ["Urine Culture & Sensitivity", "Microbiology", "Pathology", "Urine", 500, 48],
+    ["Blood Culture & Sensitivity", "Microbiology", "Pathology", "Blood", 800, 72],
+    ["Sputum Culture & Sensitivity", "Microbiology", "Pathology", "Sputum", 500, 48],
+    ["Wound Swab Culture", "Microbiology", "Pathology", "Swab", 500, 48],
+    ["Biopsy - Histopathology", "Histopathology", "Pathology", "Tissue", 1500, 96],
+    ["FNAC (Fine Needle Aspiration Cytology)", "Histopathology", "Pathology", "Tissue", 1200, 72],
+    ["HIV (ELISA)", "Serology", "Pathology", "Blood", 400, 24],
+    ["HBsAg", "Serology", "Pathology", "Blood", 350, 24],
+    ["HCV", "Serology", "Pathology", "Blood", 400, 24],
+    ["VDRL", "Serology", "Pathology", "Blood", 200, 12],
+    ["Widal Test", "Serology", "Pathology", "Blood", 200, 12],
+    ["Dengue NS1/IgM/IgG", "Serology", "Pathology", "Blood", 600, 12],
+    ["Malaria Antigen Test", "Serology", "Pathology", "Blood", 300, 4],
+    ["Chest X-Ray", "Radiology", "Radiology", "N/A", 400, 4],
+    ["Ultrasound Abdomen", "Radiology", "Radiology", "N/A", 1000, 6],
+    ["CT Scan (Plain)", "Radiology", "Radiology", "N/A", 3500, 24],
+    ["MRI (Plain)", "Radiology", "Radiology", "N/A", 6000, 24],
+    ["ECG", "Radiology", "Radiology", "N/A", 250, 1],
+  ];
+
+  await connection.query(
+    `INSERT INTO \`${dbName}\`.test_catalog (name, category, department, sample_type, price, turnaround_hours) VALUES ?`,
+    [tests]
+  );
 }
 
 function buildTenantDbName(id, name) {

@@ -444,6 +444,172 @@
     loadDepartments();
   }
 
+  const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  async function initNurseAssignment() {
+    const modeSelect = document.getElementById("assignmentModeSelect");
+    if (!modeSelect) return;
+
+    const [staffRes, wardsRes] = await Promise.all([
+      fetch("/api/hospital/staff", { credentials: "same-origin" }).then((r) => r.json()),
+      fetch("/api/wards", { credentials: "same-origin" }).then((r) => r.json()),
+    ]);
+    const doctors = staffRes.success ? staffRes.staff.filter((s) => s.role === "doctor") : [];
+    const nurses = staffRes.success ? staffRes.staff.filter((s) => s.role === "nurse") : [];
+    const wards = wardsRes.success ? wardsRes.wards : [];
+
+    function optionsFor(list) {
+      return list.length
+        ? list.map((s) => `<option value="${escapeHtml(s.user_id)}">${escapeHtml(s.full_name)}</option>`).join("")
+        : `<option value="">None registered yet</option>`;
+    }
+
+    document.getElementById("rosterNurseSelect").innerHTML = optionsFor(nurses);
+    document.getElementById("teamNurseSelect").innerHTML = optionsFor(nurses);
+    document.getElementById("teamDoctorSelect").innerHTML = optionsFor(doctors);
+    document.getElementById("rosterWardSelect").innerHTML = wards.length
+      ? wards.map((w) => `<option value="${w.id}">${escapeHtml(w.name)}</option>`).join("")
+      : `<option value="">No wards set up yet</option>`;
+
+    const hospitalRes = await fetch("/api/hospital/me", { credentials: "same-origin" }).then((r) => r.json());
+    const currentMode = hospitalRes.success ? hospitalRes.hospital.nurse_assignment_mode : "ward_based";
+    modeSelect.value = currentMode;
+    document.getElementById("teamsSection").hidden = currentMode !== "doctor_team";
+
+    modeSelect.addEventListener("change", async () => {
+      const hint = document.getElementById("modeSaveHint");
+      hint.textContent = "Saving...";
+      const res = await fetch("/api/hospital/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ nurseAssignmentMode: modeSelect.value }),
+      });
+      const data = await res.json();
+      hint.textContent = data.success ? "Saved." : data.message || "Could not save.";
+      document.getElementById("teamsSection").hidden = modeSelect.value !== "doctor_team";
+      if (data.success) loadTeams();
+    });
+
+    async function loadRoster() {
+      const res = await fetch("/api/nurse-roster", { credentials: "same-origin" });
+      const data = await res.json();
+      const tbody = document.getElementById("rosterTableBody");
+      const emptyState = document.getElementById("rosterEmptyState");
+
+      if (!data.success || data.roster.length === 0) {
+        tbody.innerHTML = "";
+        emptyState.hidden = false;
+        return;
+      }
+      emptyState.hidden = true;
+
+      tbody.innerHTML = data.roster
+        .map(
+          (r) => `<tr>
+            <td>${escapeHtml(r.nurse_name || r.nurse_user_id)}</td>
+            <td>${escapeHtml(r.ward_name || "—")}</td>
+            <td>${escapeHtml(r.shift)}</td>
+            <td>${DAY_LABELS[r.day_of_week] || r.day_of_week}</td>
+            <td><button type="button" class="icon-btn-delete delete-roster-btn" data-id="${r.id}" aria-label="Remove">&times;</button></td>
+          </tr>`
+        )
+        .join("");
+
+      tbody.querySelectorAll(".delete-roster-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          await fetch(`/api/nurse-roster/${btn.dataset.id}`, { method: "DELETE", credentials: "same-origin" });
+          loadRoster();
+        });
+      });
+    }
+
+    document.getElementById("addRosterBtn").addEventListener("click", async () => {
+      const errorEl = document.getElementById("rosterFormError");
+      errorEl.textContent = "";
+      const nurseUserId = document.getElementById("rosterNurseSelect").value;
+      const wardId = document.getElementById("rosterWardSelect").value;
+      if (!nurseUserId || !wardId) {
+        errorEl.textContent = "A registered nurse and an existing ward are required.";
+        return;
+      }
+      const res = await fetch("/api/nurse-roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          nurseUserId,
+          wardId,
+          shift: document.getElementById("rosterShiftSelect").value,
+          dayOfWeek: Number(document.getElementById("rosterDaySelect").value),
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        errorEl.textContent = data.message || "Could not add roster entry.";
+        return;
+      }
+      loadRoster();
+    });
+
+    async function loadTeams() {
+      const res = await fetch("/api/doctor-nurse-teams", { credentials: "same-origin" });
+      const data = await res.json();
+      const tbody = document.getElementById("teamsTableBody");
+      const emptyState = document.getElementById("teamsEmptyState");
+
+      if (!data.success || data.teams.length === 0) {
+        tbody.innerHTML = "";
+        emptyState.hidden = false;
+        return;
+      }
+      emptyState.hidden = true;
+
+      tbody.innerHTML = data.teams
+        .map(
+          (t) => `<tr>
+            <td>${escapeHtml(t.doctor_name || t.doctor_user_id)}</td>
+            <td>${escapeHtml(t.nurse_name || t.nurse_user_id)}</td>
+            <td><button type="button" class="icon-btn-delete delete-team-btn" data-id="${t.id}" aria-label="Remove">&times;</button></td>
+          </tr>`
+        )
+        .join("");
+
+      tbody.querySelectorAll(".delete-team-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          await fetch(`/api/doctor-nurse-teams/${btn.dataset.id}`, { method: "DELETE", credentials: "same-origin" });
+          loadTeams();
+        });
+      });
+    }
+
+    document.getElementById("addTeamBtn").addEventListener("click", async () => {
+      const errorEl = document.getElementById("teamFormError");
+      errorEl.textContent = "";
+      const doctorUserId = document.getElementById("teamDoctorSelect").value;
+      const nurseUserId = document.getElementById("teamNurseSelect").value;
+      if (!doctorUserId || !nurseUserId) {
+        errorEl.textContent = "A registered doctor and nurse are required.";
+        return;
+      }
+      const res = await fetch("/api/doctor-nurse-teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ doctorUserId, nurseUserId }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        errorEl.textContent = data.message || "Could not add team.";
+        return;
+      }
+      loadTeams();
+    });
+
+    loadRoster();
+    loadTeams();
+  }
+
   document.addEventListener("DOMContentLoaded", async () => {
     const user = await guardSession();
     if (!user) return;
@@ -453,5 +619,6 @@
     initAddStaff();
     initStaffList();
     initDepartments();
+    initNurseAssignment();
   });
 })();

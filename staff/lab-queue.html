@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MEDISYS - Lab Queue</title>
+<link rel="stylesheet" href="../style.css" />
+<link rel="stylesheet" href="../admin/admin.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="brand">
+      <img src="../logo.png" alt="Core5 MEDISYS" class="brand-logo" />
+    </div>
+    <div class="portal-header-right">
+      <span class="portal-user" id="portalUser"></span>
+      <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <main class="portal-main">
+    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
+    <h1 id="queueHeading">Lab Queue</h1>
+    <p class="portal-subtitle" id="queueSubtitle"></p>
+
+    <h2 class="portal-section-title">Unclaimed Orders</h2>
+    <div class="portal-card">
+      <table class="portal-table" id="unclaimedTable">
+        <thead><tr><th>Patient</th><th>Test</th><th>Ordered By</th><th>Ordered</th><th></th></tr></thead>
+        <tbody id="unclaimedTableBody"></tbody>
+      </table>
+      <p class="portal-empty" id="unclaimedEmptyState" hidden>Nothing waiting to be claimed.</p>
+    </div>
+
+    <h2 class="portal-section-title">My Queue</h2>
+    <div class="portal-card">
+      <table class="portal-table" id="myQueueTable">
+        <thead><tr><th>Patient</th><th>Test</th><th>Ordered By</th><th>Claimed</th><th></th></tr></thead>
+        <tbody id="myQueueTableBody"></tbody>
+      </table>
+      <p class="portal-empty" id="myQueueEmptyState" hidden>Nothing in progress for you right now.</p>
+    </div>
+
+    <div id="completeSection" class="portal-card wizard-step" hidden>
+      <h2 id="completeTitle">Result</h2>
+      <p class="wizard-hint" id="completeSendToLine"></p>
+
+      <label for="resultNotes">Result Notes</label>
+      <textarea id="resultNotes" placeholder="e.g. Hb 13.2 g/dL, WBC 7800/µL, all within normal range"></textarea>
+
+      <label for="resultFile">Upload Report / Image File</label>
+      <input type="file" id="resultFile" accept="image/*,.pdf" />
+      <p class="wizard-hint" id="resultFileName"></p>
+
+      <p class="form-error" id="completeFormError" role="alert" aria-live="polite"></p>
+      <div class="wizard-nav">
+        <button type="button" class="wizard-back-btn" id="cancelCompleteBtn">Cancel</button>
+        <button type="button" class="login-btn wizard-next-btn" id="submitCompleteBtn">Send to Doctor</button>
+      </div>
+    </div>
+
+    <h2 class="portal-section-title">Recently Completed</h2>
+    <div class="portal-card">
+      <table class="portal-table" id="completedTable">
+        <thead><tr><th>Patient</th><th>Test</th><th>Ordered By</th><th>Result</th><th>Completed</th></tr></thead>
+        <tbody id="completedTableBody"></tbody>
+      </table>
+      <p class="portal-empty" id="completedEmptyState" hidden>No completed orders yet.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-left">
+      <span class="footer-brand">CORE5 <strong>MEDISYS</strong></span>
+      <small>HOSPITAL PORTAL</small>
+    </div>
+    <div class="footer-right">&copy;2026 Core5. All rights reserved.</div>
+  </footer>
+
+  <script src="lab-queue.js"></script>
+</body>
+</html>

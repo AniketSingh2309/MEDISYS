@@ -11,6 +11,8 @@
 
   let sessionUser = null;
   let activeVisit = null;
+  let selectedTests = [];
+  let searchDebounce = null;
 
   async function guardSession() {
     const res = await fetch("/api/session", { credentials: "same-origin" });
@@ -81,6 +83,67 @@
     });
   }
 
+  function renderSelectedTests() {
+    const row = document.getElementById("selectedTestChips");
+    row.innerHTML = selectedTests
+      .map(
+        (t) => `<span class="test-chip">${escapeHtml(t.name)}<button type="button" class="test-chip-remove" data-id="${t.id}">&times;</button></span>`
+      )
+      .join("");
+    row.querySelectorAll(".test-chip-remove").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedTests = selectedTests.filter((t) => String(t.id) !== btn.dataset.id);
+        renderSelectedTests();
+      });
+    });
+  }
+
+  async function runTestSearch(query) {
+    const resultsEl = document.getElementById("testSearchResults");
+    if (!query.trim()) {
+      resultsEl.innerHTML = "";
+      return;
+    }
+    const res = await fetch(`/api/tests/search?q=${encodeURIComponent(query)}`, { credentials: "same-origin" });
+    const data = await res.json();
+    if (!data.success) {
+      resultsEl.innerHTML = "";
+      return;
+    }
+    const selectedIds = new Set(selectedTests.map((t) => String(t.id)));
+    const tests = data.tests.filter((t) => !selectedIds.has(String(t.id)));
+
+    resultsEl.innerHTML = tests
+      .map(
+        (t) => `<div class="test-search-result-item" data-id="${t.id}" data-name="${escapeHtml(t.name)}">
+          <span class="test-search-result-name">${escapeHtml(t.name)}</span>
+          <span class="test-search-result-meta">${escapeHtml(t.category)} &middot; ₹${t.price}</span>
+        </div>`
+      )
+      .join("");
+
+    resultsEl.querySelectorAll(".test-search-result-item").forEach((item) => {
+      item.addEventListener("click", () => {
+        selectedTests.push({ id: item.dataset.id, name: item.dataset.name });
+        renderSelectedTests();
+        document.getElementById("testSearchInput").value = "";
+        resultsEl.innerHTML = "";
+      });
+    });
+  }
+
+  function wireTestOrderWidget() {
+    document.getElementById("decision").addEventListener("change", (e) => {
+      document.getElementById("testOrderSection").hidden = e.target.value !== "order_tests";
+    });
+
+    document.getElementById("testSearchInput").addEventListener("input", (e) => {
+      clearTimeout(searchDebounce);
+      const query = e.target.value;
+      searchDebounce = setTimeout(() => runTestSearch(query), 200);
+    });
+  }
+
   async function openConsultation(visitId, patientUhid, patientName) {
     activeVisit = { id: visitId, patientUhid, patientName };
     document.getElementById("consultTitle").textContent = `Consultation — ${patientName}`;
@@ -89,6 +152,12 @@
     document.getElementById("consultError").textContent = "";
     document.getElementById("symptoms").value = "";
     document.getElementById("consultNotes").value = "";
+    document.getElementById("decision").value = "prescribe";
+    document.getElementById("testOrderSection").hidden = true;
+    document.getElementById("testSearchInput").value = "";
+    document.getElementById("testSearchResults").innerHTML = "";
+    selectedTests = [];
+    renderSelectedTests();
 
     const res = await fetch(`/api/patients/${encodeURIComponent(patientUhid)}/history`, {
       credentials: "same-origin",
@@ -116,8 +185,27 @@
         </div>`
       )
       .join("");
+    const labOrderItems = (data.history.labOrders || [])
+      .map((o) => {
+        const statusLabel = { pending: "Ordered", in_progress: "In Progress", completed: "Completed" }[o.status] || o.status;
+        const resultLine =
+          o.status === "completed"
+            ? `<div class="chart-feed-meta">${escapeHtml(o.result_notes || "No notes")}${
+                o.result_file_name
+                  ? ` &middot; <a href="/api/lab-orders/${o.id}/result-file" target="_blank" rel="noopener" class="file-view-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>${escapeHtml(o.result_file_name)}</a>`
+                  : ""
+              }</div>`
+            : "";
+        return `<div class="chart-feed-item">
+          <strong>${escapeHtml(o.test_name)}</strong> — <span class="queue-status ${o.status === "completed" ? "completed" : "waiting"}">${escapeHtml(statusLabel)}</span>
+          ${resultLine}
+          <div class="chart-feed-meta">Ordered ${escapeHtml(new Date(o.created_at).toLocaleString())}</div>
+        </div>`;
+      })
+      .join("");
 
-    feed.innerHTML = consultationItems + admissionItems || `<p class="wizard-hint">No prior history.</p>`;
+    feed.innerHTML =
+      labOrderItems + consultationItems + admissionItems || `<p class="wizard-hint">No prior history.</p>`;
   }
 
   function wireConsultForm() {
@@ -127,6 +215,12 @@
 
       if (!activeVisit) return;
 
+      const decision = document.getElementById("decision").value;
+      if (decision === "order_tests" && selectedTests.length === 0) {
+        errorEl.textContent = "Select at least one test to order.";
+        return;
+      }
+
       const res = await fetch(`/api/opd/visits/${activeVisit.id}/consultation`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -134,7 +228,8 @@
         body: JSON.stringify({
           symptoms: document.getElementById("symptoms").value.trim(),
           notes: document.getElementById("consultNotes").value.trim(),
-          decision: document.getElementById("decision").value,
+          decision,
+          testIds: decision === "order_tests" ? selectedTests.map((t) => t.id) : undefined,
         }),
       });
       const data = await res.json();
@@ -162,6 +257,7 @@
     if (!user) return;
     wireLogout();
     wireConsultForm();
+    wireTestOrderWidget();
     loadQueue();
   });
 })();

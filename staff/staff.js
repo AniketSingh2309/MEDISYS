@@ -49,9 +49,10 @@
     const data = await res.json();
     if (!data.success) return;
 
-    const { fullName, roleLabel, hospitalName, role } = data.profile;
+    const { fullName, roleLabel, hospitalName, role, details } = data.profile;
+    const displayLabel = role === "pathology_staff" && details?.designation ? details.designation : roleLabel;
     document.getElementById("welcomeHeading").textContent = `Welcome, ${fullName}`;
-    document.getElementById("staffSubtitle").textContent = `${roleLabel} at ${hospitalName}`;
+    document.getElementById("staffSubtitle").textContent = `${displayLabel} at ${hospitalName}`;
 
     const actionCards = document.getElementById("staffActionCards");
     const CARD_ICONS = {
@@ -83,15 +84,25 @@
         actionCard("vitals.html", "vitals", "OPD Vitals", "Log BP, temperature, weight, SpO2 before consultation") +
         actionCard("ward-setup.html", "ward", "Ward &amp; Bed Setup", "Add wards and beds for this hospital") +
         actionCard("bed-allocation.html", "bed", "Bed Allocation", "Allocate a bed to a pending admission request") +
-        actionCard("nurse-ipd.html", "admission", "IPD Patients", "Log medication administered for admitted patients");
+        actionCard("nurse-ipd.html", "admission", "IPD Patients", "Log medication administered for admitted patients") +
+        actionCard("nurse-patients.html", "queue", "My Patients", "Patients auto-assigned to you for this shift");
     } else if (role === "doctor") {
       actionCards.innerHTML =
         actionCard("doctor-schedule.html", "clock", "My Schedule", "Set your weekly available time slots") +
         actionCard("doctor-queue.html", "queue", "My Queue", "Call patients, view EMR history, record consultations") +
-        actionCard("doctor-ipd.html", "admission", "IPD Rounds", "Round notes and orders for your admitted patients");
+        actionCard("doctor-ipd.html", "admission", "IPD Rounds", "Round notes and orders for your admitted patients") +
+        actionCard("doctor-patients.html", "registration", "My Patients", "Prescriptions and lab/radiology reports for everyone you've seen");
+    } else if (role === "pathology_staff") {
+      const designation = details?.designation;
+      const label = designation === "Radiologist" ? "Radiology Queue" : "Pathology &amp; Lab Queue";
+      const hint =
+        designation === "Radiologist"
+          ? "Claim imaging orders and upload reports"
+          : "Claim pathology/lab orders and upload results";
+      actionCards.innerHTML = actionCard("lab-queue.html", "queue", label, hint);
     }
 
-    const moduleKey = ROLE_MODULE[role];
+    const moduleKey = role === "pathology_staff" ? null : ROLE_MODULE[role];
     const grid = document.getElementById("staffModuleGrid");
     grid.innerHTML = moduleKey
       ? `<div class="module-card readonly">

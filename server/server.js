@@ -1,16 +1,33 @@
 require("dotenv").config({ quiet: true });
+const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
 const bcrypt = require("bcrypt");
+const multer = require("multer");
 const pool = require("./db");
 const { ensureSchema, ensureTenantSchema, buildTenantDbName } = require("./schema");
 const { buildShortCode, generateStaffUserId, generateTempPassword, generateUhid } = require("./credentials");
 const { ROLE_PREFIXES, ROLE_LABELS, STAFF_ROLES, DESIGNATION_PREFIXES } = require("./roles");
 const { computeAvailableSlots } = require("./slots");
+const { assignNurseForAdmission } = require("./nurseAssignment");
 
 const TENANT_DB_NAME_PATTERN = /^medisys_h\d+_[a-z0-9_]+$/;
+
+const UPLOADS_DIR = path.join(__dirname, "uploads", "lab-results");
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const labResultUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+    filename: (req, file, cb) => {
+      const safeExt = path.extname(file.originalname).slice(0, 10);
+      cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -26,6 +43,10 @@ app.use(
     },
   })
 );
+// Guard against express.static serving repo-root paths it shouldn't (server source/secrets,
+// SQL dumps with password hashes, and uploaded patient files) — only the frontend
+// folders (html/css/js/images at the repo root) are meant to be publicly reachable.
+app.use(["/server", "/database"], (req, res) => res.status(404).end());
 app.use(express.static(path.join(__dirname, "..")));
 
 function requireSuperadmin(req, res, next) {
@@ -121,7 +142,7 @@ app.post("/api/login", async (req, res) => {
       }
 
       const [userRows] = await pool.query(
-        `SELECT user_id, password_hash, full_name, role FROM \`${dbName}\`.users WHERE user_id = ? LIMIT 1`,
+        `SELECT user_id, password_hash, full_name, role, details FROM \`${dbName}\`.users WHERE user_id = ? LIMIT 1`,
         [userId]
       );
 
@@ -140,6 +161,7 @@ app.post("/api/login", async (req, res) => {
         userId: tenantUser.user_id,
         fullName: tenantUser.full_name,
         role: tenantUser.role,
+        details: tenantUser.details || {},
         hospitalId,
         hospitalName: hospitalRows[0].name,
         dbName,
@@ -223,7 +245,7 @@ app.get("/api/hospitals/:id", requireSuperadmin, async (req, res) => {
 app.get("/api/hospital/me", requireHospitalAdmin, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT name, status, modules FROM hospitals WHERE id = ? LIMIT 1",
+      "SELECT name, status, modules, nurse_assignment_mode FROM hospitals WHERE id = ? LIMIT 1",
       [req.session.user.hospitalId]
     );
 
@@ -238,9 +260,29 @@ app.get("/api/hospital/me", requireHospitalAdmin, async (req, res) => {
   }
 });
 
+app.patch("/api/hospital/settings", requireHospitalAdmin, async (req, res) => {
+  const { nurseAssignmentMode } = req.body || {};
+  if (!["ward_based", "doctor_team"].includes(nurseAssignmentMode)) {
+    return res.status(400).json({ success: false, message: "A valid nurse assignment mode is required." });
+  }
+  try {
+    await pool.query("UPDATE hospitals SET nurse_assignment_mode = ? WHERE id = ?", [
+      nurseAssignmentMode,
+      req.session.user.hospitalId,
+    ]);
+    res.json({ success: true, nurseAssignmentMode });
+  } catch (err) {
+    console.error("Update hospital settings error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
 app.get("/api/me", requireTenantUser, (req, res) => {
-  const { fullName, role, hospitalName } = req.session.user;
-  res.json({ success: true, profile: { fullName, role, roleLabel: ROLE_LABELS[role] || role, hospitalName } });
+  const { fullName, role, hospitalName, details } = req.session.user;
+  res.json({
+    success: true,
+    profile: { fullName, role, roleLabel: ROLE_LABELS[role] || role, hospitalName, details: details || {} },
+  });
 });
 
 app.get("/api/hospital/staff", requireHospitalAdmin, async (req, res) => {
@@ -483,6 +525,32 @@ app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("Create patient error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Doctor's own patient list ----------
+
+app.get("/api/doctor/patients", requireRole("doctor"), async (req, res) => {
+  try {
+    const { dbName, userId } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT p.uhid, p.full_name, p.phone, p.gender, p.dob,
+              (SELECT MAX(v.created_at) FROM \`${dbName}\`.opd_visits v WHERE v.patient_uhid = p.uhid AND v.doctor_user_id = ?) AS last_opd_visit,
+              (SELECT COUNT(*) FROM \`${dbName}\`.lab_orders lo WHERE lo.patient_uhid = p.uhid AND lo.doctor_user_id = ? AND lo.status = 'completed') AS completed_report_count,
+              (SELECT COUNT(*) FROM \`${dbName}\`.lab_orders lo WHERE lo.patient_uhid = p.uhid AND lo.doctor_user_id = ? AND lo.status != 'completed') AS pending_report_count
+       FROM \`${dbName}\`.patients p
+       WHERE p.uhid IN (
+         SELECT DISTINCT patient_uhid FROM \`${dbName}\`.opd_visits WHERE doctor_user_id = ?
+         UNION
+         SELECT DISTINCT patient_uhid FROM \`${dbName}\`.ipd_admissions WHERE admitting_doctor_user_id = ?
+       )
+       ORDER BY p.full_name`,
+      [userId, userId, userId, userId, userId]
+    );
+    res.json({ success: true, patients: rows });
+  } catch (err) {
+    console.error("List doctor patients error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
@@ -764,9 +832,36 @@ app.get("/api/patients/:uhid/history", requireTenantUser, async (req, res) => {
        FROM \`${dbName}\`.ipd_admissions WHERE patient_uhid = ? ORDER BY created_at DESC`,
       [req.params.uhid]
     );
-    res.json({ success: true, history: { consultations, admissions } });
+    const [labOrders] = await pool.query(
+      `SELECT lo.id, tc.name AS test_name, tc.category, tc.department, lo.status,
+              lo.result_notes, lo.result_file_name, lo.completed_at, lo.created_at
+       FROM \`${dbName}\`.lab_orders lo
+       LEFT JOIN \`${dbName}\`.test_catalog tc ON tc.id = lo.test_id
+       WHERE lo.patient_uhid = ? ORDER BY lo.created_at DESC`,
+      [req.params.uhid]
+    );
+    res.json({ success: true, history: { consultations, admissions, labOrders } });
   } catch (err) {
     console.error("Get patient history error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Pathology / Radiology test catalog ----------
+
+app.get("/api/tests/search", requireTenantUser, async (req, res) => {
+  const q = (req.query.q || "").trim();
+  try {
+    const { dbName } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT id, name, category, department, sample_type, price, turnaround_hours
+       FROM \`${dbName}\`.test_catalog
+       WHERE name LIKE ? ORDER BY name LIMIT 20`,
+      [`%${q}%`]
+    );
+    res.json({ success: true, tests: rows });
+  } catch (err) {
+    console.error("Search tests error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
@@ -774,9 +869,12 @@ app.get("/api/patients/:uhid/history", requireTenantUser, async (req, res) => {
 // ---------- Consultation (doctor decision point) ----------
 
 app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, res) => {
-  const { symptoms, notes, decision } = req.body || {};
+  const { symptoms, notes, decision, testIds } = req.body || {};
   if (!["prescribe", "order_tests", "admit"].includes(decision)) {
     return res.status(400).json({ success: false, message: "A valid decision is required." });
+  }
+  if (decision === "order_tests" && (!Array.isArray(testIds) || testIds.length === 0)) {
+    return res.status(400).json({ success: false, message: "Select at least one test to order." });
   }
 
   try {
@@ -796,6 +894,14 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
       [req.params.id, patientUhid, userId, symptoms || null, notes || null, decision]
     );
     await pool.query(`UPDATE \`${dbName}\`.opd_visits SET status = 'completed' WHERE id = ?`, [req.params.id]);
+
+    if (decision === "order_tests") {
+      const values = testIds.map((testId) => [req.params.id, patientUhid, testId, userId]);
+      await pool.query(
+        `INSERT INTO \`${dbName}\`.lab_orders (opd_visit_id, patient_uhid, test_id, doctor_user_id) VALUES ?`,
+        [values]
+      );
+    }
 
     let admissionId = null;
     let admissionAlreadyExisted = false;
@@ -822,6 +928,117 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
     res.json({ success: true, admissionId, admissionAlreadyExisted });
   } catch (err) {
     console.error("Record consultation error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Lab orders (Pathology / Laboratory / Radiology queues) ----------
+
+app.get("/api/lab-orders", requireRole("pathology_staff", "hospital_admin"), async (req, res) => {
+  const { department, scope } = req.query;
+  try {
+    const { dbName, userId } = req.session.user;
+    let query = `SELECT lo.id, lo.patient_uhid, p.full_name AS patient_name, lo.test_id, tc.name AS test_name,
+                        tc.category, tc.department, lo.doctor_user_id, u.full_name AS doctor_name,
+                        lo.status, lo.assigned_to, a.full_name AS assigned_to_name,
+                        lo.result_notes, lo.result_file_name, lo.completed_by, lo.completed_at, lo.created_at
+                 FROM \`${dbName}\`.lab_orders lo
+                 LEFT JOIN \`${dbName}\`.patients p ON p.uhid = lo.patient_uhid
+                 LEFT JOIN \`${dbName}\`.test_catalog tc ON tc.id = lo.test_id
+                 LEFT JOIN \`${dbName}\`.users u ON u.user_id = lo.doctor_user_id
+                 LEFT JOIN \`${dbName}\`.users a ON a.user_id = lo.assigned_to`;
+    const conditions = [];
+    const params = [];
+
+    if (department) {
+      conditions.push("tc.department = ?");
+      params.push(department);
+    }
+    if (scope === "unclaimed") {
+      conditions.push("lo.status = 'pending'");
+    } else if (scope === "mine") {
+      conditions.push("lo.assigned_to = ? AND lo.status != 'completed'");
+      params.push(userId);
+    } else if (scope === "completed") {
+      conditions.push("lo.status = 'completed'");
+    }
+    if (conditions.length) {
+      query += ` WHERE ${conditions.join(" AND ")}`;
+    }
+    query += " ORDER BY lo.created_at DESC";
+
+    const [rows] = await pool.query(query, params);
+    res.json({ success: true, orders: rows });
+  } catch (err) {
+    console.error("List lab orders error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.post("/api/lab-orders/:id/claim", requireRole("pathology_staff"), async (req, res) => {
+  try {
+    const { dbName, userId } = req.session.user;
+    const [result] = await pool.query(
+      `UPDATE \`${dbName}\`.lab_orders SET assigned_to = ?, status = 'in_progress'
+       WHERE id = ? AND status = 'pending'`,
+      [userId, req.params.id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(409).json({ success: false, message: "This order has already been claimed." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Claim lab order error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.post(
+  "/api/lab-orders/:id/complete",
+  requireRole("pathology_staff"),
+  labResultUpload.single("file"),
+  async (req, res) => {
+    const { resultNotes } = req.body || {};
+    try {
+      const { dbName, userId } = req.session.user;
+      const [result] = await pool.query(
+        `UPDATE \`${dbName}\`.lab_orders
+         SET status = 'completed', result_notes = ?, result_file_path = ?, result_file_name = ?,
+             assigned_to = COALESCE(assigned_to, ?), completed_by = ?, completed_at = NOW()
+         WHERE id = ? AND status != 'completed'`,
+        [
+          resultNotes || null,
+          req.file ? req.file.filename : null,
+          req.file ? req.file.originalname : null,
+          userId,
+          userId,
+          req.params.id,
+        ]
+      );
+      if (result.affectedRows === 0) {
+        return res.status(409).json({ success: false, message: "This order was already completed." });
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Complete lab order error:", err.message);
+      res.status(500).json({ success: false, message: "Server error. Please try again." });
+    }
+  }
+);
+
+app.get("/api/lab-orders/:id/result-file", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT result_file_path, result_file_name FROM \`${dbName}\`.lab_orders WHERE id = ? LIMIT 1`,
+      [req.params.id]
+    );
+    if (rows.length === 0 || !rows[0].result_file_path) {
+      return res.status(404).json({ success: false, message: "No result file found." });
+    }
+    res.download(path.join(UPLOADS_DIR, rows[0].result_file_path), rows[0].result_file_name || "result");
+  } catch (err) {
+    console.error("Download lab result error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
@@ -892,6 +1109,109 @@ app.get("/api/beds/available", requireTenantUser, async (req, res) => {
   }
 });
 
+// ---------- Nurse shift roster (ward_based assignment mode) ----------
+
+app.get("/api/nurse-roster", requireRole("hospital_admin"), async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT r.id, r.nurse_user_id, u.full_name AS nurse_name, r.ward_id, w.name AS ward_name,
+              r.shift, r.day_of_week
+       FROM \`${dbName}\`.nurse_shift_roster r
+       LEFT JOIN \`${dbName}\`.users u ON u.user_id = r.nurse_user_id
+       LEFT JOIN \`${dbName}\`.wards w ON w.id = r.ward_id
+       ORDER BY r.day_of_week, r.shift, w.name`
+    );
+    res.json({ success: true, roster: rows });
+  } catch (err) {
+    console.error("List nurse roster error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.post("/api/nurse-roster", requireRole("hospital_admin"), async (req, res) => {
+  const { nurseUserId, wardId, shift, dayOfWeek } = req.body || {};
+  if (!nurseUserId || !wardId || !shift || dayOfWeek === undefined || dayOfWeek === null) {
+    return res.status(400).json({
+      success: false,
+      message: "Nurse, ward, shift, and day are required.",
+    });
+  }
+  try {
+    const { dbName } = req.session.user;
+    const [result] = await pool.query(
+      `INSERT INTO \`${dbName}\`.nurse_shift_roster (nurse_user_id, ward_id, shift, day_of_week)
+       VALUES (?, ?, ?, ?)`,
+      [nurseUserId, wardId, shift, dayOfWeek]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    console.error("Create nurse roster entry error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.delete("/api/nurse-roster/:id", requireRole("hospital_admin"), async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM \`${req.session.user.dbName}\`.nurse_shift_roster WHERE id = ?`, [
+      req.params.id,
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete nurse roster entry error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Doctor-nurse teams (doctor_team assignment mode) ----------
+
+app.get("/api/doctor-nurse-teams", requireRole("hospital_admin"), async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT t.id, t.doctor_user_id, d.full_name AS doctor_name, t.nurse_user_id, n.full_name AS nurse_name
+       FROM \`${dbName}\`.doctor_nurse_teams t
+       LEFT JOIN \`${dbName}\`.users d ON d.user_id = t.doctor_user_id
+       LEFT JOIN \`${dbName}\`.users n ON n.user_id = t.nurse_user_id
+       ORDER BY d.full_name, n.full_name`
+    );
+    res.json({ success: true, teams: rows });
+  } catch (err) {
+    console.error("List doctor-nurse teams error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.post("/api/doctor-nurse-teams", requireRole("hospital_admin"), async (req, res) => {
+  const { doctorUserId, nurseUserId } = req.body || {};
+  if (!doctorUserId || !nurseUserId) {
+    return res.status(400).json({ success: false, message: "Doctor and nurse are required." });
+  }
+  try {
+    const { dbName } = req.session.user;
+    const [result] = await pool.query(
+      `INSERT INTO \`${dbName}\`.doctor_nurse_teams (doctor_user_id, nurse_user_id) VALUES (?, ?)`,
+      [doctorUserId, nurseUserId]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    console.error("Create doctor-nurse team error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.delete("/api/doctor-nurse-teams/:id", requireRole("hospital_admin"), async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM \`${req.session.user.dbName}\`.doctor_nurse_teams WHERE id = ?`, [
+      req.params.id,
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete doctor-nurse team error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
 // ---------- IPD admissions ----------
 
 app.post("/api/ipd/admissions", requireReceptionistOrAdmin, async (req, res) => {
@@ -933,20 +1253,31 @@ app.post("/api/ipd/admissions", requireReceptionistOrAdmin, async (req, res) => 
 
 app.get("/api/ipd/admissions", requireTenantUser, async (req, res) => {
   const { status } = req.query;
+  // Nurses can only ever list their own patients; other roles may pass assignedNurseId for oversight.
+  const assignedNurseId =
+    req.session.user.role === "nurse" ? req.session.user.userId : req.query.assignedNurseId;
   try {
     const { dbName } = req.session.user;
     let query = `SELECT a.id, a.patient_uhid, a.admitting_doctor_user_id, a.ward_id, a.bed_id, a.status,
-                        a.created_at, a.admitted_at, p.full_name AS patient_name, u.full_name AS doctor_name,
-                        w.name AS ward_name, b.bed_number
+                        a.assigned_nurse_id, a.created_at, a.admitted_at, p.full_name AS patient_name,
+                        u.full_name AS doctor_name, w.name AS ward_name, b.bed_number
                  FROM \`${dbName}\`.ipd_admissions a
                  LEFT JOIN \`${dbName}\`.patients p ON p.uhid = a.patient_uhid
                  LEFT JOIN \`${dbName}\`.users u ON u.user_id = a.admitting_doctor_user_id
                  LEFT JOIN \`${dbName}\`.wards w ON w.id = a.ward_id
                  LEFT JOIN \`${dbName}\`.beds b ON b.id = a.bed_id`;
+    const conditions = [];
     const params = [];
     if (status) {
-      query += " WHERE a.status = ?";
+      conditions.push("a.status = ?");
       params.push(status);
+    }
+    if (assignedNurseId) {
+      conditions.push("a.assigned_nurse_id = ?");
+      params.push(assignedNurseId);
+    }
+    if (conditions.length) {
+      query += ` WHERE ${conditions.join(" AND ")}`;
     }
     query += " ORDER BY a.created_at DESC";
 
@@ -1027,7 +1358,14 @@ app.post("/api/ipd/admissions/:id/allocate-bed", requireRole("nurse", "hospital_
     );
     await pool.query(`UPDATE \`${dbName}\`.beds SET status = 'occupied' WHERE id = ?`, [bedId]);
 
-    res.json({ success: true });
+    const nurseAssignment = await assignNurseForAdmission(
+      pool,
+      dbName,
+      req.session.user.hospitalId,
+      req.params.id
+    );
+
+    res.json({ success: true, nurseAssignment });
   } catch (err) {
     console.error("Allocate bed error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });

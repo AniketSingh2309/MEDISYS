@@ -54,6 +54,13 @@
           <option value="admit">Requires admission</option>
         </select>
 
+        <div id="testOrderSection" hidden style="margin-top: 12px;">
+          <label for="testSearchInput">Search tests</label>
+          <div id="selectedTestChips" class="test-chip-row"></div>
+          <input type="text" id="testSearchInput" placeholder="Type a test name (e.g. CBC, LFT, Chest X-Ray)..." autocomplete="off" />
+          <div id="testSearchResults" class="test-search-results"></div>
+        </div>
+
         <p class="form-error" id="consultError" role="alert" aria-live="polite"></p>
 
         <div class="wizard-nav">
