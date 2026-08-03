@@ -7,13 +7,11 @@ const session = require("express-session");
 const bcrypt = require("bcrypt");
 const multer = require("multer");
 const pool = require("./db");
-const { ensureSchema, ensureTenantSchema, buildTenantDbName } = require("./schema");
+const { ensureSchema, seedTestCatalog } = require("./schema");
 const { buildShortCode, generateStaffUserId, generateTempPassword, generateUhid } = require("./credentials");
 const { ROLE_PREFIXES, ROLE_LABELS, STAFF_ROLES, DESIGNATION_PREFIXES } = require("./roles");
 const { computeAvailableSlots } = require("./slots");
 const { assignNurseForAdmission } = require("./nurseAssignment");
-
-const TENANT_DB_NAME_PATTERN = /^medisys_h\d+_[a-z0-9_]+$/;
 
 const UPLOADS_DIR = path.join(__dirname, "uploads", "lab-results");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -97,12 +95,12 @@ app.post("/api/login", async (req, res) => {
 
   try {
     const [directoryRows] = await pool.query(
-      "SELECT hospital_id, db_name, account_type FROM user_directory WHERE user_id = ? LIMIT 1",
+      "SELECT hospital_id, account_type FROM user_directory WHERE user_id = ? LIMIT 1",
       [userId]
     );
 
     if (directoryRows.length > 0) {
-      const { hospital_id: hospitalId, db_name: dbName, account_type: accountType } = directoryRows[0];
+      const { hospital_id: hospitalId, account_type: accountType } = directoryRows[0];
 
       const [hospitalRows] = await pool.query("SELECT name FROM hospitals WHERE id = ? LIMIT 1", [
         hospitalId,
@@ -114,8 +112,8 @@ app.post("/api/login", async (req, res) => {
 
       if (accountType === "patient") {
         const [patientRows] = await pool.query(
-          `SELECT uhid, password_hash, full_name FROM \`${dbName}\`.patients WHERE uhid = ? LIMIT 1`,
-          [userId]
+          "SELECT uhid, password_hash, full_name FROM patients WHERE uhid = ? AND hospital_id = ? LIMIT 1",
+          [userId, hospitalId]
         );
 
         if (patientRows.length === 0) {
@@ -135,15 +133,14 @@ app.post("/api/login", async (req, res) => {
           role: "patient",
           hospitalId,
           hospitalName: hospitalRows[0].name,
-          dbName,
         };
 
         return res.json({ success: true, user: req.session.user });
       }
 
       const [userRows] = await pool.query(
-        `SELECT user_id, password_hash, full_name, role, details FROM \`${dbName}\`.users WHERE user_id = ? LIMIT 1`,
-        [userId]
+        "SELECT user_id, password_hash, full_name, role, details FROM users WHERE user_id = ? AND hospital_id = ? LIMIT 1",
+        [userId, hospitalId]
       );
 
       if (userRows.length === 0) {
@@ -164,14 +161,13 @@ app.post("/api/login", async (req, res) => {
         details: tenantUser.details || {},
         hospitalId,
         hospitalName: hospitalRows[0].name,
-        dbName,
       };
 
       return res.json({ success: true, user: req.session.user });
     }
 
     const [rows] = await pool.query(
-      "SELECT user_id, password_hash, full_name, role FROM users WHERE user_id = ? LIMIT 1",
+      "SELECT user_id, password_hash, full_name, role FROM users WHERE user_id = ? AND role = 'superadmin' LIMIT 1",
       [userId]
     );
 
@@ -211,7 +207,7 @@ app.get("/api/session", (req, res) => {
 app.get("/api/hospitals", requireSuperadmin, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, name, city, state, bed_count, status, admin_name, admin_email, short_code, admin_user_id, db_name, created_at
+      `SELECT id, name, city, state, bed_count, status, admin_name, admin_email, short_code, admin_user_id, created_at
        FROM hospitals ORDER BY created_at DESC`
     );
     res.json({ success: true, hospitals: rows });
@@ -226,7 +222,7 @@ app.get("/api/hospitals/:id", requireSuperadmin, async (req, res) => {
     const [rows] = await pool.query(
       `SELECT id, name, license_number, pan, hfr_id, address, city, state, pincode,
               bed_count, opd_volume, admin_name, admin_email, modules, dpdp_consent,
-              status, short_code, admin_user_id, db_name, created_at
+              status, short_code, admin_user_id, created_at
        FROM hospitals WHERE id = ? LIMIT 1`,
       [req.params.id]
     );
@@ -287,14 +283,15 @@ app.get("/api/me", requireTenantUser, (req, res) => {
 
 app.get("/api/hospital/staff", requireHospitalAdmin, async (req, res) => {
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     const [rows] = await pool.query(
       `SELECT u.id, u.user_id, u.full_name, u.email, u.phone, u.role, u.details, u.created_at,
               d.name AS department_name
-       FROM \`${dbName}\`.users u
-       LEFT JOIN \`${dbName}\`.departments d ON d.id = u.department_id
-       WHERE u.role != 'hospital_admin'
-       ORDER BY u.role, u.full_name`
+       FROM users u
+       LEFT JOIN departments d ON d.id = u.department_id
+       WHERE u.hospital_id = ? AND u.role != 'hospital_admin'
+       ORDER BY u.role, u.full_name`,
+      [hospitalId]
     );
     res.json({ success: true, staff: rows });
   } catch (err) {
@@ -347,7 +344,7 @@ app.post("/api/hospital/staff", requireHospitalAdmin, async (req, res) => {
       }
     }
 
-    const { hospitalId, dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     const [hospitalRows] = await pool.query("SELECT short_code FROM hospitals WHERE id = ? LIMIT 1", [
       hospitalId,
     ]);
@@ -362,9 +359,10 @@ app.post("/api/hospital/staff", requireHospitalAdmin, async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 12);
 
     await pool.query(
-      `INSERT INTO \`${dbName}\`.users (user_id, password_hash, full_name, role, email, phone, details, department_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (hospital_id, user_id, password_hash, full_name, role, email, phone, details, department_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        hospitalId,
         userId,
         passwordHash,
         fullName,
@@ -376,10 +374,9 @@ app.post("/api/hospital/staff", requireHospitalAdmin, async (req, res) => {
       ]
     );
 
-    await pool.query("INSERT INTO user_directory (user_id, hospital_id, db_name) VALUES (?, ?, ?)", [
+    await pool.query("INSERT INTO user_directory (user_id, hospital_id) VALUES (?, ?)", [
       userId,
       hospitalId,
-      dbName,
     ]);
 
     res.json({
@@ -402,11 +399,11 @@ app.get("/api/patients/search", requireTenantUser, async (req, res) => {
     const like = `%${q}%`;
     const [rows] = await pool.query(
       `SELECT uhid, full_name, dob, gender, phone, category, created_at
-       FROM \`${req.session.user.dbName}\`.patients
-       WHERE full_name LIKE ? OR phone LIKE ? OR uhid LIKE ? OR abha_id = ?
+       FROM patients
+       WHERE hospital_id = ? AND (full_name LIKE ? OR phone LIKE ? OR uhid LIKE ? OR abha_id = ?)
        ORDER BY created_at DESC
        LIMIT 20`,
-      [like, like, like, q]
+      [req.session.user.hospitalId, like, like, like, q]
     );
     res.json({ success: true, patients: rows });
   } catch (err) {
@@ -420,8 +417,8 @@ app.get("/api/patients/:uhid", requireTenantUser, async (req, res) => {
     const [rows] = await pool.query(
       `SELECT uhid, full_name, dob, gender, phone, address, emergency_contact_name,
               emergency_contact_phone, abha_id, category, registered_by, created_at
-       FROM \`${req.session.user.dbName}\`.patients WHERE uhid = ? LIMIT 1`,
-      [req.params.uhid]
+       FROM patients WHERE uhid = ? AND hospital_id = ? LIMIT 1`,
+      [req.params.uhid, req.session.user.hospitalId]
     );
 
     if (rows.length === 0) {
@@ -466,7 +463,7 @@ app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
   }
 
   try {
-    const { hospitalId, dbName, userId } = req.session.user;
+    const { hospitalId, userId } = req.session.user;
 
     if (customUhid) {
       const [taken] = await pool.query("SELECT user_id FROM user_directory WHERE user_id = ?", [
@@ -489,11 +486,12 @@ app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 12);
 
     const [result] = await pool.query(
-      `INSERT INTO \`${dbName}\`.patients
-        (uhid, password_hash, full_name, dob, gender, phone, address, emergency_contact_name,
+      `INSERT INTO patients
+        (hospital_id, uhid, password_hash, full_name, dob, gender, phone, address, emergency_contact_name,
          emergency_contact_phone, abha_id, category, registered_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        hospitalId,
         customUhid || null,
         passwordHash,
         fullName,
@@ -511,12 +509,12 @@ app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
 
     const uhid = customUhid || generateUhid(shortCode, result.insertId);
     if (!customUhid) {
-      await pool.query(`UPDATE \`${dbName}\`.patients SET uhid = ? WHERE id = ?`, [uhid, result.insertId]);
+      await pool.query(`UPDATE patients SET uhid = ? WHERE id = ?`, [uhid, result.insertId]);
     }
 
     await pool.query(
-      "INSERT INTO user_directory (user_id, hospital_id, db_name, account_type) VALUES (?, ?, ?, 'patient')",
-      [uhid, hospitalId, dbName]
+      "INSERT INTO user_directory (user_id, hospital_id, account_type) VALUES (?, ?, 'patient')",
+      [uhid, hospitalId]
     );
 
     res.json({
@@ -533,20 +531,20 @@ app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
 
 app.get("/api/doctor/patients", requireRole("doctor"), async (req, res) => {
   try {
-    const { dbName, userId } = req.session.user;
+    const { hospitalId, userId } = req.session.user;
     const [rows] = await pool.query(
       `SELECT p.uhid, p.full_name, p.phone, p.gender, p.dob,
-              (SELECT MAX(v.created_at) FROM \`${dbName}\`.opd_visits v WHERE v.patient_uhid = p.uhid AND v.doctor_user_id = ?) AS last_opd_visit,
-              (SELECT COUNT(*) FROM \`${dbName}\`.lab_orders lo WHERE lo.patient_uhid = p.uhid AND lo.doctor_user_id = ? AND lo.status = 'completed') AS completed_report_count,
-              (SELECT COUNT(*) FROM \`${dbName}\`.lab_orders lo WHERE lo.patient_uhid = p.uhid AND lo.doctor_user_id = ? AND lo.status != 'completed') AS pending_report_count
-       FROM \`${dbName}\`.patients p
-       WHERE p.uhid IN (
-         SELECT DISTINCT patient_uhid FROM \`${dbName}\`.opd_visits WHERE doctor_user_id = ?
+              (SELECT MAX(v.created_at) FROM opd_visits v WHERE v.patient_uhid = p.uhid AND v.doctor_user_id = ?) AS last_opd_visit,
+              (SELECT COUNT(*) FROM lab_orders lo WHERE lo.patient_uhid = p.uhid AND lo.doctor_user_id = ? AND lo.status = 'completed') AS completed_report_count,
+              (SELECT COUNT(*) FROM lab_orders lo WHERE lo.patient_uhid = p.uhid AND lo.doctor_user_id = ? AND lo.status != 'completed') AS pending_report_count
+       FROM patients p
+       WHERE p.hospital_id = ? AND p.uhid IN (
+         SELECT DISTINCT patient_uhid FROM opd_visits WHERE doctor_user_id = ? AND hospital_id = ?
          UNION
-         SELECT DISTINCT patient_uhid FROM \`${dbName}\`.ipd_admissions WHERE admitting_doctor_user_id = ?
+         SELECT DISTINCT patient_uhid FROM ipd_admissions WHERE admitting_doctor_user_id = ? AND hospital_id = ?
        )
        ORDER BY p.full_name`,
-      [userId, userId, userId, userId, userId]
+      [userId, userId, userId, hospitalId, userId, hospitalId, userId, hospitalId]
     );
     res.json({ success: true, patients: rows });
   } catch (err) {
@@ -561,9 +559,9 @@ app.get("/api/doctor/schedule", requireRole("doctor"), async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT id, day_of_week, start_time, end_time, slot_minutes
-       FROM \`${req.session.user.dbName}\`.doctor_schedules
-       WHERE doctor_user_id = ? ORDER BY day_of_week, start_time`,
-      [req.session.user.userId]
+       FROM doctor_schedules
+       WHERE hospital_id = ? AND doctor_user_id = ? ORDER BY day_of_week, start_time`,
+      [req.session.user.hospitalId, req.session.user.userId]
     );
     res.json({ success: true, schedule: rows });
   } catch (err) {
@@ -585,10 +583,10 @@ app.post("/api/doctor/schedule", requireRole("doctor"), async (req, res) => {
   }
   try {
     const [result] = await pool.query(
-      `INSERT INTO \`${req.session.user.dbName}\`.doctor_schedules
-        (doctor_user_id, day_of_week, start_time, end_time, slot_minutes)
-       VALUES (?, ?, ?, ?, ?)`,
-      [req.session.user.userId, dayOfWeek, startTime, endTime, slotMinutes || 15]
+      `INSERT INTO doctor_schedules
+        (hospital_id, doctor_user_id, day_of_week, start_time, end_time, slot_minutes)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [req.session.user.hospitalId, req.session.user.userId, dayOfWeek, startTime, endTime, slotMinutes || 15]
     );
     res.json({ success: true, id: result.insertId });
   } catch (err) {
@@ -600,8 +598,8 @@ app.post("/api/doctor/schedule", requireRole("doctor"), async (req, res) => {
 app.delete("/api/doctor/schedule/:id", requireRole("doctor"), async (req, res) => {
   try {
     await pool.query(
-      `DELETE FROM \`${req.session.user.dbName}\`.doctor_schedules WHERE id = ? AND doctor_user_id = ?`,
-      [req.params.id, req.session.user.userId]
+      `DELETE FROM doctor_schedules WHERE id = ? AND hospital_id = ? AND doctor_user_id = ?`,
+      [req.params.id, req.session.user.hospitalId, req.session.user.userId]
     );
     res.json({ success: true });
   } catch (err) {
@@ -617,7 +615,8 @@ app.delete("/api/doctor/schedule/:id", requireRole("doctor"), async (req, res) =
 app.get("/api/departments", requireTenantUser, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, name FROM \`${req.session.user.dbName}\`.departments ORDER BY name`
+      `SELECT id, name FROM departments WHERE hospital_id = ? ORDER BY name`,
+      [req.session.user.hospitalId]
     );
     res.json({ success: true, departments: rows });
   } catch (err) {
@@ -633,8 +632,8 @@ app.post("/api/departments", requireRole("hospital_admin"), async (req, res) => 
   }
   try {
     const [result] = await pool.query(
-      `INSERT INTO \`${req.session.user.dbName}\`.departments (name, created_by) VALUES (?, ?)`,
-      [name, req.session.user.userId]
+      `INSERT INTO departments (hospital_id, name, created_by) VALUES (?, ?, ?)`,
+      [req.session.user.hospitalId, name, req.session.user.userId]
     );
     res.json({ success: true, id: result.insertId });
   } catch (err) {
@@ -645,11 +644,12 @@ app.post("/api/departments", requireRole("hospital_admin"), async (req, res) => 
 
 app.delete("/api/departments/:id", requireRole("hospital_admin"), async (req, res) => {
   try {
-    const { dbName } = req.session.user;
-    await pool.query(`UPDATE \`${dbName}\`.users SET department_id = NULL WHERE department_id = ?`, [
+    const { hospitalId } = req.session.user;
+    await pool.query(`UPDATE users SET department_id = NULL WHERE department_id = ? AND hospital_id = ?`, [
       req.params.id,
+      hospitalId,
     ]);
-    await pool.query(`DELETE FROM \`${dbName}\`.departments WHERE id = ?`, [req.params.id]);
+    await pool.query(`DELETE FROM departments WHERE id = ? AND hospital_id = ?`, [req.params.id, hospitalId]);
     res.json({ success: true });
   } catch (err) {
     console.error("Delete department error:", err.message);
@@ -660,12 +660,12 @@ app.delete("/api/departments/:id", requireRole("hospital_admin"), async (req, re
 app.get("/api/opd/doctors", requireTenantUser, async (req, res) => {
   const { departmentId } = req.query;
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     let query = `SELECT u.user_id, u.full_name, u.details, u.department_id, d.name AS department_name
-                 FROM \`${dbName}\`.users u
-                 LEFT JOIN \`${dbName}\`.departments d ON d.id = u.department_id
-                 WHERE u.role = 'doctor'`;
-    const params = [];
+                 FROM users u
+                 LEFT JOIN departments d ON d.id = u.department_id
+                 WHERE u.hospital_id = ? AND u.role = 'doctor'`;
+    const params = [hospitalId];
     if (departmentId) {
       query += " AND u.department_id = ?";
       params.push(departmentId);
@@ -686,18 +686,18 @@ app.get("/api/opd/slots", requireTenantUser, async (req, res) => {
     return res.status(400).json({ success: false, message: "doctorUserId and date are required." });
   }
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     const dayOfWeek = new Date(`${date}T00:00:00`).getDay();
 
     const [scheduleRows] = await pool.query(
-      `SELECT start_time, end_time, slot_minutes FROM \`${dbName}\`.doctor_schedules
-       WHERE doctor_user_id = ? AND day_of_week = ?`,
-      [doctorUserId, dayOfWeek]
+      `SELECT start_time, end_time, slot_minutes FROM doctor_schedules
+       WHERE hospital_id = ? AND doctor_user_id = ? AND day_of_week = ?`,
+      [hospitalId, doctorUserId, dayOfWeek]
     );
     const [bookedRows] = await pool.query(
-      `SELECT slot_time FROM \`${dbName}\`.opd_visits
-       WHERE doctor_user_id = ? AND visit_date = ? AND slot_time IS NOT NULL`,
-      [doctorUserId, date]
+      `SELECT slot_time FROM opd_visits
+       WHERE hospital_id = ? AND doctor_user_id = ? AND visit_date = ? AND slot_time IS NOT NULL`,
+      [hospitalId, doctorUserId, date]
     );
 
     const slots = computeAvailableSlots(
@@ -718,12 +718,12 @@ app.post("/api/opd/visits", requireReceptionistOrAdmin, async (req, res) => {
   }
 
   try {
-    const { dbName, userId } = req.session.user;
+    const { hospitalId, userId } = req.session.user;
 
     if (slotTime) {
       const [conflict] = await pool.query(
-        `SELECT id FROM \`${dbName}\`.opd_visits WHERE doctor_user_id = ? AND visit_date = ? AND slot_time = ?`,
-        [doctorUserId, visitDate, slotTime]
+        `SELECT id FROM opd_visits WHERE hospital_id = ? AND doctor_user_id = ? AND visit_date = ? AND slot_time = ?`,
+        [hospitalId, doctorUserId, visitDate, slotTime]
       );
       if (conflict.length > 0) {
         return res.status(409).json({
@@ -734,22 +734,23 @@ app.post("/api/opd/visits", requireReceptionistOrAdmin, async (req, res) => {
     }
 
     const [countRows] = await pool.query(
-      `SELECT COUNT(*) AS cnt FROM \`${dbName}\`.opd_visits WHERE visit_date = ?`,
-      [visitDate]
+      `SELECT COUNT(*) AS cnt FROM opd_visits WHERE hospital_id = ? AND visit_date = ?`,
+      [hospitalId, visitDate]
     );
     const tokenNumber = countRows[0].cnt + 1;
 
-    const [patientRows] = await pool.query(`SELECT phone FROM \`${dbName}\`.patients WHERE uhid = ? LIMIT 1`, [
-      patientUhid,
-    ]);
+    const [patientRows] = await pool.query(
+      `SELECT phone FROM patients WHERE uhid = ? AND hospital_id = ? LIMIT 1`,
+      [patientUhid, hospitalId]
+    );
     const patientPhone = patientRows[0]?.phone;
     const source = slotTime ? "appointment" : "walk-in";
 
     const [result] = await pool.query(
-      `INSERT INTO \`${dbName}\`.opd_visits
-        (token_number, patient_uhid, doctor_user_id, visit_date, slot_time, source, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?)`,
-      [tokenNumber, patientUhid, doctorUserId, visitDate, slotTime || null, source, userId]
+      `INSERT INTO opd_visits
+        (hospital_id, token_number, patient_uhid, doctor_user_id, visit_date, slot_time, source, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
+      [hospitalId, tokenNumber, patientUhid, doctorUserId, visitDate, slotTime || null, source, userId]
     );
 
     const confirmation = patientPhone
@@ -775,14 +776,14 @@ app.get("/api/opd/queue", requireTenantUser, async (req, res) => {
   const visitDate = date || new Date().toISOString().slice(0, 10);
 
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     let query = `SELECT v.id, v.token_number, v.patient_uhid, v.doctor_user_id, v.visit_date, v.slot_time,
                         v.source, v.status, p.full_name AS patient_name, u.full_name AS doctor_name
-                 FROM \`${dbName}\`.opd_visits v
-                 LEFT JOIN \`${dbName}\`.patients p ON p.uhid = v.patient_uhid
-                 LEFT JOIN \`${dbName}\`.users u ON u.user_id = v.doctor_user_id
-                 WHERE v.visit_date = ?`;
-    const params = [visitDate];
+                 FROM opd_visits v
+                 LEFT JOIN patients p ON p.uhid = v.patient_uhid
+                 LEFT JOIN users u ON u.user_id = v.doctor_user_id
+                 WHERE v.hospital_id = ? AND v.visit_date = ?`;
+    const params = [hospitalId, visitDate];
 
     if (doctorUserId) {
       query += " AND v.doctor_user_id = ?";
@@ -804,9 +805,10 @@ app.patch("/api/opd/visits/:id/status", requireRole("doctor", "hospital_admin"),
     return res.status(400).json({ success: false, message: "Invalid status." });
   }
   try {
-    await pool.query(`UPDATE \`${req.session.user.dbName}\`.opd_visits SET status = ? WHERE id = ?`, [
+    await pool.query(`UPDATE opd_visits SET status = ? WHERE id = ? AND hospital_id = ?`, [
       status,
       req.params.id,
+      req.session.user.hospitalId,
     ]);
     res.json({ success: true });
   } catch (err) {
@@ -819,26 +821,26 @@ app.patch("/api/opd/visits/:id/status", requireRole("doctor", "hospital_admin"),
 
 app.get("/api/patients/:uhid/history", requireTenantUser, async (req, res) => {
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     const [consultations] = await pool.query(
       `SELECT c.id, c.symptoms, c.notes, c.decision, c.created_at, u.full_name AS doctor_name
-       FROM \`${dbName}\`.consultations c
-       LEFT JOIN \`${dbName}\`.users u ON u.user_id = c.doctor_user_id
-       WHERE c.patient_uhid = ? ORDER BY c.created_at DESC`,
-      [req.params.uhid]
+       FROM consultations c
+       LEFT JOIN users u ON u.user_id = c.doctor_user_id
+       WHERE c.hospital_id = ? AND c.patient_uhid = ? ORDER BY c.created_at DESC`,
+      [hospitalId, req.params.uhid]
     );
     const [admissions] = await pool.query(
       `SELECT id, status, admission_notes, created_at, admitted_at
-       FROM \`${dbName}\`.ipd_admissions WHERE patient_uhid = ? ORDER BY created_at DESC`,
-      [req.params.uhid]
+       FROM ipd_admissions WHERE hospital_id = ? AND patient_uhid = ? ORDER BY created_at DESC`,
+      [hospitalId, req.params.uhid]
     );
     const [labOrders] = await pool.query(
       `SELECT lo.id, tc.name AS test_name, tc.category, tc.department, lo.status,
               lo.result_notes, lo.result_file_name, lo.completed_at, lo.created_at
-       FROM \`${dbName}\`.lab_orders lo
-       LEFT JOIN \`${dbName}\`.test_catalog tc ON tc.id = lo.test_id
-       WHERE lo.patient_uhid = ? ORDER BY lo.created_at DESC`,
-      [req.params.uhid]
+       FROM lab_orders lo
+       LEFT JOIN test_catalog tc ON tc.id = lo.test_id
+       WHERE lo.hospital_id = ? AND lo.patient_uhid = ? ORDER BY lo.created_at DESC`,
+      [hospitalId, req.params.uhid]
     );
     res.json({ success: true, history: { consultations, admissions, labOrders } });
   } catch (err) {
@@ -852,12 +854,11 @@ app.get("/api/patients/:uhid/history", requireTenantUser, async (req, res) => {
 app.get("/api/tests/search", requireTenantUser, async (req, res) => {
   const q = (req.query.q || "").trim();
   try {
-    const { dbName } = req.session.user;
     const [rows] = await pool.query(
       `SELECT id, name, category, department, sample_type, price, turnaround_hours
-       FROM \`${dbName}\`.test_catalog
-       WHERE name LIKE ? ORDER BY name LIMIT 20`,
-      [`%${q}%`]
+       FROM test_catalog
+       WHERE hospital_id = ? AND name LIKE ? ORDER BY name LIMIT 20`,
+      [req.session.user.hospitalId, `%${q}%`]
     );
     res.json({ success: true, tests: rows });
   } catch (err) {
@@ -878,10 +879,10 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
   }
 
   try {
-    const { dbName, userId } = req.session.user;
+    const { hospitalId, userId } = req.session.user;
     const [visitRows] = await pool.query(
-      `SELECT patient_uhid FROM \`${dbName}\`.opd_visits WHERE id = ? LIMIT 1`,
-      [req.params.id]
+      `SELECT patient_uhid FROM opd_visits WHERE id = ? AND hospital_id = ? LIMIT 1`,
+      [req.params.id, hospitalId]
     );
     if (visitRows.length === 0) {
       return res.status(404).json({ success: false, message: "Visit not found." });
@@ -889,16 +890,19 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
     const patientUhid = visitRows[0].patient_uhid;
 
     await pool.query(
-      `INSERT INTO \`${dbName}\`.consultations (opd_visit_id, patient_uhid, doctor_user_id, symptoms, notes, decision)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [req.params.id, patientUhid, userId, symptoms || null, notes || null, decision]
+      `INSERT INTO consultations (hospital_id, opd_visit_id, patient_uhid, doctor_user_id, symptoms, notes, decision)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [hospitalId, req.params.id, patientUhid, userId, symptoms || null, notes || null, decision]
     );
-    await pool.query(`UPDATE \`${dbName}\`.opd_visits SET status = 'completed' WHERE id = ?`, [req.params.id]);
+    await pool.query(`UPDATE opd_visits SET status = 'completed' WHERE id = ? AND hospital_id = ?`, [
+      req.params.id,
+      hospitalId,
+    ]);
 
     if (decision === "order_tests") {
-      const values = testIds.map((testId) => [req.params.id, patientUhid, testId, userId]);
+      const values = testIds.map((testId) => [hospitalId, req.params.id, patientUhid, testId, userId]);
       await pool.query(
-        `INSERT INTO \`${dbName}\`.lab_orders (opd_visit_id, patient_uhid, test_id, doctor_user_id) VALUES ?`,
+        `INSERT INTO lab_orders (hospital_id, opd_visit_id, patient_uhid, test_id, doctor_user_id) VALUES ?`,
         [values]
       );
     }
@@ -907,9 +911,9 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
     let admissionAlreadyExisted = false;
     if (decision === "admit") {
       const [existing] = await pool.query(
-        `SELECT id FROM \`${dbName}\`.ipd_admissions
-         WHERE patient_uhid = ? AND status IN ('requested', 'admitted') LIMIT 1`,
-        [patientUhid]
+        `SELECT id FROM ipd_admissions
+         WHERE hospital_id = ? AND patient_uhid = ? AND status IN ('requested', 'admitted') LIMIT 1`,
+        [hospitalId, patientUhid]
       );
 
       if (existing.length > 0) {
@@ -917,9 +921,9 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
         admissionAlreadyExisted = true;
       } else {
         const [admissionResult] = await pool.query(
-          `INSERT INTO \`${dbName}\`.ipd_admissions (patient_uhid, admitting_doctor_user_id, opd_visit_id, created_by)
-           VALUES (?, ?, ?, ?)`,
-          [patientUhid, userId, req.params.id, userId]
+          `INSERT INTO ipd_admissions (hospital_id, patient_uhid, admitting_doctor_user_id, opd_visit_id, created_by)
+           VALUES (?, ?, ?, ?, ?)`,
+          [hospitalId, patientUhid, userId, req.params.id, userId]
         );
         admissionId = admissionResult.insertId;
       }
@@ -937,18 +941,18 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
 app.get("/api/lab-orders", requireRole("pathology_staff", "hospital_admin"), async (req, res) => {
   const { department, scope } = req.query;
   try {
-    const { dbName, userId } = req.session.user;
+    const { hospitalId, userId } = req.session.user;
     let query = `SELECT lo.id, lo.patient_uhid, p.full_name AS patient_name, lo.test_id, tc.name AS test_name,
                         tc.category, tc.department, lo.doctor_user_id, u.full_name AS doctor_name,
                         lo.status, lo.assigned_to, a.full_name AS assigned_to_name,
                         lo.result_notes, lo.result_file_name, lo.completed_by, lo.completed_at, lo.created_at
-                 FROM \`${dbName}\`.lab_orders lo
-                 LEFT JOIN \`${dbName}\`.patients p ON p.uhid = lo.patient_uhid
-                 LEFT JOIN \`${dbName}\`.test_catalog tc ON tc.id = lo.test_id
-                 LEFT JOIN \`${dbName}\`.users u ON u.user_id = lo.doctor_user_id
-                 LEFT JOIN \`${dbName}\`.users a ON a.user_id = lo.assigned_to`;
-    const conditions = [];
-    const params = [];
+                 FROM lab_orders lo
+                 LEFT JOIN patients p ON p.uhid = lo.patient_uhid
+                 LEFT JOIN test_catalog tc ON tc.id = lo.test_id
+                 LEFT JOIN users u ON u.user_id = lo.doctor_user_id
+                 LEFT JOIN users a ON a.user_id = lo.assigned_to`;
+    const conditions = ["lo.hospital_id = ?"];
+    const params = [hospitalId];
 
     if (department) {
       conditions.push("tc.department = ?");
@@ -977,11 +981,11 @@ app.get("/api/lab-orders", requireRole("pathology_staff", "hospital_admin"), asy
 
 app.post("/api/lab-orders/:id/claim", requireRole("pathology_staff"), async (req, res) => {
   try {
-    const { dbName, userId } = req.session.user;
+    const { hospitalId, userId } = req.session.user;
     const [result] = await pool.query(
-      `UPDATE \`${dbName}\`.lab_orders SET assigned_to = ?, status = 'in_progress'
-       WHERE id = ? AND status = 'pending'`,
-      [userId, req.params.id]
+      `UPDATE lab_orders SET assigned_to = ?, status = 'in_progress'
+       WHERE id = ? AND hospital_id = ? AND status = 'pending'`,
+      [userId, req.params.id, hospitalId]
     );
     if (result.affectedRows === 0) {
       return res.status(409).json({ success: false, message: "This order has already been claimed." });
@@ -1000,12 +1004,12 @@ app.post(
   async (req, res) => {
     const { resultNotes } = req.body || {};
     try {
-      const { dbName, userId } = req.session.user;
+      const { hospitalId, userId } = req.session.user;
       const [result] = await pool.query(
-        `UPDATE \`${dbName}\`.lab_orders
+        `UPDATE lab_orders
          SET status = 'completed', result_notes = ?, result_file_path = ?, result_file_name = ?,
              assigned_to = COALESCE(assigned_to, ?), completed_by = ?, completed_at = NOW()
-         WHERE id = ? AND status != 'completed'`,
+         WHERE id = ? AND hospital_id = ? AND status != 'completed'`,
         [
           resultNotes || null,
           req.file ? req.file.filename : null,
@@ -1013,6 +1017,7 @@ app.post(
           userId,
           userId,
           req.params.id,
+          hospitalId,
         ]
       );
       if (result.affectedRows === 0) {
@@ -1028,10 +1033,10 @@ app.post(
 
 app.get("/api/lab-orders/:id/result-file", requireTenantUser, async (req, res) => {
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     const [rows] = await pool.query(
-      `SELECT result_file_path, result_file_name FROM \`${dbName}\`.lab_orders WHERE id = ? LIMIT 1`,
-      [req.params.id]
+      `SELECT result_file_path, result_file_name FROM lab_orders WHERE id = ? AND hospital_id = ? LIMIT 1`,
+      [req.params.id, hospitalId]
     );
     if (rows.length === 0 || !rows[0].result_file_path) {
       return res.status(404).json({ success: false, message: "No result file found." });
@@ -1047,10 +1052,13 @@ app.get("/api/lab-orders/:id/result-file", requireTenantUser, async (req, res) =
 
 app.get("/api/wards", requireTenantUser, async (req, res) => {
   try {
-    const { dbName } = req.session.user;
-    const [wards] = await pool.query(`SELECT id, name FROM \`${dbName}\`.wards ORDER BY name`);
+    const { hospitalId } = req.session.user;
+    const [wards] = await pool.query(`SELECT id, name FROM wards WHERE hospital_id = ? ORDER BY name`, [
+      hospitalId,
+    ]);
     const [beds] = await pool.query(
-      `SELECT id, ward_id, bed_number, status FROM \`${dbName}\`.beds ORDER BY bed_number`
+      `SELECT id, ward_id, bed_number, status FROM beds WHERE hospital_id = ? ORDER BY bed_number`,
+      [hospitalId]
     );
     const wardsWithBeds = wards.map((w) => ({ ...w, beds: beds.filter((b) => b.ward_id === w.id) }));
     res.json({ success: true, wards: wardsWithBeds });
@@ -1067,8 +1075,8 @@ app.post("/api/wards", requireRole("nurse", "hospital_admin"), async (req, res) 
   }
   try {
     const [result] = await pool.query(
-      `INSERT INTO \`${req.session.user.dbName}\`.wards (name, created_by) VALUES (?, ?)`,
-      [name, req.session.user.userId]
+      `INSERT INTO wards (hospital_id, name, created_by) VALUES (?, ?, ?)`,
+      [req.session.user.hospitalId, name, req.session.user.userId]
     );
     res.json({ success: true, id: result.insertId });
   } catch (err) {
@@ -1084,8 +1092,8 @@ app.post("/api/wards/:wardId/beds", requireRole("nurse", "hospital_admin"), asyn
   }
   try {
     const [result] = await pool.query(
-      `INSERT INTO \`${req.session.user.dbName}\`.beds (ward_id, bed_number) VALUES (?, ?)`,
-      [req.params.wardId, bedNumber]
+      `INSERT INTO beds (hospital_id, ward_id, bed_number) VALUES (?, ?, ?)`,
+      [req.session.user.hospitalId, req.params.wardId, bedNumber]
     );
     res.json({ success: true, id: result.insertId });
   } catch (err) {
@@ -1096,11 +1104,12 @@ app.post("/api/wards/:wardId/beds", requireRole("nurse", "hospital_admin"), asyn
 
 app.get("/api/beds/available", requireTenantUser, async (req, res) => {
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     const [rows] = await pool.query(
       `SELECT b.id, b.bed_number, w.id AS ward_id, w.name AS ward_name
-       FROM \`${dbName}\`.beds b JOIN \`${dbName}\`.wards w ON w.id = b.ward_id
-       WHERE b.status = 'available' ORDER BY w.name, b.bed_number`
+       FROM beds b JOIN wards w ON w.id = b.ward_id
+       WHERE b.hospital_id = ? AND b.status = 'available' ORDER BY w.name, b.bed_number`,
+      [hospitalId]
     );
     res.json({ success: true, beds: rows });
   } catch (err) {
@@ -1113,14 +1122,16 @@ app.get("/api/beds/available", requireTenantUser, async (req, res) => {
 
 app.get("/api/nurse-roster", requireRole("hospital_admin"), async (req, res) => {
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     const [rows] = await pool.query(
       `SELECT r.id, r.nurse_user_id, u.full_name AS nurse_name, r.ward_id, w.name AS ward_name,
               r.shift, r.day_of_week
-       FROM \`${dbName}\`.nurse_shift_roster r
-       LEFT JOIN \`${dbName}\`.users u ON u.user_id = r.nurse_user_id
-       LEFT JOIN \`${dbName}\`.wards w ON w.id = r.ward_id
-       ORDER BY r.day_of_week, r.shift, w.name`
+       FROM nurse_shift_roster r
+       LEFT JOIN users u ON u.user_id = r.nurse_user_id
+       LEFT JOIN wards w ON w.id = r.ward_id
+       WHERE r.hospital_id = ?
+       ORDER BY r.day_of_week, r.shift, w.name`,
+      [hospitalId]
     );
     res.json({ success: true, roster: rows });
   } catch (err) {
@@ -1138,11 +1149,10 @@ app.post("/api/nurse-roster", requireRole("hospital_admin"), async (req, res) =>
     });
   }
   try {
-    const { dbName } = req.session.user;
     const [result] = await pool.query(
-      `INSERT INTO \`${dbName}\`.nurse_shift_roster (nurse_user_id, ward_id, shift, day_of_week)
-       VALUES (?, ?, ?, ?)`,
-      [nurseUserId, wardId, shift, dayOfWeek]
+      `INSERT INTO nurse_shift_roster (hospital_id, nurse_user_id, ward_id, shift, day_of_week)
+       VALUES (?, ?, ?, ?, ?)`,
+      [req.session.user.hospitalId, nurseUserId, wardId, shift, dayOfWeek]
     );
     res.json({ success: true, id: result.insertId });
   } catch (err) {
@@ -1153,8 +1163,9 @@ app.post("/api/nurse-roster", requireRole("hospital_admin"), async (req, res) =>
 
 app.delete("/api/nurse-roster/:id", requireRole("hospital_admin"), async (req, res) => {
   try {
-    await pool.query(`DELETE FROM \`${req.session.user.dbName}\`.nurse_shift_roster WHERE id = ?`, [
+    await pool.query(`DELETE FROM nurse_shift_roster WHERE id = ? AND hospital_id = ?`, [
       req.params.id,
+      req.session.user.hospitalId,
     ]);
     res.json({ success: true });
   } catch (err) {
@@ -1167,13 +1178,15 @@ app.delete("/api/nurse-roster/:id", requireRole("hospital_admin"), async (req, r
 
 app.get("/api/doctor-nurse-teams", requireRole("hospital_admin"), async (req, res) => {
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     const [rows] = await pool.query(
       `SELECT t.id, t.doctor_user_id, d.full_name AS doctor_name, t.nurse_user_id, n.full_name AS nurse_name
-       FROM \`${dbName}\`.doctor_nurse_teams t
-       LEFT JOIN \`${dbName}\`.users d ON d.user_id = t.doctor_user_id
-       LEFT JOIN \`${dbName}\`.users n ON n.user_id = t.nurse_user_id
-       ORDER BY d.full_name, n.full_name`
+       FROM doctor_nurse_teams t
+       LEFT JOIN users d ON d.user_id = t.doctor_user_id
+       LEFT JOIN users n ON n.user_id = t.nurse_user_id
+       WHERE t.hospital_id = ?
+       ORDER BY d.full_name, n.full_name`,
+      [hospitalId]
     );
     res.json({ success: true, teams: rows });
   } catch (err) {
@@ -1188,10 +1201,9 @@ app.post("/api/doctor-nurse-teams", requireRole("hospital_admin"), async (req, r
     return res.status(400).json({ success: false, message: "Doctor and nurse are required." });
   }
   try {
-    const { dbName } = req.session.user;
     const [result] = await pool.query(
-      `INSERT INTO \`${dbName}\`.doctor_nurse_teams (doctor_user_id, nurse_user_id) VALUES (?, ?)`,
-      [doctorUserId, nurseUserId]
+      `INSERT INTO doctor_nurse_teams (hospital_id, doctor_user_id, nurse_user_id) VALUES (?, ?, ?)`,
+      [req.session.user.hospitalId, doctorUserId, nurseUserId]
     );
     res.json({ success: true, id: result.insertId });
   } catch (err) {
@@ -1202,8 +1214,9 @@ app.post("/api/doctor-nurse-teams", requireRole("hospital_admin"), async (req, r
 
 app.delete("/api/doctor-nurse-teams/:id", requireRole("hospital_admin"), async (req, res) => {
   try {
-    await pool.query(`DELETE FROM \`${req.session.user.dbName}\`.doctor_nurse_teams WHERE id = ?`, [
+    await pool.query(`DELETE FROM doctor_nurse_teams WHERE id = ? AND hospital_id = ?`, [
       req.params.id,
+      req.session.user.hospitalId,
     ]);
     res.json({ success: true });
   } catch (err) {
@@ -1220,10 +1233,10 @@ app.post("/api/ipd/admissions", requireReceptionistOrAdmin, async (req, res) => 
     return res.status(400).json({ success: false, message: "Patient is required." });
   }
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     const [existing] = await pool.query(
-      `SELECT id FROM \`${dbName}\`.ipd_admissions WHERE patient_uhid = ? AND status IN ('requested', 'admitted') LIMIT 1`,
-      [patientUhid]
+      `SELECT id FROM ipd_admissions WHERE hospital_id = ? AND patient_uhid = ? AND status IN ('requested', 'admitted') LIMIT 1`,
+      [hospitalId, patientUhid]
     );
     if (existing.length > 0) {
       return res.status(409).json({
@@ -1233,10 +1246,11 @@ app.post("/api/ipd/admissions", requireReceptionistOrAdmin, async (req, res) => 
     }
 
     const [result] = await pool.query(
-      `INSERT INTO \`${dbName}\`.ipd_admissions
-        (patient_uhid, admitting_doctor_user_id, consent_obtained, id_proof_note, created_by)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO ipd_admissions
+        (hospital_id, patient_uhid, admitting_doctor_user_id, consent_obtained, id_proof_note, created_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
+        hospitalId,
         patientUhid,
         admittingDoctorUserId || null,
         !!consentObtained,
@@ -1257,27 +1271,24 @@ app.get("/api/ipd/admissions", requireTenantUser, async (req, res) => {
   const assignedNurseId =
     req.session.user.role === "nurse" ? req.session.user.userId : req.query.assignedNurseId;
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     let query = `SELECT a.id, a.patient_uhid, a.admitting_doctor_user_id, a.ward_id, a.bed_id, a.status,
                         a.assigned_nurse_id, a.created_at, a.admitted_at, p.full_name AS patient_name,
                         u.full_name AS doctor_name, w.name AS ward_name, b.bed_number
-                 FROM \`${dbName}\`.ipd_admissions a
-                 LEFT JOIN \`${dbName}\`.patients p ON p.uhid = a.patient_uhid
-                 LEFT JOIN \`${dbName}\`.users u ON u.user_id = a.admitting_doctor_user_id
-                 LEFT JOIN \`${dbName}\`.wards w ON w.id = a.ward_id
-                 LEFT JOIN \`${dbName}\`.beds b ON b.id = a.bed_id`;
-    const conditions = [];
-    const params = [];
+                 FROM ipd_admissions a
+                 LEFT JOIN patients p ON p.uhid = a.patient_uhid
+                 LEFT JOIN users u ON u.user_id = a.admitting_doctor_user_id
+                 LEFT JOIN wards w ON w.id = a.ward_id
+                 LEFT JOIN beds b ON b.id = a.bed_id
+                 WHERE a.hospital_id = ?`;
+    const params = [hospitalId];
     if (status) {
-      conditions.push("a.status = ?");
+      query += " AND a.status = ?";
       params.push(status);
     }
     if (assignedNurseId) {
-      conditions.push("a.assigned_nurse_id = ?");
+      query += " AND a.assigned_nurse_id = ?";
       params.push(assignedNurseId);
-    }
-    if (conditions.length) {
-      query += ` WHERE ${conditions.join(" AND ")}`;
     }
     query += " ORDER BY a.created_at DESC";
 
@@ -1291,17 +1302,17 @@ app.get("/api/ipd/admissions", requireTenantUser, async (req, res) => {
 
 app.get("/api/ipd/admissions/:id", requireTenantUser, async (req, res) => {
   try {
-    const { dbName } = req.session.user;
+    const { hospitalId } = req.session.user;
     const [rows] = await pool.query(
       `SELECT a.*, p.full_name AS patient_name, u.full_name AS doctor_name,
               w.name AS ward_name, b.bed_number
-       FROM \`${dbName}\`.ipd_admissions a
-       LEFT JOIN \`${dbName}\`.patients p ON p.uhid = a.patient_uhid
-       LEFT JOIN \`${dbName}\`.users u ON u.user_id = a.admitting_doctor_user_id
-       LEFT JOIN \`${dbName}\`.wards w ON w.id = a.ward_id
-       LEFT JOIN \`${dbName}\`.beds b ON b.id = a.bed_id
-       WHERE a.id = ? LIMIT 1`,
-      [req.params.id]
+       FROM ipd_admissions a
+       LEFT JOIN patients p ON p.uhid = a.patient_uhid
+       LEFT JOIN users u ON u.user_id = a.admitting_doctor_user_id
+       LEFT JOIN wards w ON w.id = a.ward_id
+       LEFT JOIN beds b ON b.id = a.bed_id
+       WHERE a.id = ? AND a.hospital_id = ? LIMIT 1`,
+      [req.params.id, hospitalId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: "Admission not found." });
@@ -1309,23 +1320,23 @@ app.get("/api/ipd/admissions/:id", requireTenantUser, async (req, res) => {
 
     const [orders] = await pool.query(
       `SELECT id, order_type, description, ordered_by, created_at
-       FROM \`${dbName}\`.doctor_orders WHERE ipd_admission_id = ? ORDER BY created_at DESC`,
-      [req.params.id]
+       FROM doctor_orders WHERE hospital_id = ? AND ipd_admission_id = ? ORDER BY created_at DESC`,
+      [hospitalId, req.params.id]
     );
     const [mar] = await pool.query(
       `SELECT id, medicine_name, dose, administered_by, administered_at, notes
-       FROM \`${dbName}\`.medication_administration WHERE ipd_admission_id = ? ORDER BY administered_at DESC`,
-      [req.params.id]
+       FROM medication_administration WHERE hospital_id = ? AND ipd_admission_id = ? ORDER BY administered_at DESC`,
+      [hospitalId, req.params.id]
     );
     const [notes] = await pool.query(
       `SELECT id, note_type, message, flagged_by, created_at
-       FROM \`${dbName}\`.ipd_notes WHERE ipd_admission_id = ? ORDER BY created_at DESC`,
-      [req.params.id]
+       FROM ipd_notes WHERE hospital_id = ? AND ipd_admission_id = ? ORDER BY created_at DESC`,
+      [hospitalId, req.params.id]
     );
     const [vitals] = await pool.query(
       `SELECT id, bp, temperature, weight, spo2, recorded_by, recorded_at
-       FROM \`${dbName}\`.vitals WHERE ipd_admission_id = ? ORDER BY recorded_at DESC`,
-      [req.params.id]
+       FROM vitals WHERE hospital_id = ? AND ipd_admission_id = ? ORDER BY recorded_at DESC`,
+      [hospitalId, req.params.id]
     );
 
     res.json({ success: true, admission: rows[0], orders, mar, notes, vitals });
@@ -1341,10 +1352,11 @@ app.post("/api/ipd/admissions/:id/allocate-bed", requireRole("nurse", "hospital_
     return res.status(400).json({ success: false, message: "Bed is required." });
   }
   try {
-    const { dbName } = req.session.user;
-    const [bedRows] = await pool.query(`SELECT ward_id, status FROM \`${dbName}\`.beds WHERE id = ? LIMIT 1`, [
-      bedId,
-    ]);
+    const { hospitalId } = req.session.user;
+    const [bedRows] = await pool.query(
+      `SELECT ward_id, status FROM beds WHERE id = ? AND hospital_id = ? LIMIT 1`,
+      [bedId, hospitalId]
+    );
     if (bedRows.length === 0) {
       return res.status(404).json({ success: false, message: "Bed not found." });
     }
@@ -1353,17 +1365,15 @@ app.post("/api/ipd/admissions/:id/allocate-bed", requireRole("nurse", "hospital_
     }
 
     await pool.query(
-      `UPDATE \`${dbName}\`.ipd_admissions SET ward_id = ?, bed_id = ?, status = 'admitted', admitted_at = NOW() WHERE id = ?`,
-      [bedRows[0].ward_id, bedId, req.params.id]
+      `UPDATE ipd_admissions SET ward_id = ?, bed_id = ?, status = 'admitted', admitted_at = NOW() WHERE id = ? AND hospital_id = ?`,
+      [bedRows[0].ward_id, bedId, req.params.id, hospitalId]
     );
-    await pool.query(`UPDATE \`${dbName}\`.beds SET status = 'occupied' WHERE id = ?`, [bedId]);
+    await pool.query(`UPDATE beds SET status = 'occupied' WHERE id = ? AND hospital_id = ?`, [
+      bedId,
+      hospitalId,
+    ]);
 
-    const nurseAssignment = await assignNurseForAdmission(
-      pool,
-      dbName,
-      req.session.user.hospitalId,
-      req.params.id
-    );
+    const nurseAssignment = await assignNurseForAdmission(pool, hospitalId, req.params.id);
 
     res.json({ success: true, nurseAssignment });
   } catch (err) {
@@ -1384,9 +1394,9 @@ app.post("/api/ipd/admissions/:id/orders", requireRole("doctor"), async (req, re
   }
   try {
     await pool.query(
-      `INSERT INTO \`${req.session.user.dbName}\`.doctor_orders (ipd_admission_id, order_type, description, ordered_by)
-       VALUES (?, ?, ?, ?)`,
-      [req.params.id, orderType, description, req.session.user.userId]
+      `INSERT INTO doctor_orders (hospital_id, ipd_admission_id, order_type, description, ordered_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [req.session.user.hospitalId, req.params.id, orderType, description, req.session.user.userId]
     );
     res.json({ success: true });
   } catch (err) {
@@ -1404,10 +1414,18 @@ app.post("/api/ipd/admissions/:id/mar", requireRole("nurse"), async (req, res) =
   }
   try {
     await pool.query(
-      `INSERT INTO \`${req.session.user.dbName}\`.medication_administration
-        (ipd_admission_id, doctor_order_id, medicine_name, dose, administered_by, notes)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [req.params.id, doctorOrderId || null, medicineName, dose || null, req.session.user.userId, notes || null]
+      `INSERT INTO medication_administration
+        (hospital_id, ipd_admission_id, doctor_order_id, medicine_name, dose, administered_by, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        req.session.user.hospitalId,
+        req.params.id,
+        doctorOrderId || null,
+        medicineName,
+        dose || null,
+        req.session.user.userId,
+        notes || null,
+      ]
     );
     res.json({ success: true });
   } catch (err) {
@@ -1426,9 +1444,9 @@ app.post("/api/ipd/admissions/:id/notes", requireRole("doctor", "nurse"), async 
   const finalNoteType = noteType || (req.session.user.role === "doctor" ? "doctor_round" : "general");
   try {
     await pool.query(
-      `INSERT INTO \`${req.session.user.dbName}\`.ipd_notes (ipd_admission_id, note_type, message, flagged_by)
-       VALUES (?, ?, ?, ?)`,
-      [req.params.id, finalNoteType, message, req.session.user.userId]
+      `INSERT INTO ipd_notes (hospital_id, ipd_admission_id, note_type, message, flagged_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [req.session.user.hospitalId, req.params.id, finalNoteType, message, req.session.user.userId]
     );
     res.json({ success: true });
   } catch (err) {
@@ -1449,10 +1467,11 @@ app.post("/api/vitals", requireRole("nurse", "hospital_admin"), async (req, res)
   }
   try {
     await pool.query(
-      `INSERT INTO \`${req.session.user.dbName}\`.vitals
-        (patient_uhid, opd_visit_id, ipd_admission_id, bp, temperature, weight, spo2, recorded_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO vitals
+        (hospital_id, patient_uhid, opd_visit_id, ipd_admission_id, bp, temperature, weight, spo2, recorded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        req.session.user.hospitalId,
         patientUhid,
         opdVisitId || null,
         ipdAdmissionId || null,
@@ -1473,9 +1492,9 @@ app.post("/api/vitals", requireRole("nurse", "hospital_admin"), async (req, res)
 app.get("/api/vitals", requireTenantUser, async (req, res) => {
   const { opdVisitId, ipdAdmissionId } = req.query;
   try {
-    const { dbName } = req.session.user;
-    let query = `SELECT id, bp, temperature, weight, spo2, recorded_by, recorded_at FROM \`${dbName}\`.vitals WHERE `;
-    const params = [];
+    const { hospitalId } = req.session.user;
+    let query = `SELECT id, bp, temperature, weight, spo2, recorded_by, recorded_at FROM vitals WHERE hospital_id = ? AND `;
+    const params = [hospitalId];
 
     if (opdVisitId) {
       query += "opd_visit_id = ?";
@@ -1589,8 +1608,6 @@ app.post("/api/hospitals", requireSuperadmin, async (req, res) => {
     );
 
     const hospitalId = result.insertId;
-    const dbName = buildTenantDbName(hospitalId, name);
-    await ensureTenantSchema(pool, dbName);
 
     let shortCode = buildShortCode(name);
     let suffix = 1;
@@ -1606,28 +1623,29 @@ app.post("/api/hospitals", requireSuperadmin, async (req, res) => {
     const passwordHash = await bcrypt.hash(adminPassword, 12);
 
     await pool.query(
-      `INSERT INTO \`${dbName}\`.users (user_id, password_hash, full_name, role)
-       VALUES (?, ?, ?, 'hospital_admin')`,
-      [adminUserId, passwordHash, adminName || null]
+      `INSERT INTO users (hospital_id, user_id, password_hash, full_name, role)
+       VALUES (?, ?, ?, ?, 'hospital_admin')`,
+      [hospitalId, adminUserId, passwordHash, adminName || null]
     );
 
-    await pool.query("INSERT INTO user_directory (user_id, hospital_id, db_name) VALUES (?, ?, ?)", [
+    await pool.query("INSERT INTO user_directory (user_id, hospital_id) VALUES (?, ?)", [
       adminUserId,
       hospitalId,
-      dbName,
     ]);
 
-    await pool.query(
-      "UPDATE hospitals SET db_name = ?, short_code = ?, admin_user_id = ? WHERE id = ?",
-      [dbName, shortCode, adminUserId, hospitalId]
-    );
+    await pool.query("UPDATE hospitals SET short_code = ?, admin_user_id = ? WHERE id = ?", [
+      shortCode,
+      adminUserId,
+      hospitalId,
+    ]);
 
-    console.log(`[hospital] "${name}" registered with database "${dbName}". Admin login: ${adminUserId}`);
+    await seedTestCatalog(pool, hospitalId);
+
+    console.log(`[hospital] "${name}" registered (hospital_id ${hospitalId}). Admin login: ${adminUserId}`);
 
     res.json({
       success: true,
       hospitalId,
-      dbName,
       shortCode,
       admin: { userId: adminUserId, password: adminPassword },
     });
@@ -1639,26 +1657,39 @@ app.post("/api/hospitals", requireSuperadmin, async (req, res) => {
 
 app.delete("/api/hospitals/:id", requireSuperadmin, async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT name, db_name FROM hospitals WHERE id = ? LIMIT 1", [
-      req.params.id,
-    ]);
+    const hospitalId = req.params.id;
+    const [rows] = await pool.query("SELECT name FROM hospitals WHERE id = ? LIMIT 1", [hospitalId]);
 
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: "Hospital not found." });
     }
 
-    const { db_name: dbName } = rows[0];
-
-    if (dbName) {
-      if (!TENANT_DB_NAME_PATTERN.test(dbName)) {
-        console.error(`Refusing to drop database with unexpected name: ${dbName}`);
-        return res.status(500).json({ success: false, message: "Server error. Please try again." });
-      }
-      await pool.query(`DROP DATABASE IF EXISTS \`${dbName}\``);
+    // Every hospital-scoped table, deleted by hospital_id now that all tenants share one database.
+    const scopedTables = [
+      "doctor_nurse_teams",
+      "nurse_shift_roster",
+      "medication_administration",
+      "doctor_orders",
+      "ipd_notes",
+      "vitals",
+      "lab_orders",
+      "consultations",
+      "ipd_admissions",
+      "opd_visits",
+      "beds",
+      "wards",
+      "doctor_schedules",
+      "test_catalog",
+      "patients",
+      "users",
+      "departments",
+    ];
+    for (const table of scopedTables) {
+      await pool.query(`DELETE FROM \`${table}\` WHERE hospital_id = ?`, [hospitalId]);
     }
 
-    await pool.query("DELETE FROM user_directory WHERE hospital_id = ?", [req.params.id]);
-    await pool.query("DELETE FROM hospitals WHERE id = ?", [req.params.id]);
+    await pool.query("DELETE FROM user_directory WHERE hospital_id = ?", [hospitalId]);
+    await pool.query("DELETE FROM hospitals WHERE id = ?", [hospitalId]);
 
     res.json({ success: true });
   } catch (err) {
@@ -1674,17 +1705,14 @@ async function start() {
   try {
     await ensureSchema(connection);
 
-    const [hospitals] = await connection.query(
-      "SELECT id, db_name, admin_user_id FROM hospitals WHERE db_name IS NOT NULL"
-    );
+    const [hospitals] = await connection.query("SELECT id, admin_user_id FROM hospitals");
     for (const hospital of hospitals) {
-      await ensureTenantSchema(connection, hospital.db_name);
+      await seedTestCatalog(connection, hospital.id);
     }
 
     await connection.query(
-      `INSERT IGNORE INTO user_directory (user_id, hospital_id, db_name)
-       SELECT admin_user_id, id, db_name FROM hospitals
-       WHERE admin_user_id IS NOT NULL AND db_name IS NOT NULL`
+      `INSERT IGNORE INTO user_directory (user_id, hospital_id)
+       SELECT admin_user_id, id FROM hospitals WHERE admin_user_id IS NOT NULL`
     );
   } finally {
     connection.release();

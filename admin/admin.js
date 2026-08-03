@@ -160,7 +160,6 @@
           <dt>Current Status</dt>
           <dd><span class="status-badge ${escapeHtml(h.status)}">${escapeHtml(statusLabel)}</span></dd>
           <dt>Registered</dt><dd>${escapeHtml(registered)}</dd>
-          <dt>Isolated Database</dt><dd>${escapeHtml(h.db_name || "—")}</dd>
           <dt>Admin User ID</dt><dd>${escapeHtml(h.admin_user_id || "—")}</dd>
         </dl>
 

@@ -1,16 +1,5 @@
 async function ensureSchema(connection) {
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id VARCHAR(50) NOT NULL UNIQUE,
-      password_hash VARCHAR(255) NOT NULL,
-      full_name VARCHAR(150),
-      role VARCHAR(50) NOT NULL DEFAULT 'user',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await connection.query(`
     CREATE TABLE IF NOT EXISTS hospitals (
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(200) NOT NULL,
@@ -30,7 +19,6 @@ async function ensureSchema(connection) {
       status ENUM('pending_activation','active') NOT NULL DEFAULT 'pending_activation',
       invite_token VARCHAR(64),
       invite_sent_at TIMESTAMP NULL,
-      db_name VARCHAR(150),
       short_code VARCHAR(10),
       admin_user_id VARCHAR(50),
       created_by VARCHAR(50),
@@ -39,63 +27,46 @@ async function ensureSchema(connection) {
   `);
 
   await connection.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id VARCHAR(50) NOT NULL UNIQUE,
+      password_hash VARCHAR(255) NOT NULL,
+      full_name VARCHAR(150),
+      role VARCHAR(50) NOT NULL DEFAULT 'user',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await connection.query(`
     CREATE TABLE IF NOT EXISTS user_directory (
       user_id VARCHAR(50) PRIMARY KEY,
       hospital_id INT NOT NULL,
-      db_name VARCHAR(150) NOT NULL,
       account_type VARCHAR(20) NOT NULL DEFAULT 'staff',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  await ensureColumn(connection, "medisys_hmis", "hospitals", "db_name", "VARCHAR(150)");
-  await ensureColumn(connection, "medisys_hmis", "hospitals", "short_code", "VARCHAR(10)");
-  await ensureColumn(connection, "medisys_hmis", "hospitals", "admin_user_id", "VARCHAR(50)");
-  await ensureColumn(connection, "medisys_hmis", "user_directory", "account_type", "VARCHAR(20) NOT NULL DEFAULT 'staff'");
+  await ensureColumn(connection, "hospitals", "short_code", "VARCHAR(10)");
+  await ensureColumn(connection, "hospitals", "admin_user_id", "VARCHAR(50)");
   await ensureColumn(
     connection,
-    "medisys_hmis",
     "hospitals",
     "nurse_assignment_mode",
     "ENUM('ward_based','doctor_team') NOT NULL DEFAULT 'ward_based'"
   );
-}
+  await ensureColumn(connection, "users", "email", "VARCHAR(150)");
+  await ensureColumn(connection, "users", "phone", "VARCHAR(20)");
+  await ensureColumn(connection, "users", "details", "JSON");
+  await ensureColumn(connection, "users", "department_id", "INT NULL");
+  await ensureColumn(connection, "users", "hospital_id", "INT NULL");
 
-async function ensureColumn(connection, schema, table, column, definition) {
-  const [columns] = await connection.query(
-    `SELECT COLUMN_NAME FROM information_schema.columns
-     WHERE table_schema = ? AND table_name = ? AND COLUMN_NAME = ?`,
-    [schema, table, column]
-  );
-  if (columns.length === 0) {
-    await connection.query(`ALTER TABLE \`${schema}\`.\`${table}\` ADD COLUMN \`${column}\` ${definition}`);
-  }
-}
-
-async function ensureTenantSchema(connection, dbName) {
-  await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.users (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id VARCHAR(50) NOT NULL UNIQUE,
-      password_hash VARCHAR(255) NOT NULL,
-      full_name VARCHAR(150),
-      role VARCHAR(50) NOT NULL DEFAULT 'staff',
-      email VARCHAR(150),
-      phone VARCHAR(20),
-      details JSON,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await ensureColumn(connection, dbName, "users", "email", "VARCHAR(150)");
-  await ensureColumn(connection, dbName, "users", "phone", "VARCHAR(20)");
-  await ensureColumn(connection, dbName, "users", "details", "JSON");
-  await ensureColumn(connection, dbName, "users", "department_id", "INT NULL");
+  await dropColumnIfExists(connection, "hospitals", "db_name");
+  await dropColumnIfExists(connection, "user_directory", "db_name");
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.departments (
+    CREATE TABLE IF NOT EXISTS departments (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       name VARCHAR(100) NOT NULL,
       created_by VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -103,8 +74,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.patients (
+    CREATE TABLE IF NOT EXISTS patients (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       uhid VARCHAR(30) UNIQUE,
       password_hash VARCHAR(255),
       full_name VARCHAR(150) NOT NULL,
@@ -121,11 +93,10 @@ async function ensureTenantSchema(connection, dbName) {
     )
   `);
 
-  await ensureColumn(connection, dbName, "patients", "password_hash", "VARCHAR(255)");
-
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.doctor_schedules (
+    CREATE TABLE IF NOT EXISTS doctor_schedules (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       doctor_user_id VARCHAR(50) NOT NULL,
       day_of_week TINYINT NOT NULL,
       start_time TIME NOT NULL,
@@ -136,8 +107,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.wards (
+    CREATE TABLE IF NOT EXISTS wards (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       name VARCHAR(100) NOT NULL,
       department_id INT NULL,
       created_by VARCHAR(50),
@@ -145,11 +117,10 @@ async function ensureTenantSchema(connection, dbName) {
     )
   `);
 
-  await ensureColumn(connection, dbName, "wards", "department_id", "INT NULL");
-
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.beds (
+    CREATE TABLE IF NOT EXISTS beds (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       ward_id INT NOT NULL,
       bed_number VARCHAR(20) NOT NULL,
       status VARCHAR(20) NOT NULL DEFAULT 'available',
@@ -158,8 +129,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.opd_visits (
+    CREATE TABLE IF NOT EXISTS opd_visits (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       token_number INT NOT NULL,
       patient_uhid VARCHAR(30) NOT NULL,
       doctor_user_id VARCHAR(50) NOT NULL,
@@ -173,8 +145,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.vitals (
+    CREATE TABLE IF NOT EXISTS vitals (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       patient_uhid VARCHAR(30) NOT NULL,
       opd_visit_id INT NULL,
       ipd_admission_id INT NULL,
@@ -188,8 +161,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.consultations (
+    CREATE TABLE IF NOT EXISTS consultations (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       opd_visit_id INT NOT NULL,
       patient_uhid VARCHAR(30) NOT NULL,
       doctor_user_id VARCHAR(50) NOT NULL,
@@ -201,8 +175,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.ipd_admissions (
+    CREATE TABLE IF NOT EXISTS ipd_admissions (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       patient_uhid VARCHAR(30) NOT NULL,
       admitting_doctor_user_id VARCHAR(50),
       ward_id INT NULL,
@@ -212,17 +187,17 @@ async function ensureTenantSchema(connection, dbName) {
       admission_notes TEXT,
       status VARCHAR(20) NOT NULL DEFAULT 'requested',
       opd_visit_id INT NULL,
+      assigned_nurse_id VARCHAR(50) NULL,
       created_by VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       admitted_at TIMESTAMP NULL
     )
   `);
 
-  await ensureColumn(connection, dbName, "ipd_admissions", "assigned_nurse_id", "VARCHAR(50) NULL");
-
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.doctor_orders (
+    CREATE TABLE IF NOT EXISTS doctor_orders (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       ipd_admission_id INT NOT NULL,
       order_type VARCHAR(20) NOT NULL,
       description TEXT NOT NULL,
@@ -232,8 +207,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.medication_administration (
+    CREATE TABLE IF NOT EXISTS medication_administration (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       ipd_admission_id INT NOT NULL,
       doctor_order_id INT NULL,
       medicine_name VARCHAR(150) NOT NULL,
@@ -245,8 +221,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.ipd_notes (
+    CREATE TABLE IF NOT EXISTS ipd_notes (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       ipd_admission_id INT NOT NULL,
       note_type VARCHAR(20) NOT NULL,
       message TEXT NOT NULL,
@@ -256,8 +233,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.test_catalog (
+    CREATE TABLE IF NOT EXISTS test_catalog (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       name VARCHAR(150) NOT NULL,
       category VARCHAR(30) NOT NULL,
       department VARCHAR(50),
@@ -270,8 +248,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.lab_orders (
+    CREATE TABLE IF NOT EXISTS lab_orders (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       opd_visit_id INT NULL,
       ipd_admission_id INT NULL,
       patient_uhid VARCHAR(30) NOT NULL,
@@ -288,17 +267,10 @@ async function ensureTenantSchema(connection, dbName) {
     )
   `);
 
-  await ensureColumn(connection, dbName, "lab_orders", "result_notes", "TEXT NULL");
-  await ensureColumn(connection, dbName, "lab_orders", "result_file_path", "VARCHAR(255) NULL");
-  await ensureColumn(connection, dbName, "lab_orders", "result_file_name", "VARCHAR(255) NULL");
-  await ensureColumn(connection, dbName, "lab_orders", "completed_by", "VARCHAR(50) NULL");
-  await ensureColumn(connection, dbName, "lab_orders", "completed_at", "TIMESTAMP NULL");
-
-  await seedTestCatalog(connection, dbName);
-
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.nurse_shift_roster (
+    CREATE TABLE IF NOT EXISTS nurse_shift_roster (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       nurse_user_id VARCHAR(50) NOT NULL,
       ward_id INT NOT NULL,
       shift VARCHAR(20) NOT NULL,
@@ -308,8 +280,9 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS \`${dbName}\`.doctor_nurse_teams (
+    CREATE TABLE IF NOT EXISTS doctor_nurse_teams (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
       doctor_user_id VARCHAR(50) NOT NULL,
       nurse_user_id VARCHAR(50) NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -317,8 +290,33 @@ async function ensureTenantSchema(connection, dbName) {
   `);
 }
 
-async function seedTestCatalog(connection, dbName) {
-  const [[{ cnt }]] = await connection.query(`SELECT COUNT(*) AS cnt FROM \`${dbName}\`.test_catalog`);
+async function ensureColumn(connection, table, column, definition) {
+  const [columns] = await connection.query(
+    `SELECT COLUMN_NAME FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = ? AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+  if (columns.length === 0) {
+    await connection.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+  }
+}
+
+async function dropColumnIfExists(connection, table, column) {
+  const [columns] = await connection.query(
+    `SELECT COLUMN_NAME FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = ? AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+  if (columns.length > 0) {
+    await connection.query(`ALTER TABLE \`${table}\` DROP COLUMN \`${column}\``);
+  }
+}
+
+async function seedTestCatalog(connection, hospitalId) {
+  const [[{ cnt }]] = await connection.query(
+    "SELECT COUNT(*) AS cnt FROM test_catalog WHERE hospital_id = ?",
+    [hospitalId]
+  );
   if (cnt > 0) return;
 
   const tests = [
@@ -353,18 +351,9 @@ async function seedTestCatalog(connection, dbName) {
   ];
 
   await connection.query(
-    `INSERT INTO \`${dbName}\`.test_catalog (name, category, department, sample_type, price, turnaround_hours) VALUES ?`,
-    [tests]
+    `INSERT INTO test_catalog (hospital_id, name, category, department, sample_type, price, turnaround_hours) VALUES ?`,
+    [tests.map((t) => [hospitalId, ...t])]
   );
 }
 
-function buildTenantDbName(id, name) {
-  const slug = String(name)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 40);
-  return `medisys_h${id}_${slug}`.slice(0, 64);
-}
-
-module.exports = { ensureSchema, ensureTenantSchema, buildTenantDbName };
+module.exports = { ensureSchema, seedTestCatalog };

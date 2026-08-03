@@ -50,24 +50,26 @@ function resolveNurseAssignment({ mode, wardId, doctorUserId, shift, dayOfWeek, 
 }
 
 // DB-wiring shell around the pure function above — called the moment a bed is allocated.
-async function assignNurseForAdmission(pool, dbName, hospitalId, admissionId) {
+async function assignNurseForAdmission(pool, hospitalId, admissionId) {
   const [[hospitalRow]] = await pool.query("SELECT nurse_assignment_mode FROM hospitals WHERE id = ? LIMIT 1", [
     hospitalId,
   ]);
   const mode = hospitalRow?.nurse_assignment_mode || "ward_based";
 
   const [[admissionRow]] = await pool.query(
-    `SELECT ward_id, admitting_doctor_user_id FROM \`${dbName}\`.ipd_admissions WHERE id = ? LIMIT 1`,
-    [admissionId]
+    `SELECT ward_id, admitting_doctor_user_id FROM ipd_admissions WHERE id = ? AND hospital_id = ? LIMIT 1`,
+    [admissionId, hospitalId]
   );
   if (!admissionRow) return null;
 
   const [rosterRows] = await pool.query(
     `SELECT nurse_user_id AS nurseUserId, ward_id AS wardId, shift, day_of_week AS dayOfWeek
-     FROM \`${dbName}\`.nurse_shift_roster`
+     FROM nurse_shift_roster WHERE hospital_id = ?`,
+    [hospitalId]
   );
   const [teamRows] = await pool.query(
-    `SELECT doctor_user_id AS doctorUserId, nurse_user_id AS nurseUserId FROM \`${dbName}\`.doctor_nurse_teams`
+    `SELECT doctor_user_id AS doctorUserId, nurse_user_id AS nurseUserId FROM doctor_nurse_teams WHERE hospital_id = ?`,
+    [hospitalId]
   );
 
   const result = resolveNurseAssignment({
@@ -80,19 +82,21 @@ async function assignNurseForAdmission(pool, dbName, hospitalId, admissionId) {
     teams: teamRows,
   });
 
-  await pool.query(`UPDATE \`${dbName}\`.ipd_admissions SET assigned_nurse_id = ? WHERE id = ?`, [
+  await pool.query(`UPDATE ipd_admissions SET assigned_nurse_id = ? WHERE id = ? AND hospital_id = ?`, [
     result.nurseUserId,
     admissionId,
+    hospitalId,
   ]);
 
   if (result.alert) {
     console.error(
-      `[nurse-assignment] No nurse available for admission #${admissionId} in ${dbName} (ward ${admissionRow.ward_id}).`
+      `[nurse-assignment] No nurse available for admission #${admissionId} in hospital ${hospitalId} (ward ${admissionRow.ward_id}).`
     );
     await pool.query(
-      `INSERT INTO \`${dbName}\`.ipd_notes (ipd_admission_id, note_type, message, flagged_by)
-       VALUES (?, 'alert', ?, 'system')`,
+      `INSERT INTO ipd_notes (hospital_id, ipd_admission_id, note_type, message, flagged_by)
+       VALUES (?, ?, 'alert', ?, 'system')`,
       [
+        hospitalId,
         admissionId,
         `No nurse could be auto-assigned for this admission (ward ${admissionRow.ward_id}). Manual assignment required.`,
       ]
