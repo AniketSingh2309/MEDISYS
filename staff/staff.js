@@ -100,9 +100,13 @@
           ? "Claim imaging orders and upload reports"
           : "Claim pathology/lab orders and upload results";
       actionCards.innerHTML = actionCard("lab-queue.html", "queue", label, hint);
+    } else if (role === "pharmacist") {
+      actionCards.innerHTML = actionCard("pharmacy-queue.html", "queue", "Pharmacy Queue", "View pending prescriptions and dispense medicines");
     }
 
-    const moduleKey = role === "pathology_staff" ? null : ROLE_MODULE[role];
+    // Only show "Coming soon" for roles that have a ROLE_MODULE but no action cards yet.
+    // Since pharmacist now has an action card, we can omit it from the generic grid.
+    const moduleKey = (role === "pathology_staff" || role === "pharmacist") ? null : ROLE_MODULE[role];
     const grid = document.getElementById("staffModuleGrid");
     grid.innerHTML = moduleKey
       ? `<div class="module-card readonly">

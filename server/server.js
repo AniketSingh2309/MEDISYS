@@ -1048,6 +1048,405 @@ app.get("/api/lab-orders/:id/result-file", requireTenantUser, async (req, res) =
   }
 });
 
+// ---------- Pharmacy Orders ----------
+
+app.post("/api/pharmacy-orders", requireRole("doctor"), async (req, res) => {
+  const { opdVisitId, ipdAdmissionId, patientUhid, medicineName, dosage, duration, urgency } = req.body;
+  if (!patientUhid || !medicineName || !dosage || !duration) {
+    return res.status(400).json({ success: false, message: "Missing required fields." });
+  }
+  try {
+    const { dbName, userId } = req.session.user;
+    await pool.query(
+      `INSERT INTO \`${dbName}\`.pharmacy_orders 
+       (opd_visit_id, ipd_admission_id, patient_uhid, doctor_user_id, medicine_name, dosage, duration, urgency) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [opdVisitId || null, ipdAdmissionId || null, patientUhid, userId, medicineName, dosage, duration, urgency || 'routine']
+    );
+    res.json({ success: true, message: "Prescription sent to pharmacy." });
+  } catch (err) {
+    console.error("Create pharmacy order error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/pharmacy-orders", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const [orders] = await pool.query(
+      `SELECT po.*, p.full_name as patient_name, p.dob as patient_dob, p.gender as patient_gender 
+       FROM \`${dbName}\`.pharmacy_orders po
+       LEFT JOIN \`${dbName}\`.patients p ON po.patient_uhid = p.uhid
+       ORDER BY po.created_at DESC`
+    );
+    res.json({ success: true, orders });
+  } catch (err) {
+    console.error("Get pharmacy orders error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/pharmacy-orders/:id/dispense", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName, userId } = req.session.user;
+    const orderId = req.params.id;
+
+    // 1. Get the order to find medicine name
+    const [orders] = await pool.query(
+      `SELECT * FROM \`${dbName}\`.pharmacy_orders WHERE id = ?`, [orderId]
+    );
+    if (orders.length === 0) {
+      return res.status(404).json({ success: false, message: "Order not found." });
+    }
+    const order = orders[0];
+    if (order.status === 'dispensed') {
+      return res.status(400).json({ success: false, message: "Already dispensed." });
+    }
+
+    // 2. Auto-deduct stock — find matching stock by medicine name (case-insensitive, closest match)
+    //    Pick the batch with earliest expiry (FEFO — First Expiry First Out) that has stock > 0
+    const medName = order.medicine_name.trim();
+    const [matchingStock] = await pool.query(
+      `SELECT * FROM \`${dbName}\`.pharmacy_stock 
+       WHERE LOWER(medicine_name) LIKE CONCAT('%', LOWER(?), '%') AND stock_quantity > 0
+       ORDER BY expiry_date ASC LIMIT 1`,
+      [medName]
+    );
+
+    let stockDeducted = false;
+    let stockWarning = null;
+    if (matchingStock.length > 0) {
+      const stock = matchingStock[0];
+      await pool.query(
+        `UPDATE \`${dbName}\`.pharmacy_stock SET stock_quantity = stock_quantity - 1 WHERE id = ? AND stock_quantity > 0`,
+        [stock.id]
+      );
+      stockDeducted = true;
+      if (stock.stock_quantity - 1 <= stock.min_stock_level) {
+        stockWarning = `Low stock alert: ${stock.medicine_name} has only ${stock.stock_quantity - 1} left.`;
+      }
+    }
+
+    // 3. Mark order as dispensed
+    await pool.query(
+      `UPDATE \`${dbName}\`.pharmacy_orders SET status = 'dispensed', dispensed_by = ?, dispensed_at = NOW() WHERE id = ?`,
+      [userId, orderId]
+    );
+
+    // 4. Auto-create Invoice in pharmacy_invoices table
+    let patientName = "Patient (" + order.patient_uhid + ")";
+    const [pRows] = await pool.query(`SELECT full_name FROM \`${dbName}\`.patients WHERE uhid = ?`, [order.patient_uhid]);
+    if (pRows.length > 0 && pRows[0].full_name) {
+      patientName = pRows[0].full_name;
+    }
+
+    const invNum = "PHINV-" + (8800 + Math.floor(Math.random() * 1000));
+    let invAmount = order.amount || 15.00;
+    if (matchingStock.length > 0 && matchingStock[0].unit_price) {
+      invAmount = matchingStock[0].unit_price;
+    }
+
+    await pool.query(
+      `INSERT INTO \`${dbName}\`.pharmacy_invoices 
+       (invoice_number, order_id, patient_uhid, patient_name, payment_type, item_count, total_amount, payment_status, created_by)
+       VALUES (?, ?, ?, ?, 'Cash', 1, ?, 'Pending', ?)`,
+      [invNum, orderId, order.patient_uhid, patientName, invAmount, userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: "Medicine dispensed successfully.",
+      stockDeducted,
+      stockWarning,
+      invoiceNumber: invNum
+    });
+  } catch (err) {
+    console.error("Dispense pharmacy order error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// ---------- Pharmacy Invoices / Billing ----------
+
+app.get("/api/pharmacy-invoices", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const [invoices] = await pool.query(
+      `SELECT * FROM \`${dbName}\`.pharmacy_invoices ORDER BY created_at DESC`
+    );
+    
+    // Calculate stats
+    let totalBilled = 0;
+    let collected = 0;
+    let pendingCount = 0;
+
+    invoices.forEach(inv => {
+      const amt = parseFloat(inv.total_amount) || 0;
+      totalBilled += amt;
+      if (inv.payment_status === 'Paid') {
+        collected += amt;
+      } else {
+        pendingCount += 1;
+      }
+    });
+
+    res.json({
+      success: true,
+      invoices,
+      stats: {
+        totalBilled,
+        collected,
+        pendingCount
+      }
+    });
+  } catch (err) {
+    console.error("Get pharmacy invoices error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/pharmacy-invoices/:id/pay", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const { paymentType } = req.body || {};
+    const pType = paymentType && paymentType.trim() ? paymentType.trim() : 'Cash';
+
+    await pool.query(
+      `UPDATE \`${dbName}\`.pharmacy_invoices SET payment_status = 'Paid', payment_type = ?, paid_at = NOW() WHERE id = ?`,
+      [pType, req.params.id]
+    );
+    res.json({ success: true, message: "Payment marked as Paid." });
+  } catch (err) {
+    console.error("Mark invoice paid error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// ---------- Pharmacy Patients Directory ----------
+
+app.get("/api/pharmacy-patients", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const query = req.query.search ? req.query.search.trim() : '';
+
+    let sql = `
+      SELECT p.uhid, p.full_name, p.dob, p.gender, p.phone,
+             COUNT(po.id) as total_prescriptions,
+             MAX(po.created_at) as last_dispensed_at
+      FROM \`${dbName}\`.patients p
+      LEFT JOIN \`${dbName}\`.pharmacy_orders po ON p.uhid = po.patient_uhid
+    `;
+    const params = [];
+
+    if (query) {
+      sql += ` WHERE p.full_name LIKE ? OR p.uhid LIKE ? OR p.phone LIKE ?`;
+      params.push(`%${query}%`, `%${query}%`, `%${query}%`);
+    }
+
+    sql += ` GROUP BY p.uhid, p.full_name, p.dob, p.gender, p.phone ORDER BY last_dispensed_at DESC, p.full_name ASC LIMIT 50`;
+
+    const [patients] = await pool.query(sql, params);
+    res.json({ success: true, patients });
+  } catch (err) {
+    console.error("Get pharmacy patients error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/pharmacy-patients/:uhid/history", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const { uhid } = req.params;
+
+    const [orders] = await pool.query(
+      `SELECT po.*, u.full_name as doctor_name
+       FROM \`${dbName}\`.pharmacy_orders po
+       LEFT JOIN \`${dbName}\`.users u ON po.doctor_user_id = u.user_id
+       WHERE po.patient_uhid = ?
+       ORDER BY po.created_at DESC`,
+      [uhid]
+    );
+
+    res.json({ success: true, orders });
+  } catch (err) {
+    console.error("Get patient pharmacy history error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// ---------- Direct Pharmacy Sale / Auto Stock Deduct ----------
+
+app.post("/api/pharmacy-direct-sale", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName, userId } = req.session.user;
+    const { stockId, quantity, patientName, phone, paymentMode } = req.body;
+
+    const qty = parseInt(quantity, 10);
+    if (!stockId || !qty || qty <= 0) {
+      return res.status(400).json({ success: false, message: "Valid medicine and quantity are required." });
+    }
+
+    // 1. Check stock availability
+    const [stocks] = await pool.query(`SELECT * FROM \`${dbName}\`.pharmacy_stock WHERE id = ?`, [stockId]);
+    if (stocks.length === 0) {
+      return res.status(404).json({ success: false, message: "Medicine stock item not found." });
+    }
+
+    const stock = stocks[0];
+    if (stock.stock_quantity < qty) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Insufficient stock. Only ${stock.stock_quantity} left in stock.` 
+      });
+    }
+
+    // 2. Auto-deduct stock
+    await pool.query(
+      `UPDATE \`${dbName}\`.pharmacy_stock SET stock_quantity = stock_quantity - ? WHERE id = ?`,
+      [qty, stockId]
+    );
+
+    // 3. Create Bill Invoice (Pending Payment)
+    const invNum = "PHINV-" + (8800 + Math.floor(Math.random() * 1000));
+    const unitPrice = parseFloat(stock.unit_price) || 15.00;
+    const totalAmount = unitPrice * qty;
+    const pName = patientName && patientName.trim() ? patientName.trim() : "Walk-in Counter Patient";
+    const pUhid = phone && phone.trim() ? "PH-" + phone.trim() : "WALKIN-OTC";
+
+    await pool.query(
+      `INSERT INTO \`${dbName}\`.pharmacy_invoices 
+       (invoice_number, patient_uhid, patient_name, payment_type, item_count, total_amount, payment_status, created_by)
+       VALUES (?, ?, ?, 'Pending', ?, ?, 'Pending', ?)`,
+      [invNum, pUhid, pName, qty, totalAmount, userId]
+    );
+
+    res.json({
+      success: true,
+      message: `Successfully dispensed ${qty} unit(s) of ${stock.medicine_name}. Stock auto-deducted!`,
+      newQuantity: stock.stock_quantity - qty,
+      invoiceNumber: invNum
+    });
+  } catch (err) {
+    console.error("Direct pharmacy sale error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// ---------- Pharmacy Stock ----------
+
+app.get("/api/pharmacy-stock", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const [stock] = await pool.query(
+      `SELECT * FROM \`${dbName}\`.pharmacy_stock ORDER BY medicine_name ASC`
+    );
+    res.json({ success: true, stock });
+  } catch (err) {
+    console.error("Get pharmacy stock error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/pharmacy-stock", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName, userId } = req.session.user;
+    const { medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel, unitPrice } = req.body;
+    
+    if (!medicineName || !category || !batchNumber || !expiryDate || stockQuantity === undefined) {
+      return res.status(400).json({ success: false, message: "Missing required fields." });
+    }
+
+    await pool.query(
+      `INSERT INTO \`${dbName}\`.pharmacy_stock 
+       (medicine_name, category, batch_number, expiry_date, stock_quantity, min_stock_level, unit_price, added_by) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel || 10, unitPrice || null, userId]
+    );
+    res.json({ success: true, message: "Stock added successfully." });
+  } catch (err) {
+    console.error("Add pharmacy stock error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// Edit stock
+app.put("/api/pharmacy-stock/:id", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const { medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel, unitPrice } = req.body;
+    await pool.query(
+      `UPDATE \`${dbName}\`.pharmacy_stock SET 
+       medicine_name = ?, category = ?, batch_number = ?, expiry_date = ?, 
+       stock_quantity = ?, min_stock_level = ?, unit_price = ?
+       WHERE id = ?`,
+      [medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel || 10, unitPrice || null, req.params.id]
+    );
+    res.json({ success: true, message: "Stock updated." });
+  } catch (err) {
+    console.error("Update pharmacy stock error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// Delete stock
+app.delete("/api/pharmacy-stock/:id", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    await pool.query(`DELETE FROM \`${dbName}\`.pharmacy_stock WHERE id = ?`, [req.params.id]);
+    res.json({ success: true, message: "Stock entry deleted." });
+  } catch (err) {
+    console.error("Delete pharmacy stock error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// ---------- Pharmacy Purchase Orders ----------
+
+app.get("/api/pharmacy-purchase-orders", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName } = req.session.user;
+    const [orders] = await pool.query(
+      `SELECT * FROM \`${dbName}\`.pharmacy_purchase_orders ORDER BY created_at DESC`
+    );
+    res.json({ success: true, orders });
+  } catch (err) {
+    console.error("Get purchase orders error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/pharmacy-purchase-orders/auto-generate", requireTenantUser, async (req, res) => {
+  try {
+    const { dbName, userId } = req.session.user;
+    
+    // Find all low/out of stock items
+    const [lowStock] = await pool.query(
+      `SELECT * FROM \`${dbName}\`.pharmacy_stock WHERE stock_quantity <= min_stock_level`
+    );
+
+    if (lowStock.length === 0) {
+      return res.json({ success: false, message: "Nothing needs reordering right now." });
+    }
+
+    const poNumber = "PO-" + Date.now().toString().slice(-6);
+    const supplierName = "Central Pharma Wholesalers Ltd.";
+    const itemsSummary = lowStock.map(s => s.medicine_name).join(", ");
+    const totalItems = lowStock.length;
+
+    await pool.query(
+      `INSERT INTO \`${dbName}\`.pharmacy_purchase_orders 
+       (po_number, supplier_name, items_summary, total_items, status, created_by)
+       VALUES (?, ?, ?, ?, 'Submitted', ?)`,
+      [poNumber, supplierName, itemsSummary, totalItems, userId]
+    );
+
+    res.json({ success: true, message: `Generated PO #${poNumber} for ${totalItems} item(s).`, poNumber });
+  } catch (err) {
+    console.error("Auto generate PO error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
 // ---------- Wards & beds ----------
 
 app.get("/api/wards", requireTenantUser, async (req, res) => {

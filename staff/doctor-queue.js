@@ -135,6 +135,7 @@
   function wireTestOrderWidget() {
     document.getElementById("decision").addEventListener("change", (e) => {
       document.getElementById("testOrderSection").hidden = e.target.value !== "order_tests";
+      document.getElementById("pharmacyOrderSection").hidden = e.target.value !== "prescribe";
     });
 
     document.getElementById("testSearchInput").addEventListener("input", (e) => {
@@ -154,6 +155,11 @@
     document.getElementById("consultNotes").value = "";
     document.getElementById("decision").value = "prescribe";
     document.getElementById("testOrderSection").hidden = true;
+    document.getElementById("pharmacyOrderSection").hidden = false;
+    document.getElementById("medName").value = "";
+    document.getElementById("medDosage").value = "";
+    document.getElementById("medDuration").value = "";
+    document.getElementById("medUrgency").value = "routine";
     document.getElementById("testSearchInput").value = "";
     document.getElementById("testSearchResults").innerHTML = "";
     selectedTests = [];
@@ -220,6 +226,16 @@
         errorEl.textContent = "Select at least one test to order.";
         return;
       }
+      
+      if (decision === "prescribe") {
+        const medName = document.getElementById("medName").value.trim();
+        const medDosage = document.getElementById("medDosage").value;
+        const medDuration = document.getElementById("medDuration").value;
+        if (!medName || !medDosage || !medDuration) {
+          errorEl.textContent = "Please fill all medicine details.";
+          return;
+        }
+      }
 
       const res = await fetch(`/api/opd/visits/${activeVisit.id}/consultation`, {
         method: "POST",
@@ -239,6 +255,27 @@
         return;
       }
 
+      if (decision === "prescribe") {
+        const pharmRes = await fetch("/api/pharmacy-orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            opdVisitId: activeVisit.id,
+            patientUhid: activeVisit.patientUhid,
+            medicineName: document.getElementById("medName").value.trim(),
+            dosage: document.getElementById("medDosage").value,
+            duration: document.getElementById("medDuration").value,
+            urgency: document.getElementById("medUrgency").value,
+          }),
+        });
+        const pharmData = await pharmRes.json();
+        if (!pharmData.success) {
+           errorEl.textContent = "Consultation recorded, but failed to send pharmacy order.";
+           return;
+        }
+      }
+
       let confirmationText = "Consultation recorded.";
       if (data.admissionId && data.admissionAlreadyExisted) {
         confirmationText = `Consultation recorded. This patient already has an active/pending admission (#${data.admissionId}) — no duplicate was created.`;
@@ -249,6 +286,11 @@
 
       activeVisit = null;
       loadQueue();
+      
+      // Hide the form after 2.5 seconds so they can read the confirmation
+      setTimeout(() => {
+        document.getElementById("consultSection").hidden = true;
+      }, 2500);
     });
   }
 

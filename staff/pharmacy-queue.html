@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MEDISYS - Pharmacy Queue</title>
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="../admin/admin.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    @keyframes sectionFadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    main > div:not([hidden]) {
+      animation: sectionFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    tbody tr {
+      transition: background-color 0.15s ease;
+    }
+
+    tbody tr:hover {
+      background-color: #f8fafc !important;
+    }
+
+    button, .pill-tab {
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    button:active, .pill-tab:active {
+      transform: scale(0.97) !important;
+    }
+    .dispense-btn {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .dispense-btn:hover {
+      background-color: #45a049;
+    }
+    
+    /* Modern Pill Tabs */
+    .pharmacy-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 24px;
+      padding: 6px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+    }
+    
+    .pill-tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 12px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #64748b;
+      font-weight: 600;
+      font-size: 13.5px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+    
+    .pill-tab:hover {
+      background: #ffffff;
+      color: #1e293b;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+    
+    .pill-tab.active {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-dark) 100%) !important;
+      border-color: var(--navy);
+      color: white !important;
+      box-shadow: 0 4px 14px rgba(27, 47, 110, 0.3) !important;
+    }
+    
+    .sub-tab {
+      border: none !important;
+      margin: 0 !important;
+      box-shadow: none !important;
+      background: transparent;
+      color: #64748b;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 8px;
+    }
+    
+    .sub-tab:hover {
+      background: #f1f5f9 !important;
+      color: #1e293b !important;
+    }
+    
+    .sub-tab.active {
+      background: var(--navy) !important;
+      color: white !important;
+      box-shadow: 0 3px 8px rgba(27, 47, 110, 0.2) !important;
+    }
+    
+    .pill-badge {
+      background: #e2e8f0;
+      color: #475569;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    
+    .pill-tab.active .pill-badge {
+      background: rgba(255,255,255,0.25);
+      color: white;
+    }
+
+    /* Pharmacy Card Grid Styles */
+    .pharmacy-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .prescription-card {
+      background: #ffffff;
+      border-radius: 14px;
+      border: 1px solid #e2e8f0;
+      padding: 22px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03), 0 1px 3px rgba(15, 23, 42, 0.02);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+    .prescription-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: var(--navy);
+    }
+    .prescription-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 14px 28px -4px rgba(27, 47, 110, 0.12), 0 2px 6px rgba(0,0,0,0.04);
+      border-color: #cbd5e1;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .patient-name {
+      font-weight: 700;
+      font-size: 17px;
+      color: #0f172a;
+      letter-spacing: -0.2px;
+    }
+    .patient-meta {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 4px;
+      font-weight: 500;
+    }
+    .med-list {
+      flex-grow: 1;
+      margin-bottom: 16px;
+      background: #f8fafc;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #f1f5f9;
+    }
+    .med-item {
+      font-weight: 700;
+      color: #0f172a;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+    .med-dose {
+      font-size: 13px;
+      color: #475569;
+      margin-bottom: 0;
+      font-weight: 500;
+    }
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px solid #f1f5f9;
+    }
+    .time-stamp {
+      font-size: 12.5px;
+      color: #64748b;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pill {
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      display: inline-block;
+      margin-left: 4px;
+      letter-spacing: 0.2px;
+    }
+    .pill.opd { background: #f1f5f9; color: #475569; }
+    .pill.ipd { background: #e0f2fe; color: #0369a1; }
+    .pill.urgent { background: #fee2e2; color: #b91c1c; }
+    .pill.routine { background: #dcfce7; color: #15803d; }
+    
+    .btn-dispense {
+      background: var(--navy);
+      color: white;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      box-shadow: 0 2px 6px rgba(27, 47, 110, 0.2);
+      transition: all 0.2s ease !important;
+    }
+    .btn-dispense:hover { 
+      background: var(--navy-dark);
+      box-shadow: 0 4px 12px rgba(27, 47, 110, 0.35);
+    }
+    
+    .status-dispensed {
+      color: var(--navy);
+      font-weight: 700;
+      font-size: 12.5px;
+      background: #e0e7ff;
+      padding: 5px 12px;
+      border-radius: 8px;
+    }
+
+    /* MODAL STYLES */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal.show {
+      display: flex;
+    }
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      width: 480px;
+      max-width: 92vw;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      animation: modalSlideIn 0.3s ease;
+    }
+    @keyframes modalSlideIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* PREMIUM PAYMENT TILE STYLES */
+    .pay-tile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      cursor: pointer;
+      background: #ffffff;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      user-select: none;
+    }
+    .pay-tile:hover {
+      border-color: #cbd5e1;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    }
+    .pay-tile input[type="radio"] {
+      display: none;
+    }
+    .pay-tile:has(input:checked), .pay-tile.active {
+      border-color: var(--navy);
+      background: #f0f4ff;
+      box-shadow: 0 0 0 3px rgba(27, 47, 110, 0.12);
+    }
+    .pay-tile-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .pay-tile-title {
+      font-weight: 700;
+      font-size: 13.5px;
+      color: #0f172a;
+      line-height: 1.2;
+    }
+    .pay-tile-sub {
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 500;
+      margin-top: 2px;
+    }
+    .pay-tile-check {
+      margin-left: auto;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1.5px solid #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+    .pay-tile:has(input:checked) .pay-tile-check, .pay-tile.active .pay-tile-check {
+      background: var(--navy);
+      border-color: var(--navy);
+      color: white;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 28px 20px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .modal-header h2 {
+      margin: 0;
+      font-family: serif;
+      font-size: 22px;
+      color: var(--navy-dark);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .modal-close-btn {
+      background: #f1f5f9;
+      border: none;
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #64748b;
+      transition: all 0.2s;
+    }
+    .modal-close-btn:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    .modal-body {
+      padding: 24px 28px 28px;
+    }
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #0f172a;
+      background: #f8fafc;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      box-sizing: border-box;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--navy);
+      box-shadow: 0 0 0 3px rgba(27, 47, 110, 0.1);
+      background: white;
+    }
+    .form-row {
+      display: flex;
+      gap: 16px;
+    }
+    .form-row .form-group {
+      flex: 1;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #f1f5f9;
+    }
+    .btn-primary {
+      flex: 1;
+      padding: 12px 20px;
+      background: var(--navy);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-primary:hover {
+      background: var(--navy-dark);
+    }
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+    .btn-secondary {
+      flex: 1;
+      padding: 12px 20px;
+      background: #f1f5f9;
+      color: #475569;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-secondary:hover {
+      background: #e2e8f0;
+    }
+
+    /* TOAST NOTIFICATION SYSTEM */
+    #toastContainer {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .toast-item {
+      pointer-events: auto;
+      min-width: 320px;
+      max-width: 440px;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 14px 18px;
+      box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.18), 0 4px 12px rgba(0,0,0,0.05);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid #e2e8f0;
+      animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 0.3s ease;
+    }
+    .toast-item.toast-success {
+      border-left: 4.5px solid #10b981;
+    }
+    .toast-item.toast-error {
+      border-left: 4.5px solid #ef4444;
+    }
+    .toast-item.toast-info {
+      border-left: 4.5px solid #3b82f6;
+    }
+    .toast-icon-wrap {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .toast-success .toast-icon-wrap {
+      background: #ecfdf5;
+      color: #059669;
+    }
+    .toast-error .toast-icon-wrap {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+    .toast-info .toast-icon-wrap {
+      background: #eff6ff;
+      color: #2563eb;
+    }
+    .toast-msg-text {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #0f172a;
+      line-height: 1.4;
+      flex: 1;
+    }
+    .toast-close-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+    .toast-close-btn:hover {
+      color: #334155;
+      background: #f1f5f9;
+    }
+    .toast-hiding {
+      opacity: 0;
+      transform: translateX(40px) scale(0.95);
+    }
+    
+    /* Stock UI Styles */
+    .stock-stats-container {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    
+    .stat-card {
+      flex: 1;
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      border-radius: 14px;
+      padding: 20px 24px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03), 0 1px 3px rgba(15, 23, 42, 0.02);
+      border: 1px solid #e2e8f0;
+      border-left: 5px solid var(--navy);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+    
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px -3px rgba(15, 23, 42, 0.08);
+    }
+    
+    .stat-card.warning { border-left-color: #d97706; }
+    .stat-card.danger { border-left-color: #b91c1c; }
+    
+    .stat-title {
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .stat-value {
+      font-size: 30px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+    
+    .stock-list-item {
+      background: white;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    
+    .stock-info h4 {
+      margin: 0 0 4px 0;
+      color: #0f172a;
+      font-size: 15px;
+    }
+    
+    .stock-info p {
+      margin: 0;
+      color: #64748b;
+      font-size: 13px;
+    }
+    
+    .stock-progress {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      width: 300px;
+    }
+    
+    .progress-bar {
+      flex: 1;
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: var(--navy);
+      border-radius: 3px;
+    }
+    
+    .progress-fill.low { background: #d97706; }
+    .progress-fill.out { background: #b91c1c; }
+    
+    .stock-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #ecfdf5;
+      color: #047857;
+    }
+    .stock-badge.low { background: #fffbeb; color: #b45309; }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .modal-content {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      width: 400px;
+      max-width: 90%;
+    }
+  </style>
+</head>
+<body>
+  <div id="toastContainer"></div>
+
+  <header class="site-header">
+    <div class="brand">
+      <img src="../logo.png" alt="Core5 MEDISYS" class="brand-logo" />
+    </div>
+    <div class="portal-header-right">
+      <span class="portal-user" id="portalUser"></span>
+      <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <main class="portal-main" style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
+    
+    <div class="pharmacy-nav">
+      <button class="pill-tab active" id="navPrescriptions">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        Prescriptions <span class="pill-badge" id="pendingCount">0</span>
+      </button>
+      <button class="pill-tab" id="navStock">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+        Medicine Stock <span class="pill-badge" id="stockCount">0</span>
+      </button>
+      <button class="pill-tab" id="navReorder">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+        Reorder
+      </button>
+      <button class="pill-tab" id="navBilling">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        Billing
+      </button>
+      <button class="pill-tab" id="navPatients">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+        Patients
+      </button>
+      <button class="pill-tab" id="navInteraction">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        Direct Counter Sale
+      </button>
+      <button class="pill-tab" id="navSummary" style="margin-left: auto; border: 2px solid #e2e8f0; border-radius: 999px;">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+        Summary
+      </button>
+    </div>
+
+    <!-- PRESCRIPTIONS SECTION -->
+    <div id="sectionPrescriptions">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px;">
+        <div>
+          <h1 style="font-family: serif; color: var(--navy-dark); font-size: 32px; margin-bottom: 8px;">Prescriptions to dispense</h1>
+          <p class="portal-subtitle" style="font-size: 15px;">Tap a card to check stock and dispense, step by step.</p>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 999px;">
+          <button class="pill-tab sub-tab active" id="tabPending">Pending Orders</button>
+          <button class="pill-tab sub-tab" id="tabHistory">Dispensed (History)</button>
+        </div>
+        <div style="position: relative;">
+          <svg style="position: absolute; left: 12px; top: 12px; color: #94a3b8;" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <input type="text" id="searchInput" placeholder="Search by patient name or ID..." style="padding: 10px 16px 10px 40px; border: 1px solid #e2e8f0; border-radius: 8px; width: 320px; font-size: 14px; background: white;" autocomplete="off" />
+        </div>
+      </div>
+
+      <div id="pharmacyGrid" class="pharmacy-grid"></div>
+
+      <div id="pharmacyEmptyState" class="empty-state" hidden>
+        <p>No prescriptions right now.</p>
+      </div>
+    </div>
+
+    <!-- SUMMARY SECTION -->
+    <div id="sectionSummary" hidden>
+      <div style="margin-bottom: 20px;">
+        <h1 style="font-family: serif; color: var(--navy-dark);">Today's summary</h1>
+        <p class="portal-subtitle">A quick look at how the day is going.</p>
+      </div>
+
+      <div class="stock-stats-container" style="margin-bottom: 24px;">
+        <div class="stat-card">
+          <p style="font-size: 13px; color: #64748b; font-weight: 500;">Dispensed today</p>
+          <h2 id="sumDispensed" style="font-size: 28px; font-family: serif; margin: 4px 0 0; color: #0f172a;">0</h2>
+        </div>
+        <div class="stat-card warning">
+          <p style="font-size: 13px; color: #64748b; font-weight: 500;">Waiting</p>
+          <h2 id="sumWaiting" style="font-size: 28px; font-family: serif; margin: 4px 0 0; color: #0f172a;">0</h2>
+        </div>
+        <div class="stat-card" style="border-left-color: #10b981;">
+          <p style="font-size: 13px; color: #64748b; font-weight: 500;">Revenue billed</p>
+          <h2 id="sumRevenue" style="font-size: 28px; font-family: serif; margin: 4px 0 0; color: #0f172a;">₹0</h2>
+        </div>
+        <div class="stat-card danger">
+          <p style="font-size: 13px; color: #64748b; font-weight: 500;">Low stock items</p>
+          <h2 id="sumLowStock" style="font-size: 28px; font-family: serif; margin: 4px 0 0; color: #0f172a;">0</h2>
+        </div>
+      </div>
+
+      <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); margin-bottom: 24px;">
+        <h3 style="font-family: serif; color: var(--navy-dark); font-size: 18px; margin-top: 0;">Most given out</h3>
+        <div id="sumMostGivenList" style="margin-top: 16px;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+        <h3 style="font-family: serif; color: var(--navy-dark); font-size: 18px; margin-top: 0;">Expired stock — needs writing off</h3>
+        <div id="sumExpiredList" style="margin-top: 16px;">
+          <p style="color: #64748b; font-size: 14px;">Nothing expired right now.</p>
+        </div>
+      </div>
+    </div>
+     <!-- MEDICINE STOCK SECTION -->
+    <div id="sectionStock" hidden>
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px;">
+        <div>
+          <h1 style="font-family: serif; color: var(--navy-dark);">Medicine stock</h1>
+          <p class="portal-subtitle">Green means healthy, amber means order soon, red means act now.</p>
+        </div>
+        <button id="addStockBtn" class="login-btn" style="width: auto; padding: 10px 20px; font-size: 14px; border-radius: 8px; background: var(--navy);">+ Add stock / new batch</button>
+      </div>
+
+      <div class="stock-stats-container">
+        <div class="stat-card">
+          <p style="font-size: 13px; color: #64748b; font-weight: 500;">Medicines tracked</p>
+          <h2 id="statTracked" style="font-size: 28px; font-family: serif; margin: 4px 0 0; color: #0f172a;">0</h2>
+        </div>
+        <div class="stat-card warning">
+          <p style="font-size: 13px; color: #64748b; font-weight: 500;">Low stock</p>
+          <h2 id="statLow" style="font-size: 28px; font-family: serif; margin: 4px 0 0; color: #0f172a;">0</h2>
+        </div>
+        <div class="stat-card danger">
+          <p style="font-size: 13px; color: #64748b; font-weight: 500;">Expiring in 60 days</p>
+          <h2 id="statExpiring" style="font-size: 28px; font-family: serif; margin: 4px 0 0; color: #0f172a;">0</h2>
+        </div>
+      </div>
+
+      <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <div style="position: relative; margin-bottom: 20px;">
+          <svg style="position: absolute; left: 12px; top: 12px; color: #94a3b8;" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <input type="text" id="stockSearchInput" placeholder="Search stock..." style="padding: 10px 16px 10px 40px; border: 1px solid #e2e8f0; border-radius: 8px; width: 320px; font-size: 14px; background: white;" autocomplete="off" />
+        </div>
+        <div id="stockList" style="display: flex; flex-direction: column;"></div>
+      </div>
+    </div>
+
+    <!-- REORDER SECTION -->
+    <div id="sectionReorder" hidden>
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px;">
+        <div>
+          <h1 style="font-family: serif; color: var(--navy-dark); font-size: 32px; margin-bottom: 8px;">Reorder &amp; purchase orders</h1>
+          <p class="portal-subtitle" style="font-size: 15px;">Anything below its reorder level shows up here automatically.</p>
+        </div>
+        <button id="btnGeneratePO" class="login-btn" style="width: auto; padding: 12px 24px; font-size: 14px; border-radius: 10px; background: var(--navy);">Generate PO for flagged items</button>
+      </div>
+
+      <!-- Needs reordering Card -->
+      <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin-bottom: 24px; border: 1px solid #e2e8f0;">
+        <h3 style="font-family: serif; color: var(--navy-dark); font-size: 20px; margin-top: 0; margin-bottom: 16px;">Needs reordering</h3>
+        
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+            <thead>
+              <tr style="border-bottom: 1px solid #f1f5f9; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">
+                <th style="padding: 12px 16px; text-transform: uppercase;">Medicine</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">In Stock</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Reorder Level</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Suggested Qty</th>
+              </tr>
+            </thead>
+            <tbody id="reorderTableBody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="reorderEmptyState" style="text-align: center; padding: 40px 20px;">
+          <div style="width: 38px; height: 38px; background: #22c55e; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: white; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(34, 197, 94, 0.25);">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <p style="color: #64748b; font-size: 14px; margin: 0; font-weight: 500;">Nothing needs reordering right now.</p>
+        </div>
+      </div>
+
+      <!-- Purchase orders Card -->
+      <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); border: 1px solid #e2e8f0;">
+        <h3 style="font-family: serif; color: var(--navy-dark); font-size: 20px; margin-top: 0; margin-bottom: 16px;">Purchase orders</h3>
+        
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+            <thead>
+              <tr style="border-bottom: 1px solid #f1f5f9; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">
+                <th style="padding: 12px 16px; text-transform: uppercase;">PO No.</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Supplier</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Items</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Date</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="poTableBody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="poEmptyState" style="text-align: center; padding: 30px 20px;">
+          <p style="color: #94a3b8; font-size: 14px; margin: 0;">No purchase orders generated yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- BILLING SECTION -->
+    <div id="sectionBilling" hidden>
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px;">
+        <div>
+          <h1 style="font-family: serif; color: var(--navy-dark); font-size: 32px; margin-bottom: 8px;">Billing &amp; invoices</h1>
+          <p class="portal-subtitle" style="font-size: 15px;">Every dispense creates a bill here automatically.</p>
+        </div>
+        <button id="btnExportBillingReport" class="login-btn" style="width: auto; padding: 10px 20px; font-size: 13.5px; border-radius: 10px; background: white; color: #334155; border: 1px solid #cbd5e1; display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> Export Sales Report (CSV)
+        </button>
+      </div>
+
+      <!-- Stats Cards -->
+      <div class="stock-stats-container" style="margin-bottom: 24px;">
+        <div class="stat-card" style="border-left-color: #0d9488;">
+          <p style="font-size: 13px; color: #64748b; font-weight: 500;">Total billed</p>
+          <h2 id="billingTotalBilled" style="font-size: 28px; font-family: serif; margin: 4px 0 0; color: #0f172a;">₹0</h2>
+        </div>
+        <div class="stat-card" style="border-left-color: #0d9488;">
+          <p style="font-size: 13px; color: #64748b; font-weight: 500;">Collected</p>
+          <h2 id="billingCollected" style="font-size: 28px; font-family: serif; margin: 4px 0 0; color: #0f172a;">₹0</h2>
+        </div>
+        <div class="stat-card warning">
+          <p style="font-size: 13px; color: #64748b; font-weight: 500;">Pending payment</p>
+          <h2 id="billingPendingCount" style="font-size: 28px; font-family: serif; margin: 4px 0 0; color: #0f172a;">0</h2>
+        </div>
+      </div>
+
+      <!-- Search & Filter Controls -->
+      <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); border: 1px solid #e2e8f0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 16px; flex-wrap: wrap;">
+          <div style="position: relative; width: 320px;">
+            <svg style="position: absolute; left: 12px; top: 11px; color: #94a3b8;" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            <input type="text" id="billingSearchInput" placeholder="Search invoice, patient, UHID..." style="padding: 9px 16px 9px 38px; border: 1px solid #e2e8f0; border-radius: 10px; width: 100%; font-size: 13.5px; background: #f8fafc;" autocomplete="off" />
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <button class="sub-tab active" id="filterBillAll" style="font-size: 13px;">All Invoices</button>
+            <button class="sub-tab" id="filterBillPaid" style="font-size: 13px;">Paid</button>
+            <button class="sub-tab" id="filterBillPending" style="font-size: 13px;">Pending</button>
+          </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+            <thead>
+              <tr style="border-bottom: 1px solid #f1f5f9; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">
+                <th style="padding: 12px 16px; text-transform: uppercase;">Invoice</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Patient</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Items</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Amount</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Status</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Method</th>
+                <th style="padding: 12px 16px; text-transform: uppercase;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="billingTableBody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="billingEmptyState" style="text-align: center; padding: 40px 20px;">
+          <p style="color: #94a3b8; font-size: 14px; margin: 0;">No invoices generated yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIRECT COUNTER SALE / MEDICINE DISPENSING SECTION -->
+    <div id="sectionInteraction" hidden>
+      <div style="margin-bottom: 24px;">
+        <h1 style="font-family: serif; color: var(--navy-dark); font-size: 32px; margin-bottom: 8px;">Direct Counter Sale</h1>
+        <p class="portal-subtitle" style="font-size: 15px;">Dispense medicine over-the-counter. Stock is automatically deducted and bill is sent to Billing.</p>
+      </div>
+
+      <div style="max-width: 680px; background: white; border-radius: 16px; padding: 28px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+        <form id="directSaleForm">
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 700; font-size: 13.5px; color: #0f172a; margin-bottom: 8px;">Select Medicine from Stock *</label>
+            <select id="dsStockSelect" style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; background: #ffffff;" required>
+              <option value="">-- Loading Stock Items --</option>
+            </select>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 700; font-size: 13.5px; color: #0f172a; margin-bottom: 8px;">Quantity to Dispense *</label>
+            <input type="number" id="dsQuantity" value="1" min="1" style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px;" required />
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+            <div>
+              <label style="display: block; font-weight: 700; font-size: 13.5px; color: #0f172a; margin-bottom: 8px;">Patient Name (Optional)</label>
+              <input type="text" id="dsPatientName" placeholder="Walk-in Patient Name" style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px;" />
+            </div>
+            <div>
+              <label style="display: block; font-weight: 700; font-size: 13.5px; color: #0f172a; margin-bottom: 8px;">Phone Number (Optional)</label>
+              <input type="tel" id="dsPhone" placeholder="10-digit mobile number" style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px;" />
+            </div>
+          </div>
+
+          <button type="submit" class="login-btn" style="width: 100%; padding: 14px; font-size: 15px; border-radius: 10px; background: var(--navy); display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700;">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            Dispense Medicine &amp; Auto-Deduct Stock
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- PATIENTS SECTION -->
+    <div id="sectionPatients" hidden>
+      <div style="margin-bottom: 24px;">
+        <h1 style="font-family: serif; color: var(--navy-dark); font-size: 32px; margin-bottom: 8px;">Patient Directory &amp; History</h1>
+        <p class="portal-subtitle" style="font-size: 15px;">Search patient records and view past dispensing timeline.</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 360px 1fr; gap: 24px; align-items: start;">
+        <!-- Left Column: Patient Search & Directory List -->
+        <div style="background: white; border-radius: 16px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+          <div style="position: relative; margin-bottom: 16px;">
+            <svg style="position: absolute; left: 12px; top: 12px; color: #94a3b8;" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            <input type="text" id="patientSearchInput" placeholder="Search by name, UHID, phone..." style="padding: 10px 16px 10px 40px; border: 1px solid #e2e8f0; border-radius: 10px; width: 100%; font-size: 13.5px; background: #f8fafc;" autocomplete="off" />
+          </div>
+
+          <div id="patientsListContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 540px; overflow-y: auto;">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Right Column: Selected Patient Detail Timeline -->
+        <div style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); min-height: 480px;">
+          <div id="patientDetailHeader" style="border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 20px; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div>
+                <h2 id="pdName" style="font-family: serif; color: var(--navy-dark); font-size: 24px; margin: 0 0 6px 0;">-</h2>
+                <div style="font-size: 13px; color: #64748b;">
+                  UHID: <span id="pdUhid" style="font-weight: 700; color: #0f172a;">-</span> &bull; 
+                  Gender: <span id="pdGender">-</span> &bull; 
+                  DOB: <span id="pdDob">-</span>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <span id="pdPrescriptionCount" style="background: #e0e7ff; color: var(--navy); padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 12px;">0 Prescriptions</span>
+              </div>
+            </div>
+          </div>
+
+          <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 16px;">Dispensing History</h3>
+
+          <div id="patientTimelineContainer">
+            <div style="text-align: center; padding: 60px 20px; color: #94a3b8;">
+              <p style="margin: 0; font-size: 14px;">Select a patient from the list on the left to view dispensing history.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  
+  <!-- Add Stock Modal -->
+  <div id="addStockModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
+          Add New Stock
+        </h2>
+        <button type="button" class="modal-close-btn" id="closeStockModal">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="addStockForm">
+          <div class="form-group">
+            <label>Medicine Name</label>
+            <input type="text" id="stockMedName" placeholder="e.g. Paracetamol 500mg" required />
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <input type="text" id="stockCategory" placeholder="e.g. Tablet, Syrup, Injection" required />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Batch Number</label>
+              <input type="text" id="stockBatch" placeholder="e.g. BN-20260801" required />
+            </div>
+            <div class="form-group">
+              <label>Expiry Date</label>
+              <input type="date" id="stockExpiry" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Stock Quantity</label>
+              <input type="number" id="stockQty" placeholder="e.g. 500" required />
+            </div>
+            <div class="form-group">
+              <label>Min Stock Level</label>
+              <input type="number" id="stockMinLevel" placeholder="e.g. 10" value="10" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Unit Price (₹)</label>
+              <input type="number" step="0.01" id="stockPrice" placeholder="e.g. 12.50" />
+            </div>
+            <div class="form-group"></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="closeStockModal2">Cancel</button>
+            <button type="submit" class="btn-primary">Save Stock</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Collect Payment Modal -->
+  <div id="payModal" class="modal">
+    <div class="modal-content" style="max-width: 460px;">
+      <div class="modal-header">
+        <h2 style="font-size: 18px; display: flex; align-items: center; gap: 8px;">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+          Collect Payment
+        </h2>
+        <button type="button" class="modal-close-btn" id="closePayModal">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="payForm">
+          <input type="hidden" id="payInvoiceId" />
+          
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px; text-align: center;">
+            <div style="font-size: 13px; color: #64748b; font-weight: 600;" id="payModalInvoiceNum">Invoice #PHINV-0000</div>
+            <div style="font-size: 26px; font-weight: 800; color: var(--navy); margin-top: 4px;" id="payModalAmount">₹0.00</div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 700; font-size: 13.5px; color: #0f172a; margin-bottom: 14px;">Select Payment Method</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              
+              <!-- Cash Option -->
+              <label class="pay-tile active">
+                <input type="radio" name="payMethod" value="Cash" checked />
+                <div class="pay-tile-icon" style="background: #ecfdf5; color: #047857;">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                </div>
+                <div>
+                  <div class="pay-tile-title">Cash</div>
+                  <div class="pay-tile-sub">Physical Cash</div>
+                </div>
+                <div class="pay-tile-check">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
+                </div>
+              </label>
+
+              <!-- UPI Option -->
+              <label class="pay-tile">
+                <input type="radio" name="payMethod" value="UPI" />
+                <div class="pay-tile-icon" style="background: #f3e8ff; color: #7e22ce;">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4v1m6 11h2m-6 0h-2v4m0-4v-3m0 0h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <div>
+                  <div class="pay-tile-title">UPI / QR</div>
+                  <div class="pay-tile-sub">GPay, PhonePe</div>
+                </div>
+                <div class="pay-tile-check">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
+                </div>
+              </label>
+
+              <!-- Card Option -->
+              <label class="pay-tile">
+                <input type="radio" name="payMethod" value="Card" />
+                <div class="pay-tile-icon" style="background: #e0f2fe; color: #0369a1;">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                </div>
+                <div>
+                  <div class="pay-tile-title">Card</div>
+                  <div class="pay-tile-sub">Debit / Credit POS</div>
+                </div>
+                <div class="pay-tile-check">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
+                </div>
+              </label>
+
+              <!-- Razorpay Online -->
+              <label class="pay-tile">
+                <input type="radio" name="payMethod" value="Razorpay" />
+                <div class="pay-tile-icon" style="background: #e0e7ff; color: #3730a3;">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <div>
+                  <div class="pay-tile-title">Razorpay</div>
+                  <div class="pay-tile-sub">Online Link</div>
+                </div>
+                <div class="pay-tile-check">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
+                </div>
+              </label>
+
+            </div>
+          </div>
+
+          <div class="modal-actions" style="margin-top: 24px;">
+            <button type="button" class="btn-secondary" id="closePayModal2">Cancel</button>
+            <button type="submit" class="btn-primary" style="background: #0f766e;">Confirm &amp; Mark Paid</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-left">
+      <span class="footer-brand">CORE5 <strong>MEDISYS</strong></span>
+      <small>HOSPITAL PORTAL</small>
+    </div>
+    <div class="footer-right">&copy;2026 Core5. All rights reserved.</div>
+  </footer>
+
+  <script src="pharmacy-queue.js"></script>
+</body>
+</html>
