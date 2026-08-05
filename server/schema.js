@@ -522,6 +522,17 @@ async function seedDefaultUsers(connection) {
       }
     }
 
+    // 5. Sync hospital_id between users, patients, and user_directory
+    await connection.query('UPDATE users u JOIN user_directory d ON u.user_id = d.user_id SET u.hospital_id = d.hospital_id');
+    await connection.query('UPDATE patients p JOIN user_directory d ON p.uhid = d.user_id SET p.hospital_id = d.hospital_id');
+    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashPhar, 'PH-44433']);
+    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'AD-CHG-64701']);
+    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'OPD-CHG-70518']);
+    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'DR-CHG-49545']);
+    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'NR-CHG-88859']);
+    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'C5-202226']);
+    await connection.query('UPDATE patients SET password_hash = ? WHERE uhid IN (?, ?, ?)', [hashCore5, 'PAT-CHG-0002', 'PAT-CHG-0003', 'PAT-CHG-0004']);
+
   } catch (err) {
     console.error("Error seeding default users:", err.message);
   }
