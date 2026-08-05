@@ -360,6 +360,8 @@ async function ensureSchema(connection) {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await seedDefaultUsers(connection);
 }
 
 async function ensureColumn(connection, table, column, definition) {
@@ -426,6 +428,103 @@ async function seedTestCatalog(connection, hospitalId) {
     `INSERT INTO test_catalog (hospital_id, name, category, department, sample_type, price, turnaround_hours) VALUES ?`,
     [tests.map((t) => [hospitalId, ...t])]
   );
+}
+
+const bcrypt = require("bcrypt");
+
+async function seedDefaultUsers(connection) {
+  try {
+    const hashCore5 = await bcrypt.hash("Core5@2022", 10);
+    const hashPhar = await bcrypt.hash("CAyjNATuMc", 10);
+    const hash = await bcrypt.hash("admin123", 10);
+    const passHash = await bcrypt.hash("password123", 10);
+
+    // 1. Seed superadmins
+    const superadmins = [
+      ["superadmin", hash, "Super Admin"],
+      ["C5-202226", hashCore5, "Core5 Super Admin"]
+    ];
+
+    for (const [sId, sHash, sName] of superadmins) {
+      const [[{ cntSuper }]] = await connection.query(
+        "SELECT COUNT(*) AS cntSuper FROM users WHERE user_id = ?",
+        [sId]
+      );
+      if (cntSuper === 0) {
+        await connection.query(
+          "INSERT INTO users (user_id, password_hash, full_name, role) VALUES (?, ?, ?, ?)",
+          [sId, sHash, sName, "superadmin"]
+        );
+      }
+    }
+
+    // 2. Seed Default Hospital
+    const [[{ cntHosp }]] = await connection.query("SELECT COUNT(*) AS cntHosp FROM hospitals WHERE id = 1");
+    if (cntHosp === 0) {
+      await connection.query(
+        `INSERT INTO hospitals (id, name, license_number, city, state, bed_count, status, admin_name, admin_email, short_code, admin_user_id) 
+         VALUES (1, 'City Hospital Ghatkopar', 'LIC-1001', 'Mumbai', 'Maharashtra', 100, 'active', 'Rashmi', 'admin@cityhospital.com', 'CHG', 'AD-CHG-64701')`
+      );
+    }
+
+    // 3. Seed Hospital Admin & Staff Users
+    const defaultUsers = [
+      ["AD-CHG-64701", hashCore5, "Rashmi (Hospital Admin)", "hospital_admin", 1, "staff"],
+      ["OPD-CHG-70518", hashCore5, "Jhon Jacob (OPD)", "receptionist", 1, "staff"],
+      ["DR-CHG-49545", hashCore5, "Shubham (Doctor)", "doctor", 1, "staff"],
+      ["NR-CHG-88859", hashCore5, "Dipti (Nurse)", "nurse", 1, "staff"],
+      ["PH-44433", hashPhar, "Pharmacist", "pharmacist", 1, "staff"],
+      ["CH-ADM-001", hash, "Hospital Admin", "hospital_admin", 1, "staff"],
+      ["DR-001", passHash, "Dr. Sharma", "doctor", 1, "staff"],
+      ["PH-001", passHash, "Pharmacist Verma", "pharmacist", 1, "staff"],
+      ["REC-001", passHash, "Front Desk Receptionist", "receptionist", 1, "staff"],
+      ["NUR-001", passHash, "Nurse Sister Mary", "nurse", 1, "staff"],
+    ];
+
+    for (const [uId, uHash, fName, uRole, hId, accType] of defaultUsers) {
+      const [[{ cntU }]] = await connection.query("SELECT COUNT(*) AS cntU FROM users WHERE user_id = ?", [uId]);
+      if (cntU === 0) {
+        await connection.query(
+          "INSERT INTO users (user_id, password_hash, full_name, role, hospital_id) VALUES (?, ?, ?, ?, ?)",
+          [uId, uHash, fName, uRole, hId]
+        );
+      }
+      const [[{ cntDir }]] = await connection.query("SELECT COUNT(*) AS cntDir FROM user_directory WHERE user_id = ?", [uId]);
+      if (cntDir === 0) {
+        await connection.query(
+          "INSERT INTO user_directory (user_id, hospital_id, account_type) VALUES (?, ?, ?)",
+          [uId, hId, accType]
+        );
+      }
+    }
+
+    // 4. Seed Patients
+    const patients = [
+      ["PAT-CHG-0002", "ASHISH", hashCore5, 1],
+      ["PAT-CHG-0003", "Vikram", hashCore5, 1],
+      ["PAT-CHG-0004", "NITISH", hashCore5, 1],
+    ];
+
+    for (const [uhid, pName, pHash, hId] of patients) {
+      const [[{ cntP }]] = await connection.query("SELECT COUNT(*) AS cntP FROM patients WHERE uhid = ?", [uhid]);
+      if (cntP === 0) {
+        await connection.query(
+          "INSERT INTO patients (uhid, full_name, password_hash, hospital_id) VALUES (?, ?, ?, ?)",
+          [uhid, pName, pHash, hId]
+        );
+      }
+      const [[{ cntDirP }]] = await connection.query("SELECT COUNT(*) AS cntDirP FROM user_directory WHERE user_id = ?", [uhid]);
+      if (cntDirP === 0) {
+        await connection.query(
+          "INSERT INTO user_directory (user_id, hospital_id, account_type) VALUES (?, ?, 'patient')",
+          [uhid, hId]
+        );
+      }
+    }
+
+  } catch (err) {
+    console.error("Error seeding default users:", err.message);
+  }
 }
 
 module.exports = { ensureSchema, seedTestCatalog };
