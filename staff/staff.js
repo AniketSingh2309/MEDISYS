@@ -94,12 +94,13 @@
         actionCard("doctor-patients.html", "registration", "My Patients", "Prescriptions and lab/radiology reports for everyone you've seen");
     } else if (role === "pathology_staff") {
       const designation = details?.designation;
-      const label = designation === "Radiologist" ? "Radiology Queue" : "Pathology &amp; Lab Queue";
-      const hint =
-        designation === "Radiologist"
-          ? "Claim imaging orders and upload reports"
-          : "Claim pathology/lab orders and upload results";
-      actionCards.innerHTML = actionCard("lab-queue.html", "queue", label, hint);
+      const isRadiologist = designation === "Radiologist";
+      const href = isRadiologist ? "radiology-queue.html" : "pathology-queue.html";
+      const label = isRadiologist ? "Radiology Queue" : "Pathology &amp; Lab Queue";
+      const hint = isRadiologist
+        ? "Triage imaging studies, report and sign off with image upload"
+        : "Triage samples, enter results and sign off with specimen image upload";
+      actionCards.innerHTML = actionCard(href, "queue", label, hint);
     } else if (role === "pharmacist") {
       actionCards.innerHTML = actionCard("pharmacy-queue.html", "queue", "Pharmacy Queue", "View pending prescriptions and dispense medicines");
     }

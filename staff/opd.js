@@ -139,7 +139,7 @@
     });
   }
 
-  async function bookVisit(slotTime) {
+  async function bookVisit(slotTime, confirmDuplicate) {
     const errorEl = document.getElementById("opdFormError");
     errorEl.textContent = "";
 
@@ -155,6 +155,10 @@
       return;
     }
 
+    const bookBtn = document.getElementById("bookSlotBtn");
+    const walkInBtn = document.getElementById("walkInBtn");
+    bookBtn.disabled = true;
+    walkInBtn.disabled = true;
     try {
       const res = await fetch("/api/opd/visits", {
         method: "POST",
@@ -165,20 +169,40 @@
           doctorUserId,
           visitDate,
           slotTime: slotTime || undefined,
+          confirmDuplicate: confirmDuplicate || undefined,
         }),
       });
       const data = await res.json();
 
       if (!data.success) {
+        if (data.duplicateWarning) {
+          const list = data.existingVisits
+            .map((v) => `  • ${v.doctorName} — ${v.visitDate}${v.slotTime ? " at " + v.slotTime : " (walk-in)"}`)
+            .join("\n");
+          const proceed = confirm(
+            `${selectedPatient.fullName} already has ${data.existingVisits.length} unresolved booking(s):\n\n${list}\n\nBook another one anyway?`
+          );
+          if (proceed) {
+            bookBtn.disabled = false;
+            walkInBtn.disabled = false;
+            return bookVisit(slotTime, true);
+          }
+          errorEl.textContent = "Booking cancelled — patient already has a pending visit.";
+          return;
+        }
         errorEl.textContent = data.message || "Could not book visit. Please try again.";
         return;
       }
 
       document.getElementById("bookingConfirmation").textContent = `Token #${data.visit.tokenNumber} issued. ${data.confirmation}`;
+      if (window.showToast) showToast(`Token #${data.visit.tokenNumber} booked for ${selectedPatient.fullName}.`, "success");
       loadSlots();
       loadQueue();
     } catch (err) {
       errorEl.textContent = "Unable to reach the server. Please try again.";
+    } finally {
+      bookBtn.disabled = false;
+      walkInBtn.disabled = false;
     }
   }
 
@@ -268,7 +292,9 @@
     loadNeedsAdmission();
     loadWardPatients();
 
-    document.getElementById("visitDate").value = new Date().toISOString().slice(0, 10);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    document.getElementById("visitDate").value = todayStr;
+    document.getElementById("visitDate").min = todayStr;
     document.getElementById("departmentSelect").addEventListener("change", loadDoctors);
     document.getElementById("doctorSelect").addEventListener("change", loadSlots);
     document.getElementById("visitDate").addEventListener("change", loadSlots);

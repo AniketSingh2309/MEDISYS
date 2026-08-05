@@ -36,6 +36,71 @@
       <h2 class="portal-section-title" id="detailHeading">Patient Chart</h2>
 
       <div class="portal-card">
+        <div class="chart-section-header">
+          <h2 class="chart-section-title">Patient Details</h2>
+          <button type="button" class="wizard-suggest-btn" id="editPatientBtn">✎ Edit</button>
+        </div>
+        <dl class="wizard-review" id="patientDetailsView"></dl>
+
+        <form id="patientDetailsForm" class="wizard-step" hidden>
+          <label for="editFullName">Full Name *</label>
+          <input type="text" id="editFullName" required />
+
+          <div class="wizard-grid">
+            <div>
+              <label for="editDob">Date of Birth</label>
+              <input type="date" id="editDob" />
+            </div>
+            <div>
+              <label for="editGender">Gender</label>
+              <select id="editGender">
+                <option value="">Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label for="editPhone">Phone</label>
+              <input type="text" id="editPhone" />
+            </div>
+          </div>
+
+          <label for="editAddress">Address</label>
+          <input type="text" id="editAddress" />
+
+          <div class="wizard-grid">
+            <div>
+              <label for="editEmergencyContactName">Emergency Contact Name</label>
+              <input type="text" id="editEmergencyContactName" />
+            </div>
+            <div>
+              <label for="editEmergencyContactPhone">Emergency Contact Phone</label>
+              <input type="text" id="editEmergencyContactPhone" />
+            </div>
+          </div>
+
+          <label for="editAbhaId">ABHA ID</label>
+          <input type="text" id="editAbhaId" placeholder="Optional" />
+
+          <label for="editCategory">Patient Category</label>
+          <select id="editCategory">
+            <option value="walk-in">Walk-in</option>
+            <option value="referral">Referral</option>
+            <option value="insurance">Insurance</option>
+            <option value="corporate">Corporate</option>
+          </select>
+
+          <p class="form-error" id="patientEditError" role="alert" aria-live="polite"></p>
+
+          <div class="wizard-nav">
+            <button type="button" class="wizard-back-btn" id="cancelEditPatientBtn">Cancel</button>
+            <button type="button" class="login-btn wizard-next-btn" id="savePatientBtn">Save Changes</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="portal-card">
         <div class="chart-section">
           <h2 class="chart-section-title">Consultations &amp; Prescriptions</h2>
           <div id="consultationsFeed"></div>
@@ -66,6 +131,7 @@
     <div class="footer-right">&copy;2026 Core5. All rights reserved.</div>
   </footer>
 
-  <script src="doctor-patients.js"></script>
+  <script src="../portal-ui.js"></script>
+<script src="doctor-patients.js"></script>
 </body>
 </html>

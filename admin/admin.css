@@ -12,40 +12,48 @@
 
 .portal-logout-btn {
   background: none;
-  border: 1px solid var(--navy);
+  border: 1.5px solid var(--navy);
   color: var(--navy);
   padding: 8px 18px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm, 8px);
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
 .portal-logout-btn:hover {
   background: var(--navy);
   color: #fff;
+  transform: translateY(-1px);
 }
 
 .portal-main {
-  max-width: 1000px;
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 36px 24px 60px;
+  padding: 40px 24px 64px;
 }
 
 .portal-main h1 {
   color: var(--navy);
   margin: 0 0 4px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
 }
 
 .portal-subtitle {
   color: var(--gray-text);
   margin: 0;
+  font-size: 14.5px;
 }
 
 .portal-section-title {
   color: var(--navy);
   font-size: 16px;
-  margin: 28px 0 12px;
+  font-weight: 700;
+  margin: 32px 0 14px;
+  padding-left: 12px;
+  border-left: 3px solid var(--teal);
 }
 
 .portal-toolbar-cards {
@@ -57,24 +65,35 @@
 .staff-action-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 6px 24px rgba(20, 40, 80, 0.08);
-  padding: 22px;
+  gap: 8px;
+  background: var(--surface, #fff);
+  border-radius: var(--radius-lg, 14px);
+  box-shadow: var(--shadow-sm, 0 6px 24px rgba(20, 40, 80, 0.08));
+  padding: 24px;
   text-decoration: none;
-  border: 2px solid transparent;
-  transition: border-color 0.15s ease;
+  border: 1px solid var(--line, #eef1f6);
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .staff-action-card:hover {
   border-color: var(--teal);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md, 0 12px 28px rgba(20, 40, 80, 0.12));
 }
 
 .staff-action-icon {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--teal-tint, #eafaf6);
   color: var(--teal-dark);
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.staff-action-card:hover .staff-action-icon {
+  background: var(--teal);
+  color: #fff;
 }
 
 .staff-action-icon svg {
@@ -86,11 +105,13 @@
   font-weight: 700;
   color: var(--navy);
   font-size: 16px;
+  margin-top: 4px;
 }
 
 .staff-action-hint {
   font-size: 13px;
   color: var(--gray-text);
+  line-height: 1.45;
 }
 
 .staff-group-section {
@@ -130,11 +151,17 @@
 }
 
 .staff-entry-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(20, 40, 80, 0.07);
+  background: var(--surface, #fff);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: var(--shadow-sm, 0 6px 20px rgba(20, 40, 80, 0.07));
   padding: 18px;
   border-left: 4px solid var(--teal);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.staff-entry-card:hover {
+  box-shadow: var(--shadow-md, 0 10px 28px rgba(20, 40, 80, 0.1));
+  transform: translateY(-2px);
 }
 
 .staff-entry-name {
@@ -178,16 +205,24 @@
 }
 
 .portal-card {
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 10px 40px rgba(20, 40, 80, 0.1);
+  background: var(--surface, #fff);
+  border-radius: var(--radius-lg, 14px);
+  box-shadow: var(--shadow-md, 0 10px 40px rgba(20, 40, 80, 0.1));
+  border: 1px solid var(--line, #eef1f6);
   padding: 28px;
+}
+
+/* A module-card-grid that renders empty (e.g. no "coming soon" module for this role)
+   shouldn't leave a floating blank card on the page. */
+.portal-card:has(> .module-card-grid:empty) {
+  display: none;
 }
 
 .portal-empty {
   text-align: center;
-  padding: 40px 0;
-  color: var(--gray-text);
+  padding: 48px 0;
+  color: var(--ink-mute, var(--gray-text));
+  font-size: 14px;
 }
 
 .portal-table {
@@ -199,24 +234,30 @@
 .portal-table th {
   text-align: left;
   color: var(--navy);
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
-  padding: 10px 12px;
-  border-bottom: 2px solid #eef1f6;
+  letter-spacing: 0.5px;
+  padding: 12px;
+  border-bottom: 2px solid var(--line, #eef1f6);
 }
 
 .portal-table td {
-  padding: 12px;
-  border-bottom: 1px solid #eef1f6;
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--line, #eef1f6);
+}
+
+.portal-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .portal-row {
   cursor: pointer;
+  transition: background 0.12s ease;
 }
 
 .portal-row:hover {
-  background: #f7fafc;
+  background: var(--navy-tint, #f7fafc);
 }
 
 .wizard-review-invite-heading {
@@ -252,26 +293,29 @@
   align-items: center;
   gap: 8px;
   background: #fff;
-  border: 1px solid #c0392b;
-  color: #c0392b;
+  border: 1px solid var(--red, #c0392b);
+  color: var(--red, #c0392b);
   padding: 10px 20px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm, 8px);
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
 .portal-danger-btn:hover {
-  background: #c0392b;
+  background: var(--red, #c0392b);
   color: #fff;
+  transform: translateY(-1px);
 }
 
 .status-badge {
   display: inline-block;
-  padding: 3px 10px;
+  padding: 4px 11px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
+  letter-spacing: 0.2px;
 }
 
 .status-badge.pending_activation {
@@ -287,6 +331,112 @@
 .portal-back-link {
   display: inline-block;
   margin-bottom: 12px;
+}
+
+/* Back-to-dashboard, relocated into the header's top-right cluster by portal-ui.js
+   and restyled as a proper button instead of a bare text link. */
+.portal-back-btn {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1.5px solid var(--line, #dde2ea);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface, #fff);
+  color: var(--navy) !important;
+  font-weight: 700;
+  font-size: 12.5px;
+  text-decoration: none !important;
+  margin-bottom: 0 !important;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.portal-back-btn:hover {
+  border-color: var(--teal);
+  background: var(--teal-tint, #eafaf6);
+  color: var(--teal-dark) !important;
+  transform: translateX(-2px);
+}
+
+/* Refresh icon button, injected next to Logout by portal-ui.js */
+.portal-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.portal-refresh-btn svg {
+  transition: transform 0.5s ease;
+}
+
+.portal-refresh-btn.portal-refresh-spinning svg {
+  transform: rotate(300deg);
+}
+
+/* Toast notifications */
+.toast-container {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--navy-dark);
+  color: #fff;
+  padding: 14px 18px;
+  border-radius: var(--radius-sm, 8px);
+  box-shadow: var(--shadow-lg, 0 18px 48px rgba(20, 40, 80, 0.18));
+  font-size: 13.5px;
+  font-weight: 600;
+  max-width: 360px;
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.toast-show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toast-success {
+  background: var(--teal-dark);
+}
+
+.toast-error {
+  background: var(--red, #c0392b);
+}
+
+.toast-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  line-height: 1.4;
+}
+
+@media (max-width: 520px) {
+  .toast-container {
+    left: 12px;
+    right: 12px;
+  }
+  .toast {
+    max-width: none;
+  }
 }
 
 /* Stepper */
@@ -313,6 +463,7 @@
   color: #9aa5b1;
   font-size: 12px;
   font-weight: 700;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 .stepper-num {
@@ -325,6 +476,7 @@
   align-items: center;
   justify-content: center;
   font-size: 13px;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .stepper-item.active {
@@ -334,6 +486,7 @@
 
 .stepper-item.active .stepper-num {
   background: var(--teal);
+  box-shadow: 0 0 0 4px var(--teal-tint, #e7f7f3);
 }
 
 .stepper-item.done {
@@ -373,15 +526,18 @@
   width: 100%;
   padding: 11px 14px;
   border: 1px solid #d7dee6;
-  border-radius: 8px;
+  border-radius: var(--radius-sm, 8px);
   font-size: 14px;
   background: #f7f9fb;
   outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
-.wizard-step input:focus {
+.wizard-step input:focus,
+.wizard-step select:focus {
   border-color: var(--teal);
   background: #fff;
+  box-shadow: 0 0 0 3px var(--teal-tint, #e7f7f3);
 }
 
 .wizard-grid {
@@ -409,17 +565,19 @@
   background: #fff;
   border: 1px solid var(--teal);
   color: var(--teal-dark);
-  border-radius: 8px;
+  border-radius: var(--radius-sm, 8px);
   padding: 0 16px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
 .wizard-suggest-btn:hover {
   background: var(--teal);
   color: #fff;
+  transform: translateY(-1px);
 }
 
 .test-chip-row {
@@ -552,14 +710,15 @@
   gap: 10px;
   padding: 20px 12px 16px;
   border: 2px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: var(--radius-md, 12px);
   cursor: pointer;
   background: #fff;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
 
 .module-card:hover {
   border-color: var(--teal-light);
+  transform: translateY(-2px);
 }
 
 .module-card input {
@@ -684,10 +843,16 @@
   border: 1px solid #c7d0da;
   color: var(--gray-text);
   padding: 12px 24px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm, 8px);
   font-weight: 700;
   cursor: pointer;
   margin-right: auto;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.wizard-back-btn:hover {
+  border-color: var(--navy);
+  background: var(--navy-tint, #f7f9fb);
 }
 
 .wizard-next-btn {
@@ -755,6 +920,66 @@
   background: #fff;
 }
 
+/* Consultation — combinable action blocks (prescribe / order tests / admit) */
+.consult-action-block {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1.5px solid var(--line, #e2e8f0);
+  border-radius: var(--radius-md, 12px);
+  background: var(--surface-2, #f7f9fb);
+}
+
+.consult-action-block h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--navy);
+}
+
+.consult-med-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.consult-med-row input[type="text"],
+.consult-med-row input[type="number"] {
+  padding: 10px 12px;
+  border: 1px solid #d7dee6;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 13.5px;
+  background: #fff;
+}
+
+.consult-med-row select {
+  padding: 10px 12px;
+  border: 1px solid #d7dee6;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 13.5px;
+  background: #fff;
+}
+
+.consult-med-row input[type="text"] {
+  flex: 2 1 200px;
+}
+
+.consult-med-row select#medDosage {
+  flex: 2 1 160px;
+}
+
+.consult-med-row input#medDuration {
+  flex: 1 1 70px;
+}
+
+.consult-med-row select#medUrgency {
+  flex: 1 1 100px;
+}
+
+.consult-med-row .wizard-suggest-btn {
+  flex: 0 0 auto;
+  height: 38px;
+}
+
 /* Slot grid (doctor time-slot booking) */
 .slot-grid {
   display: grid;
@@ -787,10 +1012,11 @@
 /* Queue status badges */
 .queue-status {
   display: inline-block;
-  padding: 3px 10px;
+  padding: 4px 11px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
+  letter-spacing: 0.2px;
 }
 
 .queue-status.waiting {
@@ -810,11 +1036,17 @@
 
 /* Ward / bed cards */
 .ward-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(20, 40, 80, 0.07);
-  padding: 18px;
+  background: var(--surface, #fff);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: var(--shadow-sm, 0 6px 20px rgba(20, 40, 80, 0.07));
+  border: 1px solid var(--line, transparent);
+  padding: 20px;
   margin-bottom: 16px;
+  transition: box-shadow 0.15s ease;
+}
+
+.ward-card:hover {
+  box-shadow: var(--shadow-md, 0 10px 28px rgba(20, 40, 80, 0.1));
 }
 
 .ward-card-title {
@@ -839,6 +1071,7 @@
   background: #f7f9fb;
   color: var(--gray-text);
   cursor: default;
+  transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
 .bed-chip.available {
@@ -850,6 +1083,7 @@
 
 .bed-chip.available:hover {
   border-color: var(--teal);
+  transform: translateY(-1px);
 }
 
 .bed-chip.occupied {
@@ -869,10 +1103,22 @@
   margin: 0 0 10px;
 }
 
+.chart-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chart-section-header .chart-section-title {
+  margin: 0;
+}
+
 .chart-feed-item {
-  padding: 12px 0;
-  border-bottom: 1px solid #eef1f6;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line, #eef1f6);
   font-size: 14px;
+  line-height: 1.5;
 }
 
 .chart-feed-item:last-child {

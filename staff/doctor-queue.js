@@ -9,9 +9,19 @@
     }[c]));
   }
 
+  const DECISION_LABELS = { prescribe: "Prescription", order_tests: "Tests Ordered", admit: "Admission Requested" };
+  function formatDecisionLabel(decision) {
+    return String(decision || "")
+      .split(",")
+      .map((d) => DECISION_LABELS[d.trim()] || d.trim())
+      .filter(Boolean)
+      .join(" + ") || "Consultation";
+  }
+
   let sessionUser = null;
   let activeVisit = null;
   let selectedTests = [];
+  let selectedMeds = [];
   let searchDebounce = null;
 
   async function guardSession() {
@@ -98,6 +108,45 @@
     });
   }
 
+  function renderSelectedMeds() {
+    const row = document.getElementById("selectedMedChips");
+    row.innerHTML = selectedMeds
+      .map(
+        (m, i) =>
+          `<span class="test-chip">${escapeHtml(m.medicineName)} — ${escapeHtml(m.dosage)}, ${escapeHtml(String(m.duration))}d${
+            m.urgency === "urgent" ? " (Urgent)" : ""
+          }<button type="button" class="test-chip-remove" data-idx="${i}">&times;</button></span>`
+      )
+      .join("");
+    row.querySelectorAll(".test-chip-remove").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedMeds.splice(Number(btn.dataset.idx), 1);
+        renderSelectedMeds();
+      });
+    });
+  }
+
+  function wireAddMedButton() {
+    document.getElementById("addMedBtn").addEventListener("click", () => {
+      const errorEl = document.getElementById("consultError");
+      errorEl.textContent = "";
+      const medicineName = document.getElementById("medName").value.trim();
+      const dosage = document.getElementById("medDosage").value;
+      const duration = document.getElementById("medDuration").value;
+      const urgency = document.getElementById("medUrgency").value;
+      if (!medicineName || !dosage || !duration) {
+        errorEl.textContent = "Fill in medicine name, dosage, and duration before adding it.";
+        return;
+      }
+      selectedMeds.push({ medicineName, dosage, duration, urgency });
+      renderSelectedMeds();
+      document.getElementById("medName").value = "";
+      document.getElementById("medDosage").value = "";
+      document.getElementById("medDuration").value = "";
+      document.getElementById("medUrgency").value = "routine";
+    });
+  }
+
   async function runTestSearch(query) {
     const resultsEl = document.getElementById("testSearchResults");
     if (!query.trim()) {
@@ -133,11 +182,6 @@
   }
 
   function wireTestOrderWidget() {
-    document.getElementById("decision").addEventListener("change", (e) => {
-      document.getElementById("testOrderSection").hidden = e.target.value !== "order_tests";
-      document.getElementById("pharmacyOrderSection").hidden = e.target.value !== "prescribe";
-    });
-
     document.getElementById("testSearchInput").addEventListener("input", (e) => {
       clearTimeout(searchDebounce);
       const query = e.target.value;
@@ -153,17 +197,17 @@
     document.getElementById("consultError").textContent = "";
     document.getElementById("symptoms").value = "";
     document.getElementById("consultNotes").value = "";
-    document.getElementById("decision").value = "prescribe";
-    document.getElementById("testOrderSection").hidden = true;
-    document.getElementById("pharmacyOrderSection").hidden = false;
     document.getElementById("medName").value = "";
     document.getElementById("medDosage").value = "";
     document.getElementById("medDuration").value = "";
     document.getElementById("medUrgency").value = "routine";
     document.getElementById("testSearchInput").value = "";
     document.getElementById("testSearchResults").innerHTML = "";
+    document.getElementById("admitCheckbox").checked = false;
     selectedTests = [];
+    selectedMeds = [];
     renderSelectedTests();
+    renderSelectedMeds();
 
     const res = await fetch(`/api/patients/${encodeURIComponent(patientUhid)}/history`, {
       credentials: "same-origin",
@@ -178,7 +222,7 @@
     const consultationItems = data.history.consultations
       .map(
         (c) => `<div class="chart-feed-item">
-          <strong>${escapeHtml(c.decision)}</strong> — ${escapeHtml(c.symptoms || "—")}
+          <strong>${escapeHtml(formatDecisionLabel(c.decision))}</strong> — ${escapeHtml(c.symptoms || "—")}
           <div class="chart-feed-meta">Dr. ${escapeHtml(c.doctor_name || "—")} &middot; ${escapeHtml(new Date(c.created_at).toLocaleString())}</div>
         </div>`
       )
@@ -193,17 +237,27 @@
       .join("");
     const labOrderItems = (data.history.labOrders || [])
       .map((o) => {
-        const statusLabel = { pending: "Ordered", in_progress: "In Progress", completed: "Completed" }[o.status] || o.status;
-        const resultLine =
-          o.status === "completed"
-            ? `<div class="chart-feed-meta">${escapeHtml(o.result_notes || "No notes")}${
-                o.result_file_name
-                  ? ` &middot; <a href="/api/lab-orders/${o.id}/result-file" target="_blank" rel="noopener" class="file-view-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>${escapeHtml(o.result_file_name)}</a>`
-                  : ""
-              }</div>`
-            : "";
+        const DONE_STATUSES = ["completed", "verified"];
+        const isDone = DONE_STATUSES.includes(o.status);
+        const statusLabel =
+          { pending: "Ordered", in_progress: "In Progress", reported: "Reporting", completed: "Completed", verified: "Completed" }[
+            o.status
+          ] || o.status;
+        const imageLinks = (o.images || [])
+          .map(
+            (img) =>
+              ` &middot; <a href="/api/lab-orders/${o.id}/images/${img.id}" target="_blank" rel="noopener" class="file-view-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>${escapeHtml(img.fileName)}</a>`
+          )
+          .join("");
+        const resultLine = isDone
+          ? `<div class="chart-feed-meta">${escapeHtml(o.result_notes || "No notes")}${
+              o.result_file_name
+                ? ` &middot; <a href="/api/lab-orders/${o.id}/result-file" target="_blank" rel="noopener" class="file-view-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>${escapeHtml(o.result_file_name)}</a>`
+                : ""
+            }${imageLinks}</div>`
+          : "";
         return `<div class="chart-feed-item">
-          <strong>${escapeHtml(o.test_name)}</strong> — <span class="queue-status ${o.status === "completed" ? "completed" : "waiting"}">${escapeHtml(statusLabel)}</span>
+          <strong>${escapeHtml(o.test_name)}</strong> — <span class="queue-status ${isDone ? "completed" : "waiting"}">${escapeHtml(statusLabel)}</span>
           ${resultLine}
           <div class="chart-feed-meta">Ordered ${escapeHtml(new Date(o.created_at).toLocaleString())}</div>
         </div>`;
@@ -221,76 +275,56 @@
 
       if (!activeVisit) return;
 
-      const decision = document.getElementById("decision").value;
-      if (decision === "order_tests" && selectedTests.length === 0) {
-        errorEl.textContent = "Select at least one test to order.";
-        return;
-      }
-      
-      if (decision === "prescribe") {
-        const medName = document.getElementById("medName").value.trim();
-        const medDosage = document.getElementById("medDosage").value;
-        const medDuration = document.getElementById("medDuration").value;
-        if (!medName || !medDosage || !medDuration) {
-          errorEl.textContent = "Please fill all medicine details.";
-          return;
-        }
-      }
-
-      const res = await fetch(`/api/opd/visits/${activeVisit.id}/consultation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          symptoms: document.getElementById("symptoms").value.trim(),
-          notes: document.getElementById("consultNotes").value.trim(),
-          decision,
-          testIds: decision === "order_tests" ? selectedTests.map((t) => t.id) : undefined,
-        }),
-      });
-      const data = await res.json();
-
-      if (!data.success) {
-        errorEl.textContent = data.message || "Could not record consultation.";
+      const admit = document.getElementById("admitCheckbox").checked;
+      if (selectedMeds.length === 0 && selectedTests.length === 0 && !admit) {
+        errorEl.textContent = "Add at least one action: prescribe a medicine, order a test, or admit the patient.";
         return;
       }
 
-      if (decision === "prescribe") {
-        const pharmRes = await fetch("/api/pharmacy-orders", {
+      const btn = document.getElementById("completeConsultBtn");
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/api/opd/visits/${activeVisit.id}/consultation`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
           body: JSON.stringify({
-            opdVisitId: activeVisit.id,
-            patientUhid: activeVisit.patientUhid,
-            medicineName: document.getElementById("medName").value.trim(),
-            dosage: document.getElementById("medDosage").value,
-            duration: document.getElementById("medDuration").value,
-            urgency: document.getElementById("medUrgency").value,
+            symptoms: document.getElementById("symptoms").value.trim(),
+            notes: document.getElementById("consultNotes").value.trim(),
+            prescriptions: selectedMeds,
+            testIds: selectedTests.map((t) => t.id),
+            admit,
           }),
         });
-        const pharmData = await pharmRes.json();
-        if (!pharmData.success) {
-           errorEl.textContent = "Consultation recorded, but failed to send pharmacy order.";
-           return;
+        const data = await res.json();
+
+        if (!data.success) {
+          errorEl.textContent = data.message || "Could not record consultation.";
+          return;
         }
-      }
 
-      let confirmationText = "Consultation recorded.";
-      if (data.admissionId && data.admissionAlreadyExisted) {
-        confirmationText = `Consultation recorded. This patient already has an active/pending admission (#${data.admissionId}) — no duplicate was created.`;
-      } else if (data.admissionId) {
-        confirmationText = `Consultation recorded. Admission request #${data.admissionId} created for bed allocation.`;
-      }
-      document.getElementById("consultConfirmation").textContent = confirmationText;
+        const parts = [];
+        if (data.prescriptionCount > 0) parts.push(`${data.prescriptionCount} medicine(s) sent to Pharmacy`);
+        if (data.testCount > 0) parts.push(`${data.testCount} test(s) ordered`);
+        if (data.admissionId && data.admissionAlreadyExisted) {
+          parts.push(`admission already active (#${data.admissionId})`);
+        } else if (data.admissionId) {
+          parts.push(`admission #${data.admissionId} requested`);
+        }
+        const summary = parts.length ? parts.join(" · ") : "Consultation recorded.";
+        document.getElementById("consultConfirmation").textContent = `Consultation recorded — ${summary}.`;
+        if (window.showToast) showToast(`Consultation saved: ${summary}.`, "success");
 
-      activeVisit = null;
-      loadQueue();
-      
-      // Hide the form after 2.5 seconds so they can read the confirmation
-      setTimeout(() => {
-        document.getElementById("consultSection").hidden = true;
-      }, 2500);
+        activeVisit = null;
+        loadQueue();
+
+        // Hide the form after 2.5 seconds so they can read the confirmation
+        setTimeout(() => {
+          document.getElementById("consultSection").hidden = true;
+        }, 2500);
+      } finally {
+        btn.disabled = false;
+      }
     });
   }
 
@@ -300,6 +334,7 @@
     wireLogout();
     wireConsultForm();
     wireTestOrderWidget();
+    wireAddMedButton();
     loadQueue();
   });
 })();

@@ -1,5 +1,11 @@
 (function () {
-  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  function formatDate(dateStr) {
+    // avail_date comes back as a full ISO datetime from mysql2; keep only the date part.
+    const d = new Date(dateStr);
+    return `${DAY_NAMES[d.getDay()]}, ${d.toLocaleDateString()}`;
+  }
 
   async function guardSession() {
     const res = await fetch("/api/session", { credentials: "same-origin" });
@@ -38,7 +44,7 @@
     tbody.innerHTML = data.schedule
       .map(
         (s) => `<tr>
-          <td>${DAY_NAMES[s.day_of_week]}</td>
+          <td>${formatDate(s.avail_date)}</td>
           <td>${s.start_time}</td>
           <td>${s.end_time}</td>
           <td>${s.slot_minutes} min</td>
@@ -58,28 +64,69 @@
     });
   }
 
+  function wireRepeatToggle() {
+    document.getElementById("repeatToggle").addEventListener("change", (e) => {
+      document.getElementById("repeatOptions").hidden = !e.target.checked;
+    });
+  }
+
   function wireAddBlock() {
     document.getElementById("addBlockBtn").addEventListener("click", async () => {
       const errorEl = document.getElementById("scheduleFormError");
       errorEl.textContent = "";
 
-      const res = await fetch("/api/doctor/schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          dayOfWeek: Number(document.getElementById("dayOfWeek").value),
-          startTime: document.getElementById("startTime").value,
-          endTime: document.getElementById("endTime").value,
-          slotMinutes: Number(document.getElementById("slotMinutes").value) || 15,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        errorEl.textContent = data.message || "Could not add availability block.";
+      const date = document.getElementById("availDate").value;
+      if (!date) {
+        errorEl.textContent = "Pick a date.";
         return;
       }
-      loadSchedule();
+
+      const repeat = document.getElementById("repeatToggle").checked;
+      const endDate = repeat ? document.getElementById("repeatEndDate").value : undefined;
+      if (repeat && !endDate) {
+        errorEl.textContent = "Pick an end date for the range, or turn off the repeat option.";
+        return;
+      }
+      const weekdays = repeat
+        ? Array.from(document.querySelectorAll("#weekdayChecks input:checked")).map((el) => Number(el.value))
+        : undefined;
+      if (repeat && weekdays.length === 0) {
+        errorEl.textContent = "Select at least one day of the week to repeat on.";
+        return;
+      }
+
+      const btn = document.getElementById("addBlockBtn");
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/doctor/schedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            date,
+            endDate,
+            weekdays,
+            startTime: document.getElementById("startTime").value,
+            endTime: document.getElementById("endTime").value,
+            slotMinutes: Number(document.getElementById("slotMinutes").value) || 15,
+          }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          errorEl.textContent = data.message || "Could not add availability.";
+          return;
+        }
+        if (window.showToast) {
+          const msg =
+            data.datesRequested > 1
+              ? `Added availability for ${data.datesCreated} of ${data.datesRequested} date(s) (duplicates skipped).`
+              : "Availability added.";
+          showToast(msg, "success");
+        }
+        loadSchedule();
+      } finally {
+        btn.disabled = false;
+      }
     });
   }
 
@@ -88,6 +135,11 @@
     if (!user) return;
     wireLogout();
     wireAddBlock();
+    wireRepeatToggle();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    document.getElementById("availDate").min = todayStr;
+    document.getElementById("availDate").value = todayStr;
+    document.getElementById("repeatEndDate").min = todayStr;
     loadSchedule();
   });
 })();

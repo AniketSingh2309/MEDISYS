@@ -47,49 +47,42 @@
         <label for="consultNotes">Notes</label>
         <textarea id="consultNotes"></textarea>
 
-        <label for="decision">Decision</label>
-        <select id="decision">
-          <option value="prescribe">Prescribe medicine only</option>
-          <option value="order_tests">Order lab/radiology tests</option>
-          <option value="admit">Requires admission</option>
-        </select>
+        <p class="wizard-hint" style="margin: 16px 0 4px;">Add any combination below — prescribe medicine, order tests/X-rays, and/or admit, all in the same consultation.</p>
 
-        <div id="testOrderSection" hidden style="margin-top: 12px;">
-          <label for="testSearchInput">Search tests</label>
+        <div class="consult-action-block">
+          <h3>💊 Prescribe Medicine</h3>
+          <div id="selectedMedChips" class="test-chip-row"></div>
+          <div class="consult-med-row">
+            <input type="text" id="medName" placeholder="Medicine name, e.g. Paracetamol 500mg" autocomplete="off" />
+            <select id="medDosage">
+              <option value="">Dosage</option>
+              <option value="1-0-1 (Morning & Evening)">1-0-1 (Morning &amp; Evening)</option>
+              <option value="1-1-1 (Three times a day)">1-1-1 (Three times a day)</option>
+              <option value="1-0-0 (Morning only)">1-0-0 (Morning only)</option>
+              <option value="0-0-1 (Night only)">0-0-1 (Night only)</option>
+              <option value="SOS (As needed)">SOS (As needed)</option>
+            </select>
+            <input type="number" id="medDuration" min="1" max="30" placeholder="Days" />
+            <select id="medUrgency">
+              <option value="routine">Routine</option>
+              <option value="urgent">Urgent</option>
+            </select>
+            <button type="button" class="wizard-suggest-btn" id="addMedBtn">+ Add</button>
+          </div>
+        </div>
+
+        <div class="consult-action-block">
+          <h3>🧪 Order Tests / X-Rays</h3>
           <div id="selectedTestChips" class="test-chip-row"></div>
           <input type="text" id="testSearchInput" placeholder="Type a test name (e.g. CBC, LFT, Chest X-Ray)..." autocomplete="off" />
           <div id="testSearchResults" class="test-search-results"></div>
         </div>
 
-        <div id="pharmacyOrderSection" hidden style="margin-top: 12px; background: #f0f8ff; padding: 15px; border-radius: 8px; border: 1px solid #bce8f1;">
-          <h3 style="margin-top: 0; color: #31708f; font-size: 14px;">Prescribe Medicine</h3>
-          <label for="medName">Medicine Name</label>
-          <input type="text" id="medName" placeholder="e.g. Paracetamol 500mg" autocomplete="off" style="margin-bottom: 10px;" />
-          
-          <div style="display: flex; gap: 10px;">
-            <div style="flex: 2;">
-              <label for="medDosage">Dosage</label>
-              <select id="medDosage">
-                <option value="">Select Dosage</option>
-                <option value="1-0-1 (Morning & Evening)">1-0-1 (Morning & Evening)</option>
-                <option value="1-1-1 (Three times a day)">1-1-1 (Three times a day)</option>
-                <option value="1-0-0 (Morning only)">1-0-0 (Morning only)</option>
-                <option value="0-0-1 (Night only)">0-0-1 (Night only)</option>
-                <option value="SOS (As needed)">SOS (As needed)</option>
-              </select>
-            </div>
-            <div style="flex: 1;">
-              <label for="medDuration">Duration (Days)</label>
-              <input type="number" id="medDuration" min="1" max="30" placeholder="e.g. 5" />
-            </div>
-            <div style="flex: 1;">
-              <label for="medUrgency">Urgency</label>
-              <select id="medUrgency">
-                <option value="routine">Routine</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-          </div>
+        <div class="consult-action-block">
+          <label class="module-check" style="cursor: pointer;">
+            <input type="checkbox" id="admitCheckbox" />
+            🛏️ This patient requires admission
+          </label>
         </div>
 
         <p class="form-error" id="consultError" role="alert" aria-live="polite"></p>
@@ -110,6 +103,7 @@
     <div class="footer-right">&copy;2026 Core5. All rights reserved.</div>
   </footer>
 
-  <script src="doctor-queue.js"></script>
+  <script src="../portal-ui.js"></script>
+<script src="doctor-queue.js"></script>
 </body>
 </html>

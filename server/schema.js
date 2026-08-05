@@ -105,6 +105,23 @@ async function ensureSchema(connection) {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Superseded by doctor_calendar_availability below (specific calendar dates rather
+  // than a recurring day-of-week pattern) — table kept around untouched so existing
+  // rows aren't lost, but the app no longer reads or writes it.
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS doctor_calendar_availability (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      doctor_user_id VARCHAR(50) NOT NULL,
+      avail_date DATE NOT NULL,
+      start_time TIME NOT NULL,
+      end_time TIME NOT NULL,
+      slot_minutes INT NOT NULL DEFAULT 15,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_doctor_date_start (doctor_user_id, avail_date, start_time)
+    )
+  `);
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS wards (
@@ -173,6 +190,10 @@ async function ensureSchema(connection) {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // A consultation can now combine multiple actions at once (prescribe + order tests +
+  // admit), stored as a comma-joined list (e.g. "prescribe,order_tests,admit") — widen
+  // from the original single-decision VARCHAR(20). MODIFY is idempotent, safe to re-run.
+  await connection.query(`ALTER TABLE consultations MODIFY COLUMN decision VARCHAR(60) NOT NULL`);
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS ipd_admissions (
@@ -263,6 +284,30 @@ async function ensureSchema(connection) {
       result_file_name VARCHAR(255) NULL,
       completed_by VARCHAR(50) NULL,
       completed_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  // priority / verification fields, added after the initial release — kept as an additive
+  // migration (ensureColumn) rather than in the CREATE above so existing installs pick them up.
+  await ensureColumn(
+    connection,
+    "lab_orders",
+    "priority",
+    "ENUM('routine','urgent','stat') NOT NULL DEFAULT 'routine'"
+  );
+  await ensureColumn(connection, "lab_orders", "verified_by", "VARCHAR(50) NULL");
+  await ensureColumn(connection, "lab_orders", "verified_at", "TIMESTAMP NULL");
+
+  // Multiple images per study (radiology). A study can have 0..N uploaded images;
+  // legacy single-file result (result_file_path/name) is still used by the pathology flow.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS lab_order_images (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      lab_order_id INT NOT NULL,
+      file_path VARCHAR(255) NOT NULL,
+      file_name VARCHAR(255) NOT NULL,
+      uploaded_by VARCHAR(50) NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -458,80 +503,91 @@ async function seedDefaultUsers(connection) {
       }
     }
 
-    // 2. Seed Default Hospital
-    const [[{ cntHosp }]] = await connection.query("SELECT COUNT(*) AS cntHosp FROM hospitals WHERE id = 1");
-    if (cntHosp === 0) {
+    // 2-5. Demo hospital + its staff/patients — bootstrap only on a genuinely empty
+    // install (no hospitals at all yet). The old guard checked only `id = 1`, so on any
+    // database that already had a real hospital under a different id (e.g. imported from
+    // a dump with id=10), it silently created a *second* duplicate "City Hospital
+    // Ghatkopar" AND — worse — the unconditional password-reset UPDATEs below ran every
+    // single server start, resetting real accounts (AD-CHG-64701, OPD-CHG-70518,
+    // DR-CHG-49545, NR-CHG-88859, PH-44433, C5-202226, and patients PAT-CHG-0002/3/4) back
+    // to these hardcoded demo passwords whenever a real hospital happened to reuse the
+    // same user IDs, as ours does. Gating the whole block on "no hospitals exist yet"
+    // makes this pure first-run bootstrap and leaves real data alone from then on.
+    const [[{ cntAnyHospital }]] = await connection.query("SELECT COUNT(*) AS cntAnyHospital FROM hospitals");
+    if (cntAnyHospital === 0) {
+      // 2. Seed Default Hospital
       await connection.query(
-        `INSERT INTO hospitals (id, name, license_number, city, state, bed_count, status, admin_name, admin_email, short_code, admin_user_id) 
+        `INSERT INTO hospitals (id, name, license_number, city, state, bed_count, status, admin_name, admin_email, short_code, admin_user_id)
          VALUES (1, 'City Hospital Ghatkopar', 'LIC-1001', 'Mumbai', 'Maharashtra', 100, 'active', 'Rashmi', 'admin@cityhospital.com', 'CHG', 'AD-CHG-64701')`
       );
+
+      // 3. Seed Hospital Admin & Staff Users
+      const defaultUsers = [
+        ["AD-CHG-64701", hashCore5, "Rashmi (Hospital Admin)", "hospital_admin", 1, "staff"],
+        ["OPD-CHG-70518", hashCore5, "Jhon Jacob (OPD)", "receptionist", 1, "staff"],
+        ["DR-CHG-49545", hashCore5, "Shubham (Doctor)", "doctor", 1, "staff"],
+        ["NR-CHG-88859", hashCore5, "Dipti (Nurse)", "nurse", 1, "staff"],
+        ["PH-44433", hashPhar, "Pharmacist", "pharmacist", 1, "staff"],
+        ["CH-ADM-001", hash, "Hospital Admin", "hospital_admin", 1, "staff"],
+        ["DR-001", passHash, "Dr. Sharma", "doctor", 1, "staff"],
+        ["PH-001", passHash, "Pharmacist Verma", "pharmacist", 1, "staff"],
+        ["REC-001", passHash, "Front Desk Receptionist", "receptionist", 1, "staff"],
+        ["NUR-001", passHash, "Nurse Sister Mary", "nurse", 1, "staff"],
+      ];
+
+      for (const [uId, uHash, fName, uRole, hId, accType] of defaultUsers) {
+        const [[{ cntU }]] = await connection.query("SELECT COUNT(*) AS cntU FROM users WHERE user_id = ?", [uId]);
+        if (cntU === 0) {
+          await connection.query(
+            "INSERT INTO users (user_id, password_hash, full_name, role, hospital_id) VALUES (?, ?, ?, ?, ?)",
+            [uId, uHash, fName, uRole, hId]
+          );
+        }
+        const [[{ cntDir }]] = await connection.query("SELECT COUNT(*) AS cntDir FROM user_directory WHERE user_id = ?", [uId]);
+        if (cntDir === 0) {
+          await connection.query(
+            "INSERT INTO user_directory (user_id, hospital_id, account_type) VALUES (?, ?, ?)",
+            [uId, hId, accType]
+          );
+        }
+      }
+
+      // 4. Seed Patients
+      const patients = [
+        ["PAT-CHG-0002", "ASHISH", hashCore5, 1],
+        ["PAT-CHG-0003", "Vikram", hashCore5, 1],
+        ["PAT-CHG-0004", "NITISH", hashCore5, 1],
+      ];
+
+      for (const [uhid, pName, pHash, hId] of patients) {
+        const [[{ cntP }]] = await connection.query("SELECT COUNT(*) AS cntP FROM patients WHERE uhid = ?", [uhid]);
+        if (cntP === 0) {
+          await connection.query(
+            "INSERT INTO patients (uhid, full_name, password_hash, hospital_id) VALUES (?, ?, ?, ?)",
+            [uhid, pName, pHash, hId]
+          );
+        }
+        const [[{ cntDirP }]] = await connection.query("SELECT COUNT(*) AS cntDirP FROM user_directory WHERE user_id = ?", [uhid]);
+        if (cntDirP === 0) {
+          await connection.query(
+            "INSERT INTO user_directory (user_id, hospital_id, account_type) VALUES (?, ?, 'patient')",
+            [uhid, hId]
+          );
+        }
+      }
+
+      // 5. Sync hospital_id between users, patients, and user_directory, and normalize
+      // the demo accounts' passwords we just created above.
+      await connection.query('UPDATE users u JOIN user_directory d ON u.user_id = d.user_id SET u.hospital_id = d.hospital_id');
+      await connection.query('UPDATE patients p JOIN user_directory d ON p.uhid = d.user_id SET p.hospital_id = d.hospital_id');
+      await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashPhar, 'PH-44433']);
+      await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'AD-CHG-64701']);
+      await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'OPD-CHG-70518']);
+      await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'DR-CHG-49545']);
+      await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'NR-CHG-88859']);
+      await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'C5-202226']);
+      await connection.query('UPDATE patients SET password_hash = ? WHERE uhid IN (?, ?, ?)', [hashCore5, 'PAT-CHG-0002', 'PAT-CHG-0003', 'PAT-CHG-0004']);
     }
-
-    // 3. Seed Hospital Admin & Staff Users
-    const defaultUsers = [
-      ["AD-CHG-64701", hashCore5, "Rashmi (Hospital Admin)", "hospital_admin", 1, "staff"],
-      ["OPD-CHG-70518", hashCore5, "Jhon Jacob (OPD)", "receptionist", 1, "staff"],
-      ["DR-CHG-49545", hashCore5, "Shubham (Doctor)", "doctor", 1, "staff"],
-      ["NR-CHG-88859", hashCore5, "Dipti (Nurse)", "nurse", 1, "staff"],
-      ["PH-44433", hashPhar, "Pharmacist", "pharmacist", 1, "staff"],
-      ["CH-ADM-001", hash, "Hospital Admin", "hospital_admin", 1, "staff"],
-      ["DR-001", passHash, "Dr. Sharma", "doctor", 1, "staff"],
-      ["PH-001", passHash, "Pharmacist Verma", "pharmacist", 1, "staff"],
-      ["REC-001", passHash, "Front Desk Receptionist", "receptionist", 1, "staff"],
-      ["NUR-001", passHash, "Nurse Sister Mary", "nurse", 1, "staff"],
-    ];
-
-    for (const [uId, uHash, fName, uRole, hId, accType] of defaultUsers) {
-      const [[{ cntU }]] = await connection.query("SELECT COUNT(*) AS cntU FROM users WHERE user_id = ?", [uId]);
-      if (cntU === 0) {
-        await connection.query(
-          "INSERT INTO users (user_id, password_hash, full_name, role, hospital_id) VALUES (?, ?, ?, ?, ?)",
-          [uId, uHash, fName, uRole, hId]
-        );
-      }
-      const [[{ cntDir }]] = await connection.query("SELECT COUNT(*) AS cntDir FROM user_directory WHERE user_id = ?", [uId]);
-      if (cntDir === 0) {
-        await connection.query(
-          "INSERT INTO user_directory (user_id, hospital_id, account_type) VALUES (?, ?, ?)",
-          [uId, hId, accType]
-        );
-      }
-    }
-
-    // 4. Seed Patients
-    const patients = [
-      ["PAT-CHG-0002", "ASHISH", hashCore5, 1],
-      ["PAT-CHG-0003", "Vikram", hashCore5, 1],
-      ["PAT-CHG-0004", "NITISH", hashCore5, 1],
-    ];
-
-    for (const [uhid, pName, pHash, hId] of patients) {
-      const [[{ cntP }]] = await connection.query("SELECT COUNT(*) AS cntP FROM patients WHERE uhid = ?", [uhid]);
-      if (cntP === 0) {
-        await connection.query(
-          "INSERT INTO patients (uhid, full_name, password_hash, hospital_id) VALUES (?, ?, ?, ?)",
-          [uhid, pName, pHash, hId]
-        );
-      }
-      const [[{ cntDirP }]] = await connection.query("SELECT COUNT(*) AS cntDirP FROM user_directory WHERE user_id = ?", [uhid]);
-      if (cntDirP === 0) {
-        await connection.query(
-          "INSERT INTO user_directory (user_id, hospital_id, account_type) VALUES (?, ?, 'patient')",
-          [uhid, hId]
-        );
-      }
-    }
-
-    // 5. Sync hospital_id between users, patients, and user_directory
-    await connection.query('UPDATE users u JOIN user_directory d ON u.user_id = d.user_id SET u.hospital_id = d.hospital_id');
-    await connection.query('UPDATE patients p JOIN user_directory d ON p.uhid = d.user_id SET p.hospital_id = d.hospital_id');
-    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashPhar, 'PH-44433']);
-    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'AD-CHG-64701']);
-    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'OPD-CHG-70518']);
-    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'DR-CHG-49545']);
-    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'NR-CHG-88859']);
-    await connection.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashCore5, 'C5-202226']);
-    await connection.query('UPDATE patients SET password_hash = ? WHERE uhid IN (?, ?, ?)', [hashCore5, 'PAT-CHG-0002', 'PAT-CHG-0003', 'PAT-CHG-0004']);
 
   } catch (err) {
     console.error("Error seeding default users:", err.message);

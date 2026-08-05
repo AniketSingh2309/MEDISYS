@@ -470,6 +470,142 @@ INSERT INTO `patients` VALUES (1,10,'UH-CHG-000001',NULL,'abhi','2002-09-17','Ma
 UNLOCK TABLES;
 
 --
+-- Table structure for table `pharmacy_invoices`
+--
+
+DROP TABLE IF EXISTS `pharmacy_invoices`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `pharmacy_invoices` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `hospital_id` int NOT NULL,
+  `invoice_number` varchar(50) NOT NULL,
+  `order_id` int DEFAULT NULL,
+  `patient_uhid` varchar(30) NOT NULL,
+  `patient_name` varchar(150) NOT NULL,
+  `payment_type` varchar(30) NOT NULL DEFAULT 'Cash',
+  `item_count` int NOT NULL DEFAULT '1',
+  `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `payment_status` varchar(20) NOT NULL DEFAULT 'Pending',
+  `created_by` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `paid_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `invoice_number` (`invoice_number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `pharmacy_invoices`
+--
+
+LOCK TABLES `pharmacy_invoices` WRITE;
+/*!40000 ALTER TABLE `pharmacy_invoices` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pharmacy_invoices` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pharmacy_orders`
+--
+
+DROP TABLE IF EXISTS `pharmacy_orders`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `pharmacy_orders` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `hospital_id` int NOT NULL,
+  `opd_visit_id` int DEFAULT NULL,
+  `ipd_admission_id` int DEFAULT NULL,
+  `patient_uhid` varchar(30) NOT NULL,
+  `doctor_user_id` varchar(50) NOT NULL,
+  `medicine_name` varchar(150) NOT NULL,
+  `dosage` varchar(100) NOT NULL,
+  `duration` varchar(50) NOT NULL,
+  `urgency` enum('routine','urgent') NOT NULL DEFAULT 'routine',
+  `status` varchar(20) NOT NULL DEFAULT 'pending_pharmacy',
+  `dispensed_by` varchar(50) DEFAULT NULL,
+  `dispensed_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `amount` decimal(10,2) DEFAULT NULL,
+  `payment_mode` varchar(20) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `pharmacy_orders`
+--
+
+LOCK TABLES `pharmacy_orders` WRITE;
+/*!40000 ALTER TABLE `pharmacy_orders` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pharmacy_orders` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pharmacy_purchase_orders`
+--
+
+DROP TABLE IF EXISTS `pharmacy_purchase_orders`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `pharmacy_purchase_orders` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `hospital_id` int NOT NULL,
+  `po_number` varchar(50) NOT NULL,
+  `supplier_name` varchar(150) NOT NULL,
+  `items_summary` varchar(255) NOT NULL,
+  `total_items` int NOT NULL DEFAULT '1',
+  `status` varchar(30) NOT NULL DEFAULT 'Submitted',
+  `created_by` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `po_number` (`po_number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `pharmacy_purchase_orders`
+--
+
+LOCK TABLES `pharmacy_purchase_orders` WRITE;
+/*!40000 ALTER TABLE `pharmacy_purchase_orders` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pharmacy_purchase_orders` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pharmacy_stock`
+--
+
+DROP TABLE IF EXISTS `pharmacy_stock`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `pharmacy_stock` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `hospital_id` int NOT NULL,
+  `medicine_name` varchar(150) NOT NULL,
+  `category` varchar(50) NOT NULL,
+  `batch_number` varchar(50) NOT NULL,
+  `expiry_date` date NOT NULL,
+  `stock_quantity` int NOT NULL DEFAULT '0',
+  `min_stock_level` int NOT NULL DEFAULT '10',
+  `unit_price` decimal(10,2) DEFAULT NULL,
+  `added_by` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `pharmacy_stock`
+--
+
+LOCK TABLES `pharmacy_stock` WRITE;
+/*!40000 ALTER TABLE `pharmacy_stock` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pharmacy_stock` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `test_catalog`
 --
 

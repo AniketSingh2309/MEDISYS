@@ -27,6 +27,34 @@ const labResultUpload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
+const LAB_IMAGES_DIR = path.join(__dirname, "uploads", "lab-images");
+fs.mkdirSync(LAB_IMAGES_DIR, { recursive: true });
+
+const labImageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, LAB_IMAGES_DIR),
+    filename: (req, file, cb) => {
+      const safeExt = path.extname(file.originalname).slice(0, 10);
+      cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype)),
+});
+
+// Server-local "today" as YYYY-MM-DD using local wall-clock fields (NOT
+// toISOString/UTC — that rolls back a day for ~5.5 hours overnight in IST and any
+// other UTC+ timezone). Also safe for parsing a Y-M-D string into a Date anchored at
+// UTC noon, so calendar-date arithmetic (adding days, reading the weekday) never
+// drifts across a local/UTC boundary either.
+function todayLocalDateStr() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+function parseDateStrUTC(dateStr) {
+  return new Date(`${dateStr}T12:00:00Z`);
+}
+
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
@@ -432,6 +460,54 @@ app.get("/api/patients/:uhid", requireTenantUser, async (req, res) => {
   }
 });
 
+app.patch("/api/patients/:uhid", requireRole("doctor", "receptionist", "hospital_admin"), async (req, res) => {
+  const {
+    fullName,
+    dob,
+    gender,
+    phone,
+    address,
+    emergencyContactName,
+    emergencyContactPhone,
+    abhaId,
+    category,
+  } = req.body || {};
+
+  if (!fullName || !fullName.trim()) {
+    return res.status(400).json({ success: false, message: "Patient name is required." });
+  }
+
+  try {
+    const { hospitalId } = req.session.user;
+    const [result] = await pool.query(
+      `UPDATE patients
+       SET full_name = ?, dob = ?, gender = ?, phone = ?, address = ?,
+           emergency_contact_name = ?, emergency_contact_phone = ?, abha_id = ?, category = ?
+       WHERE uhid = ? AND hospital_id = ?`,
+      [
+        fullName.trim(),
+        dob || null,
+        gender || null,
+        phone || null,
+        address || null,
+        emergencyContactName || null,
+        emergencyContactPhone || null,
+        abhaId || null,
+        category || null,
+        req.params.uhid,
+        hospitalId,
+      ]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Patient not found." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Update patient error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
 app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
   const {
     fullName,
@@ -535,8 +611,8 @@ app.get("/api/doctor/patients", requireRole("doctor"), async (req, res) => {
     const [rows] = await pool.query(
       `SELECT p.uhid, p.full_name, p.phone, p.gender, p.dob,
               (SELECT MAX(v.created_at) FROM opd_visits v WHERE v.patient_uhid = p.uhid AND v.doctor_user_id = ?) AS last_opd_visit,
-              (SELECT COUNT(*) FROM lab_orders lo WHERE lo.patient_uhid = p.uhid AND lo.doctor_user_id = ? AND lo.status = 'completed') AS completed_report_count,
-              (SELECT COUNT(*) FROM lab_orders lo WHERE lo.patient_uhid = p.uhid AND lo.doctor_user_id = ? AND lo.status != 'completed') AS pending_report_count
+              (SELECT COUNT(*) FROM lab_orders lo WHERE lo.patient_uhid = p.uhid AND lo.doctor_user_id = ? AND lo.status IN ('completed', 'verified')) AS completed_report_count,
+              (SELECT COUNT(*) FROM lab_orders lo WHERE lo.patient_uhid = p.uhid AND lo.doctor_user_id = ? AND lo.status NOT IN ('completed', 'verified')) AS pending_report_count
        FROM patients p
        WHERE p.hospital_id = ? AND p.uhid IN (
          SELECT DISTINCT patient_uhid FROM opd_visits WHERE doctor_user_id = ? AND hospital_id = ?
@@ -558,9 +634,10 @@ app.get("/api/doctor/patients", requireRole("doctor"), async (req, res) => {
 app.get("/api/doctor/schedule", requireRole("doctor"), async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, day_of_week, start_time, end_time, slot_minutes
-       FROM doctor_schedules
-       WHERE hospital_id = ? AND doctor_user_id = ? ORDER BY day_of_week, start_time`,
+      `SELECT id, avail_date, start_time, end_time, slot_minutes
+       FROM doctor_calendar_availability
+       WHERE hospital_id = ? AND doctor_user_id = ? AND avail_date >= CURDATE()
+       ORDER BY avail_date, start_time`,
       [req.session.user.hospitalId, req.session.user.userId]
     );
     res.json({ success: true, schedule: rows });
@@ -571,9 +648,9 @@ app.get("/api/doctor/schedule", requireRole("doctor"), async (req, res) => {
 });
 
 app.post("/api/doctor/schedule", requireRole("doctor"), async (req, res) => {
-  const { dayOfWeek, startTime, endTime, slotMinutes } = req.body || {};
-  if (dayOfWeek === undefined || dayOfWeek === null || !startTime || !endTime) {
-    return res.status(400).json({ success: false, message: "Day, start time, and end time are required." });
+  const { date, endDate, weekdays, startTime, endTime, slotMinutes } = req.body || {};
+  if (!date || !startTime || !endTime) {
+    return res.status(400).json({ success: false, message: "Date, start time, and end time are required." });
   }
   if (endTime <= startTime) {
     return res.status(400).json({
@@ -581,14 +658,45 @@ app.post("/api/doctor/schedule", requireRole("doctor"), async (req, res) => {
       message: "End time must be after start time (use 23:45 for end-of-day, not 00:00).",
     });
   }
+  const today = todayLocalDateStr();
+  if (date < today) {
+    return res.status(400).json({ success: false, message: `${date} is in the past. Pick today or a later date.` });
+  }
+  if (endDate && endDate < date) {
+    return res.status(400).json({ success: false, message: "End date must be on or after the start date." });
+  }
+
+  // Single date, or a date range optionally filtered to specific weekdays — either way
+  // every row we insert is a concrete calendar date, never a recurring day-of-week rule.
+  // Anchored at UTC noon (parseDateStrUTC) so the day-of-week and date-string round-trip
+  // never drift across the local/UTC boundary.
+  const dates = [];
+  const cursor = parseDateStrUTC(date);
+  const last = parseDateStrUTC(endDate || date);
+  const weekdaySet = Array.isArray(weekdays) && weekdays.length > 0 ? new Set(weekdays.map(Number)) : null;
+  while (cursor <= last) {
+    if (!weekdaySet || weekdaySet.has(cursor.getUTCDay())) {
+      dates.push(cursor.toISOString().slice(0, 10));
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  if (dates.length === 0) {
+    return res.status(400).json({ success: false, message: "No matching dates in that range." });
+  }
+  if (dates.length > 366) {
+    return res.status(400).json({ success: false, message: "That range is too large — please split it up." });
+  }
+
   try {
+    const { hospitalId, userId } = req.session.user;
+    const values = dates.map((d) => [hospitalId, userId, d, startTime, endTime, slotMinutes || 15]);
     const [result] = await pool.query(
-      `INSERT INTO doctor_schedules
-        (hospital_id, doctor_user_id, day_of_week, start_time, end_time, slot_minutes)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [req.session.user.hospitalId, req.session.user.userId, dayOfWeek, startTime, endTime, slotMinutes || 15]
+      `INSERT IGNORE INTO doctor_calendar_availability
+        (hospital_id, doctor_user_id, avail_date, start_time, end_time, slot_minutes)
+       VALUES ?`,
+      [values]
     );
-    res.json({ success: true, id: result.insertId });
+    res.json({ success: true, datesRequested: dates.length, datesCreated: result.affectedRows });
   } catch (err) {
     console.error("Create schedule error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
@@ -598,7 +706,7 @@ app.post("/api/doctor/schedule", requireRole("doctor"), async (req, res) => {
 app.delete("/api/doctor/schedule/:id", requireRole("doctor"), async (req, res) => {
   try {
     await pool.query(
-      `DELETE FROM doctor_schedules WHERE id = ? AND hospital_id = ? AND doctor_user_id = ?`,
+      `DELETE FROM doctor_calendar_availability WHERE id = ? AND hospital_id = ? AND doctor_user_id = ?`,
       [req.params.id, req.session.user.hospitalId, req.session.user.userId]
     );
     res.json({ success: true });
@@ -687,12 +795,11 @@ app.get("/api/opd/slots", requireTenantUser, async (req, res) => {
   }
   try {
     const { hospitalId } = req.session.user;
-    const dayOfWeek = new Date(`${date}T00:00:00`).getDay();
 
     const [scheduleRows] = await pool.query(
-      `SELECT start_time, end_time, slot_minutes FROM doctor_schedules
-       WHERE hospital_id = ? AND doctor_user_id = ? AND day_of_week = ?`,
-      [hospitalId, doctorUserId, dayOfWeek]
+      `SELECT start_time, end_time, slot_minutes FROM doctor_calendar_availability
+       WHERE hospital_id = ? AND doctor_user_id = ? AND avail_date = ?`,
+      [hospitalId, doctorUserId, date]
     );
     const [bookedRows] = await pool.query(
       `SELECT slot_time FROM opd_visits
@@ -712,9 +819,17 @@ app.get("/api/opd/slots", requireTenantUser, async (req, res) => {
 });
 
 app.post("/api/opd/visits", requireReceptionistOrAdmin, async (req, res) => {
-  const { patientUhid, doctorUserId, visitDate, slotTime } = req.body || {};
+  const { patientUhid, doctorUserId, visitDate, slotTime, confirmDuplicate } = req.body || {};
   if (!patientUhid || !doctorUserId || !visitDate) {
     return res.status(400).json({ success: false, message: "Patient, doctor, and date are required." });
+  }
+
+  const today = todayLocalDateStr();
+  if (visitDate < today) {
+    return res.status(400).json({
+      success: false,
+      message: `${visitDate} is in the past. Pick today (${today}) or a later date.`,
+    });
   }
 
   try {
@@ -729,6 +844,31 @@ app.post("/api/opd/visits", requireReceptionistOrAdmin, async (req, res) => {
         return res.status(409).json({
           success: false,
           message: "That slot has just been booked. Please pick another.",
+        });
+      }
+    }
+
+    // Warn (don't hard-block) if this patient already has other unresolved bookings —
+    // easy to create several by accident when re-picking dates/doctors while searching
+    // for an open slot. The caller can resubmit with confirmDuplicate: true to proceed.
+    if (!confirmDuplicate) {
+      const [pending] = await pool.query(
+        `SELECT v.id, v.visit_date, v.slot_time, u.full_name AS doctor_name, v.doctor_user_id
+         FROM opd_visits v LEFT JOIN users u ON u.user_id = v.doctor_user_id
+         WHERE v.hospital_id = ? AND v.patient_uhid = ? AND v.status IN ('waiting', 'in-consultation')`,
+        [hospitalId, patientUhid]
+      );
+      if (pending.length > 0) {
+        return res.status(409).json({
+          success: false,
+          duplicateWarning: true,
+          message: `This patient already has ${pending.length} unresolved booking(s).`,
+          existingVisits: pending.map((v) => ({
+            id: v.id,
+            visitDate: v.visit_date,
+            slotTime: v.slot_time,
+            doctorName: v.doctor_name || v.doctor_user_id,
+          })),
         });
       }
     }
@@ -773,7 +913,7 @@ app.post("/api/opd/visits", requireReceptionistOrAdmin, async (req, res) => {
 
 app.get("/api/opd/queue", requireTenantUser, async (req, res) => {
   const { date, doctorUserId } = req.query;
-  const visitDate = date || new Date().toISOString().slice(0, 10);
+  const visitDate = date || todayLocalDateStr();
 
   try {
     const { hospitalId } = req.session.user;
@@ -834,14 +974,20 @@ app.get("/api/patients/:uhid/history", requireTenantUser, async (req, res) => {
        FROM ipd_admissions WHERE hospital_id = ? AND patient_uhid = ? ORDER BY created_at DESC`,
       [hospitalId, req.params.uhid]
     );
-    const [labOrders] = await pool.query(
+    const [labOrderRows] = await pool.query(
       `SELECT lo.id, tc.name AS test_name, tc.category, tc.department, lo.status,
-              lo.result_notes, lo.result_file_name, lo.completed_at, lo.created_at
+              lo.result_notes, lo.result_file_name, lo.completed_at, lo.created_at,
+              (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', li.id, 'fileName', li.file_name))
+                 FROM lab_order_images li WHERE li.lab_order_id = lo.id) AS images
        FROM lab_orders lo
        LEFT JOIN test_catalog tc ON tc.id = lo.test_id
        WHERE lo.hospital_id = ? AND lo.patient_uhid = ? ORDER BY lo.created_at DESC`,
       [hospitalId, req.params.uhid]
     );
+    const labOrders = labOrderRows.map((r) => ({
+      ...r,
+      images: typeof r.images === "string" ? JSON.parse(r.images) : r.images || [],
+    }));
     res.json({ success: true, history: { consultations, admissions, labOrders } });
   } catch (err) {
     console.error("Get patient history error:", err.message);
@@ -870,12 +1016,23 @@ app.get("/api/tests/search", requireTenantUser, async (req, res) => {
 // ---------- Consultation (doctor decision point) ----------
 
 app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, res) => {
-  const { symptoms, notes, decision, testIds } = req.body || {};
-  if (!["prescribe", "order_tests", "admit"].includes(decision)) {
-    return res.status(400).json({ success: false, message: "A valid decision is required." });
+  const { symptoms, notes, testIds, admit } = req.body || {};
+  const prescriptions = Array.isArray(req.body?.prescriptions) ? req.body.prescriptions : [];
+  const tests = Array.isArray(testIds) ? testIds : [];
+  const wantsAdmit = admit === true;
+
+  // A consultation can combine any mix of prescribe / order tests / admit — at least
+  // one action is required, but none of them are mutually exclusive anymore.
+  if (prescriptions.length === 0 && tests.length === 0 && !wantsAdmit) {
+    return res.status(400).json({
+      success: false,
+      message: "Add at least one action: prescribe a medicine, order a test, or admit the patient.",
+    });
   }
-  if (decision === "order_tests" && (!Array.isArray(testIds) || testIds.length === 0)) {
-    return res.status(400).json({ success: false, message: "Select at least one test to order." });
+  for (const p of prescriptions) {
+    if (!p || !p.medicineName || !p.dosage || !p.duration) {
+      return res.status(400).json({ success: false, message: "Each prescription needs a medicine, dosage, and duration." });
+    }
   }
 
   try {
@@ -889,6 +1046,12 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
     }
     const patientUhid = visitRows[0].patient_uhid;
 
+    const actions = [];
+    if (prescriptions.length > 0) actions.push("prescribe");
+    if (tests.length > 0) actions.push("order_tests");
+    if (wantsAdmit) actions.push("admit");
+    const decision = actions.join(",");
+
     await pool.query(
       `INSERT INTO consultations (hospital_id, opd_visit_id, patient_uhid, doctor_user_id, symptoms, notes, decision)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -899,8 +1062,27 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
       hospitalId,
     ]);
 
-    if (decision === "order_tests") {
-      const values = testIds.map((testId) => [hospitalId, req.params.id, patientUhid, testId, userId]);
+    if (prescriptions.length > 0) {
+      const values = prescriptions.map((p) => [
+        hospitalId,
+        req.params.id,
+        patientUhid,
+        userId,
+        p.medicineName,
+        p.dosage,
+        p.duration,
+        p.urgency === "urgent" ? "urgent" : "routine",
+      ]);
+      await pool.query(
+        `INSERT INTO medisys_pharmacy.pharmacy_orders
+           (hospital_id, opd_visit_id, patient_uhid, doctor_user_id, medicine_name, dosage, duration, urgency)
+         VALUES ?`,
+        [values]
+      );
+    }
+
+    if (tests.length > 0) {
+      const values = tests.map((testId) => [hospitalId, req.params.id, patientUhid, testId, userId]);
       await pool.query(
         `INSERT INTO lab_orders (hospital_id, opd_visit_id, patient_uhid, test_id, doctor_user_id) VALUES ?`,
         [values]
@@ -909,7 +1091,7 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
 
     let admissionId = null;
     let admissionAlreadyExisted = false;
-    if (decision === "admit") {
+    if (wantsAdmit) {
       const [existing] = await pool.query(
         `SELECT id FROM ipd_admissions
          WHERE hospital_id = ? AND patient_uhid = ? AND status IN ('requested', 'admitted') LIMIT 1`,
@@ -929,7 +1111,13 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
       }
     }
 
-    res.json({ success: true, admissionId, admissionAlreadyExisted });
+    res.json({
+      success: true,
+      admissionId,
+      admissionAlreadyExisted,
+      prescriptionCount: prescriptions.length,
+      testCount: tests.length,
+    });
   } catch (err) {
     console.error("Record consultation error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
@@ -939,18 +1127,23 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
 // ---------- Lab orders (Pathology / Laboratory / Radiology queues) ----------
 
 app.get("/api/lab-orders", requireRole("pathology_staff", "hospital_admin"), async (req, res) => {
-  const { department, scope } = req.query;
+  const { department, scope, status } = req.query;
   try {
     const { hospitalId, userId } = req.session.user;
-    let query = `SELECT lo.id, lo.patient_uhid, p.full_name AS patient_name, lo.test_id, tc.name AS test_name,
-                        tc.category, tc.department, lo.doctor_user_id, u.full_name AS doctor_name,
-                        lo.status, lo.assigned_to, a.full_name AS assigned_to_name,
-                        lo.result_notes, lo.result_file_name, lo.completed_by, lo.completed_at, lo.created_at
+    let query = `SELECT lo.id, lo.patient_uhid, p.full_name AS patient_name, p.dob, p.gender,
+                        lo.test_id, tc.name AS test_name, tc.category, tc.department, tc.sample_type, tc.turnaround_hours,
+                        lo.doctor_user_id, u.full_name AS doctor_name,
+                        lo.status, lo.priority, lo.assigned_to, a.full_name AS assigned_to_name,
+                        lo.result_notes, lo.result_file_name, lo.completed_by, lo.completed_at,
+                        lo.verified_by, v.full_name AS verified_by_name, lo.verified_at, lo.created_at,
+                        (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', li.id, 'fileName', li.file_name))
+                           FROM lab_order_images li WHERE li.lab_order_id = lo.id) AS images
                  FROM lab_orders lo
                  LEFT JOIN patients p ON p.uhid = lo.patient_uhid
                  LEFT JOIN test_catalog tc ON tc.id = lo.test_id
                  LEFT JOIN users u ON u.user_id = lo.doctor_user_id
-                 LEFT JOIN users a ON a.user_id = lo.assigned_to`;
+                 LEFT JOIN users a ON a.user_id = lo.assigned_to
+                 LEFT JOIN users v ON v.user_id = lo.verified_by`;
     const conditions = ["lo.hospital_id = ?"];
     const params = [hospitalId];
 
@@ -961,10 +1154,14 @@ app.get("/api/lab-orders", requireRole("pathology_staff", "hospital_admin"), asy
     if (scope === "unclaimed") {
       conditions.push("lo.status = 'pending'");
     } else if (scope === "mine") {
-      conditions.push("lo.assigned_to = ? AND lo.status != 'completed'");
+      conditions.push("lo.assigned_to = ? AND lo.status NOT IN ('completed', 'verified')");
       params.push(userId);
     } else if (scope === "completed") {
-      conditions.push("lo.status = 'completed'");
+      conditions.push("lo.status IN ('completed', 'verified')");
+    }
+    if (status && status !== "all") {
+      conditions.push("lo.status = ?");
+      params.push(status);
     }
     if (conditions.length) {
       query += ` WHERE ${conditions.join(" AND ")}`;
@@ -972,7 +1169,11 @@ app.get("/api/lab-orders", requireRole("pathology_staff", "hospital_admin"), asy
     query += " ORDER BY lo.created_at DESC";
 
     const [rows] = await pool.query(query, params);
-    res.json({ success: true, orders: rows });
+    const orders = rows.map((r) => ({
+      ...r,
+      images: typeof r.images === "string" ? JSON.parse(r.images) : r.images || [],
+    }));
+    res.json({ success: true, orders });
   } catch (err) {
     console.error("List lab orders error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
@@ -1044,6 +1245,214 @@ app.get("/api/lab-orders/:id/result-file", requireTenantUser, async (req, res) =
     res.download(path.join(UPLOADS_DIR, rows[0].result_file_path), rows[0].result_file_name || "result");
   } catch (err) {
     console.error("Download lab result error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Escalate/de-escalate a study's priority (radiology triage).
+app.post("/api/lab-orders/:id/priority", requireRole("pathology_staff", "hospital_admin"), async (req, res) => {
+  const { priority } = req.body || {};
+  if (!["routine", "urgent", "stat"].includes(priority)) {
+    return res.status(400).json({ success: false, message: "A valid priority is required." });
+  }
+  try {
+    const { hospitalId } = req.session.user;
+    const [result] = await pool.query(
+      `UPDATE lab_orders SET priority = ? WHERE id = ? AND hospital_id = ?`,
+      [priority, req.params.id, hospitalId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Order not found." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Update lab order priority error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Save a report in progress. Auto-claims unassigned orders and moves them to "reported"
+// (drafted, not yet signed) — kept separate from "verified" so doctors don't see it until signed.
+app.post("/api/lab-orders/:id/draft", requireRole("pathology_staff"), async (req, res) => {
+  const { resultNotes } = req.body || {};
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const [result] = await pool.query(
+      `UPDATE lab_orders
+       SET result_notes = ?, assigned_to = COALESCE(assigned_to, ?),
+           status = CASE WHEN status IN ('pending', 'in_progress') THEN 'reported' ELSE status END
+       WHERE id = ? AND hospital_id = ? AND status NOT IN ('completed', 'verified')`,
+      [resultNotes || null, userId, req.params.id, hospitalId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(409).json({ success: false, message: "This order is already finalized." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Save lab order draft error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Sign & finalize a report. Terminal state, visible to the ordering doctor from here on.
+app.post("/api/lab-orders/:id/verify", requireRole("pathology_staff"), async (req, res) => {
+  const { resultNotes } = req.body || {};
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const [result] = await pool.query(
+      `UPDATE lab_orders
+       SET result_notes = ?, status = 'verified', verified_by = ?, verified_at = NOW(),
+           assigned_to = COALESCE(assigned_to, ?), completed_by = ?, completed_at = NOW()
+       WHERE id = ? AND hospital_id = ? AND status NOT IN ('completed', 'verified')`,
+      [resultNotes || null, userId, userId, userId, req.params.id, hospitalId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(409).json({ success: false, message: "This order is already finalized." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Verify lab order error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Reassign a study to a specific staff member (or clear assignment by passing no userId).
+app.post("/api/lab-orders/:id/reassign", requireRole("pathology_staff", "hospital_admin"), async (req, res) => {
+  const { userId: targetUserId } = req.body || {};
+  try {
+    const { hospitalId } = req.session.user;
+    if (!targetUserId) {
+      const [result] = await pool.query(
+        `UPDATE lab_orders SET assigned_to = NULL, status = IF(status = 'in_progress', 'pending', status)
+         WHERE id = ? AND hospital_id = ? AND status NOT IN ('completed', 'verified')`,
+        [req.params.id, hospitalId]
+      );
+      if (result.affectedRows === 0) {
+        return res.status(409).json({ success: false, message: "This order is already finalized." });
+      }
+      return res.json({ success: true });
+    }
+
+    const [staffRows] = await pool.query(
+      `SELECT user_id FROM users WHERE user_id = ? AND hospital_id = ? AND role = 'pathology_staff' LIMIT 1`,
+      [targetUserId, hospitalId]
+    );
+    if (staffRows.length === 0) {
+      return res.status(400).json({ success: false, message: "That staff member was not found." });
+    }
+
+    const [result] = await pool.query(
+      `UPDATE lab_orders
+       SET assigned_to = ?, status = IF(status = 'pending', 'in_progress', status)
+       WHERE id = ? AND hospital_id = ? AND status NOT IN ('completed', 'verified')`,
+      [targetUserId, req.params.id, hospitalId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(409).json({ success: false, message: "This order is already finalized." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Reassign lab order error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Staff directory for the reassign dropdown — pathology_staff in this hospital, optionally
+// narrowed to the Radiologist designation when department=Radiology.
+app.get("/api/lab-orders/staff", requireRole("pathology_staff", "hospital_admin"), async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT user_id, full_name, details FROM users
+       WHERE hospital_id = ? AND role = 'pathology_staff' ORDER BY full_name`,
+      [hospitalId]
+    );
+    const wantRadiology = req.query.department === "Radiology";
+    const staff = rows
+      .filter((r) => {
+        const details = typeof r.details === "string" ? JSON.parse(r.details) : r.details || {};
+        const isRadiologist = details.designation === "Radiologist";
+        return wantRadiology ? isRadiologist : !isRadiologist;
+      })
+      .map((r) => ({ userId: r.user_id, fullName: r.full_name }));
+    res.json({ success: true, staff });
+  } catch (err) {
+    console.error("List lab staff error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Multiple study images per order (radiology).
+app.get("/api/lab-orders/:id/images", requireTenantUser, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const [orderRows] = await pool.query(`SELECT id FROM lab_orders WHERE id = ? AND hospital_id = ? LIMIT 1`, [
+      req.params.id,
+      hospitalId,
+    ]);
+    if (orderRows.length === 0) {
+      return res.status(404).json({ success: false, message: "Order not found." });
+    }
+    const [rows] = await pool.query(
+      `SELECT id, file_name AS fileName FROM lab_order_images WHERE lab_order_id = ? AND hospital_id = ? ORDER BY id`,
+      [req.params.id, hospitalId]
+    );
+    res.json({ success: true, images: rows });
+  } catch (err) {
+    console.error("List lab order images error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.post(
+  "/api/lab-orders/:id/images",
+  requireRole("pathology_staff"),
+  labImageUpload.array("images", 10),
+  async (req, res) => {
+    try {
+      const { hospitalId, userId } = req.session.user;
+      const [orderRows] = await pool.query(
+        `SELECT id FROM lab_orders WHERE id = ? AND hospital_id = ? LIMIT 1`,
+        [req.params.id, hospitalId]
+      );
+      if (orderRows.length === 0) {
+        return res.status(404).json({ success: false, message: "Order not found." });
+      }
+      const files = req.files || [];
+      if (files.length === 0) {
+        return res.status(400).json({ success: false, message: "No image files were uploaded." });
+      }
+      const values = files.map((f) => [hospitalId, req.params.id, f.filename, f.originalname, userId]);
+      await pool.query(
+        `INSERT INTO lab_order_images (hospital_id, lab_order_id, file_path, file_name, uploaded_by) VALUES ?`,
+        [values]
+      );
+      const [rows] = await pool.query(
+        `SELECT id, file_name AS fileName FROM lab_order_images WHERE lab_order_id = ? AND hospital_id = ? ORDER BY id`,
+        [req.params.id, hospitalId]
+      );
+      res.json({ success: true, images: rows });
+    } catch (err) {
+      console.error("Upload lab order images error:", err.message);
+      res.status(500).json({ success: false, message: "Server error. Please try again." });
+    }
+  }
+);
+
+app.get("/api/lab-orders/:id/images/:imageId", requireTenantUser, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT file_path, file_name FROM lab_order_images
+       WHERE id = ? AND lab_order_id = ? AND hospital_id = ? LIMIT 1`,
+      [req.params.imageId, req.params.id, hospitalId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Image not found." });
+    }
+    res.sendFile(path.join(LAB_IMAGES_DIR, rows[0].file_path));
+  } catch (err) {
+    console.error("Fetch lab order image error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
@@ -2069,6 +2478,7 @@ app.delete("/api/hospitals/:id", requireSuperadmin, async (req, res) => {
       "beds",
       "wards",
       "doctor_schedules",
+      "doctor_calendar_availability",
       "test_catalog",
       "patients",
       "users",

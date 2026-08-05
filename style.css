@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 :root {
   --navy: #1b2f6e;
   --navy-dark: #142357;
@@ -7,6 +9,25 @@
   --gold: #d9a441;
   --gold-light: #f4c95d;
   --gray-text: #4a4a4a;
+
+  /* Extended tokens — additive, existing var()s above are unchanged so nothing
+     that already references them (staff pages, etc.) shifts color. */
+  --bg: #F4F6FB;
+  --surface: #ffffff;
+  --line: #E4E9F2;
+  --ink: #1B2430;
+  --ink-mute: #8891A0;
+  --navy-tint: #EEF1FB;
+  --teal-tint: #E7F7F3;
+  --gold-tint: #FDF1DC;
+  --red: #C0392B;
+  --red-tint: #FBE9E7;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --shadow-sm: 0 2px 8px rgba(20, 40, 80, 0.06);
+  --shadow-md: 0 8px 28px rgba(20, 40, 80, 0.09);
+  --shadow-lg: 0 18px 48px rgba(20, 40, 80, 0.14);
 }
 
 * {
@@ -15,9 +36,33 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", Arial, sans-serif;
-  color: #222;
-  background: #fff;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--teal-light);
+  color: #fff;
+}
+
+a {
+  transition: color 0.15s ease;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+/* Gentle entrance for page content — every portal page benefits automatically. */
+@keyframes contentFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.portal-main {
+  animation: contentFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Top contact bar */
@@ -39,13 +84,18 @@ body {
 /* Header */
 .site-header {
   background: linear-gradient(135deg, #eaf6f3 0%, #eef1fb 100%);
-  padding: 8px 32px;
+  padding: 10px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
   border-bottom: 1px solid #dde8f0;
+  box-shadow: 0 1px 0 rgba(20, 40, 80, 0.03), 0 4px 16px rgba(20, 40, 80, 0.04);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(6px);
 }
 
 .brand {
@@ -246,17 +296,32 @@ body {
   background: var(--navy);
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 14px;
   font-size: 15px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   cursor: pointer;
-  transition: background 0.15s ease;
+  box-shadow: 0 4px 14px rgba(27, 47, 110, 0.22);
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .login-btn:hover {
   background: var(--navy-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(27, 47, 110, 0.28);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(27, 47, 110, 0.22);
+}
+
+.login-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .forgot-link {
@@ -280,15 +345,16 @@ body {
 
 /* Footer */
 .site-footer {
-  background: var(--navy-dark);
+  background: linear-gradient(135deg, var(--navy-dark) 0%, #0e1b45 100%);
   color: #fff;
-  padding: 14px 32px;
+  padding: 16px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
   font-size: 13px;
+  margin-top: 40px;
 }
 
 .footer-left {

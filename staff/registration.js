@@ -115,6 +115,7 @@
         document.getElementById("uhidOutput").value = data.patient.uhid;
         document.getElementById("patientPasswordOutput").value = data.patient.password;
         document.getElementById("patientResult").hidden = false;
+        if (window.showToast) showToast(`Patient ${fullName} registered — UHID ${data.patient.uhid}`, "success");
       } catch (err) {
         errorEl.textContent = "Unable to reach the server. Please try again.";
       } finally {
