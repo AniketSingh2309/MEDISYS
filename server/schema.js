@@ -267,8 +267,10 @@ async function ensureSchema(connection) {
     )
   `);
 
+  await connection.query(`CREATE DATABASE IF NOT EXISTS medisys_pharmacy`);
+
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS pharmacy_orders (
+    CREATE TABLE IF NOT EXISTS medisys_pharmacy.pharmacy_orders (
       id INT AUTO_INCREMENT PRIMARY KEY,
       hospital_id INT NOT NULL,
       opd_visit_id INT NULL,
@@ -289,7 +291,7 @@ async function ensureSchema(connection) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS pharmacy_stock (
+    CREATE TABLE IF NOT EXISTS medisys_pharmacy.pharmacy_stock (
       id INT AUTO_INCREMENT PRIMARY KEY,
       hospital_id INT NOT NULL,
       medicine_name VARCHAR(150) NOT NULL,
@@ -306,7 +308,7 @@ async function ensureSchema(connection) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS pharmacy_purchase_orders (
+    CREATE TABLE IF NOT EXISTS medisys_pharmacy.pharmacy_purchase_orders (
       id INT AUTO_INCREMENT PRIMARY KEY,
       hospital_id INT NOT NULL,
       po_number VARCHAR(50) NOT NULL UNIQUE,
@@ -320,7 +322,7 @@ async function ensureSchema(connection) {
   `);
 
   await connection.query(`
-    CREATE TABLE IF NOT EXISTS pharmacy_invoices (
+    CREATE TABLE IF NOT EXISTS medisys_pharmacy.pharmacy_invoices (
       id INT AUTO_INCREMENT PRIMARY KEY,
       hospital_id INT NOT NULL,
       invoice_number VARCHAR(50) NOT NULL UNIQUE,
