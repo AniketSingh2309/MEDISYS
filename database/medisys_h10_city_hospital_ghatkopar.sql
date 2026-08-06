@@ -1,4 +1,4 @@
--- MySQL dump 10.13  Distrib 8.0.46, for Win64 (x86_64)
+-- MySQL dump 10.13  Distrib 9.5.0, for Win64 (x86_64)
 --
 -- Host: 127.0.0.1    Database: medisys_h10_city_hospital_ghatkopar
 -- ------------------------------------------------------
@@ -824,6 +824,13 @@ LOCK TABLES `wards` WRITE;
 INSERT INTO `wards` VALUES (1,10,'ICU',NULL,'NR-CHG-88859','2026-07-30 08:32:50'),(2,10,'GENRAL',NULL,'NR-CHG-88859','2026-07-30 09:07:29'),(3,10,'VENTILATOR',NULL,'NR-CHG-88859','2026-07-30 09:44:37');
 /*!40000 ALTER TABLE `wards` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Dumping routines for database 'medisys_h10_city_hospital_ghatkopar'
+--
+--
+-- WARNING: can't read the INFORMATION_SCHEMA.libraries table. It's most probably an old server 8.0.46.
+--
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -834,4 +841,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-08-06 10:29:32
+-- Dump completed on 2026-08-06 11:36:11
