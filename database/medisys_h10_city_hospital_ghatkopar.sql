@@ -52,6 +52,191 @@ INSERT INTO `beds` VALUES (1,10,1,'b-01','occupied','2026-07-30 08:33:05'),(2,10
 UNLOCK TABLES;
 
 --
+-- Table structure for table `blood_billing`
+--
+
+DROP TABLE IF EXISTS `blood_billing`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `blood_billing` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `hospital_id` int NOT NULL,
+  `request_id` int NOT NULL,
+  `patient_uhid` varchar(30) DEFAULT NULL,
+  `patient_name` varchar(150) NOT NULL,
+  `component` varchar(30) NOT NULL,
+  `units` int NOT NULL,
+  `amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `status` varchar(20) NOT NULL DEFAULT 'pending',
+  `payment_type` varchar(30) DEFAULT NULL,
+  `created_by` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `paid_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `blood_billing`
+--
+
+LOCK TABLES `blood_billing` WRITE;
+/*!40000 ALTER TABLE `blood_billing` DISABLE KEYS */;
+INSERT INTO `blood_billing` VALUES (1,10,1,'PAT-CHG-0002','ASHISH','Packed RBC',2,3000.00,'paid','UPI','BB-CHG-92247','2026-08-06 08:23:56','2026-08-06 08:24:07');
+/*!40000 ALTER TABLE `blood_billing` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `blood_donors`
+--
+
+DROP TABLE IF EXISTS `blood_donors`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `blood_donors` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `hospital_id` int NOT NULL,
+  `full_name` varchar(150) NOT NULL,
+  `patient_uhid` varchar(30) DEFAULT NULL,
+  `blood_group` varchar(4) NOT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `last_donation_date` date DEFAULT NULL,
+  `total_donations` int NOT NULL DEFAULT '0',
+  `created_by` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `blood_donors`
+--
+
+LOCK TABLES `blood_donors` WRITE;
+/*!40000 ALTER TABLE `blood_donors` DISABLE KEYS */;
+INSERT INTO `blood_donors` VALUES (1,10,'Rahul Trivedi',NULL,'O+','9820011223','2026-08-06',3,'BB-CHG-92247','2026-08-06 08:23:44');
+/*!40000 ALTER TABLE `blood_donors` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `blood_inventory_units`
+--
+
+DROP TABLE IF EXISTS `blood_inventory_units`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `blood_inventory_units` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `hospital_id` int NOT NULL,
+  `unit_code` varchar(30) NOT NULL,
+  `blood_group` varchar(4) NOT NULL,
+  `component` varchar(30) NOT NULL,
+  `donor_id` int DEFAULT NULL,
+  `collected_at` timestamp NOT NULL,
+  `expiry_at` timestamp NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'available',
+  `issued_to_request_id` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `blood_inventory_units`
+--
+
+LOCK TABLES `blood_inventory_units` WRITE;
+/*!40000 ALTER TABLE `blood_inventory_units` DISABLE KEYS */;
+INSERT INTO `blood_inventory_units` VALUES (1,10,'BU-7405','O+','Packed RBC',1,'2026-08-06 08:23:45','2026-09-10 08:23:45','issued',1,'2026-08-06 08:23:44'),(2,10,'BU-6538','O+','Packed RBC',1,'2026-08-06 08:23:45','2026-09-10 08:23:45','issued',1,'2026-08-06 08:23:44'),(3,10,'BU-7565','O+','Packed RBC',1,'2026-08-06 08:23:45','2026-09-10 08:23:45','available',NULL,'2026-08-06 08:23:44'),(4,10,'BU-8149','B+','Whole Blood',NULL,'2026-08-06 08:24:25','2026-09-10 08:24:25','available',NULL,'2026-08-06 08:24:25');
+/*!40000 ALTER TABLE `blood_inventory_units` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `blood_patient_donations`
+--
+
+DROP TABLE IF EXISTS `blood_patient_donations`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `blood_patient_donations` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `hospital_id` int NOT NULL,
+  `patient_uhid` varchar(30) NOT NULL,
+  `donor_name` varchar(150) NOT NULL,
+  `blood_group` varchar(4) NOT NULL,
+  `component` varchar(30) NOT NULL,
+  `units` int NOT NULL DEFAULT '1',
+  `weight` decimal(5,1) DEFAULT NULL,
+  `hb` decimal(4,1) DEFAULT NULL,
+  `systolic` int DEFAULT NULL,
+  `diastolic` int DEFAULT NULL,
+  `pulse` int DEFAULT NULL,
+  `temperature` decimal(4,1) DEFAULT NULL,
+  `flags` json DEFAULT NULL,
+  `eligible` tinyint(1) NOT NULL,
+  `ineligible_reasons` text,
+  `consent` tinyint(1) NOT NULL DEFAULT '0',
+  `recorded_by` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `blood_patient_donations`
+--
+
+LOCK TABLES `blood_patient_donations` WRITE;
+/*!40000 ALTER TABLE `blood_patient_donations` DISABLE KEYS */;
+INSERT INTO `blood_patient_donations` VALUES (1,10,'PAT-CHG-0003','VIKRAM','B+','Whole Blood',1,70.0,13.5,120,80,72,36.8,'{}',1,NULL,1,'BB-CHG-92247','2026-08-06 08:24:25');
+/*!40000 ALTER TABLE `blood_patient_donations` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `blood_requests`
+--
+
+DROP TABLE IF EXISTS `blood_requests`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `blood_requests` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `hospital_id` int NOT NULL,
+  `request_code` varchar(30) NOT NULL,
+  `patient_uhid` varchar(30) DEFAULT NULL,
+  `patient_name` varchar(150) NOT NULL,
+  `age` int DEFAULT NULL,
+  `sex` varchar(4) DEFAULT NULL,
+  `blood_group` varchar(4) NOT NULL,
+  `component` varchar(30) NOT NULL,
+  `units_required` int NOT NULL DEFAULT '1',
+  `priority` varchar(20) NOT NULL DEFAULT 'Routine',
+  `ward_location` varchar(150) DEFAULT NULL,
+  `ref_physician` varchar(150) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'requested',
+  `assigned_staff_id` varchar(50) DEFAULT NULL,
+  `crossmatch_sample` tinyint(1) NOT NULL DEFAULT '0',
+  `crossmatch_abo` tinyint(1) NOT NULL DEFAULT '0',
+  `crossmatch_screen` tinyint(1) NOT NULL DEFAULT '0',
+  `notes` text,
+  `created_by` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `issued_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `blood_requests`
+--
+
+LOCK TABLES `blood_requests` WRITE;
+/*!40000 ALTER TABLE `blood_requests` DISABLE KEYS */;
+INSERT INTO `blood_requests` VALUES (1,10,'BB-4501','PAT-CHG-0002','ASHISH',45,'M','O+','Packed RBC',2,'STAT','ICU Bed 4','Dr. Shubham','issued','BB-CHG-14153',1,1,1,'Issued 2 unit(s): BU-7405, BU-6538','BB-CHG-92247','2026-08-06 08:23:55','2026-08-06 08:23:56');
+/*!40000 ALTER TABLE `blood_requests` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `consultations`
 --
 
@@ -521,6 +706,7 @@ CREATE TABLE `patients` (
   `category` varchar(20) DEFAULT NULL,
   `registered_by` varchar(50) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `blood_group` varchar(4) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uhid` (`uhid`)
 ) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -532,7 +718,7 @@ CREATE TABLE `patients` (
 
 LOCK TABLES `patients` WRITE;
 /*!40000 ALTER TABLE `patients` DISABLE KEYS */;
-INSERT INTO `patients` VALUES (1,10,'UH-CHG-000001',NULL,'abhi','2002-09-17','Male',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 06:44:10'),(2,10,'PAT-CHG-1111','$2b$12$dGXobHUILjyO1n9whtYIKeapXfsBOeDOHHsb9AfP9lUFS08daJm0O','pranay','2026-07-30','Male',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 06:49:25'),(3,10,'PAT-CHG-0002','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','ASHISH',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'referral','OPD-CHG-70518','2026-07-30 09:02:52'),(4,10,'PAT-CHG-0003','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','VIKRAM',NULL,NULL,'9137731642','A-704, Regnecy Garden Purnima Kalyan west',NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 09:25:11'),(5,10,'PAT-CHG-0004','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','NITISH',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 10:31:18'),(6,10,'PAT-CHG-1001','$2b$12$la785cUg4SmKGYY3lSWcMerwhV.M92hDeOICq.kJUGin7wpDkbtF6','RASHMI SHETTY',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-05 09:23:01'),(7,10,'PAT-CHG-1002','$2b$12$hysfLzNQUFaCqYQsCFz5GeQrfKZW8GQgbMAXNAN/93qKwmhWZKT.K','SAKSHI',NULL,'Female',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-05 10:22:37');
+INSERT INTO `patients` VALUES (1,10,'UH-CHG-000001',NULL,'abhi','2002-09-17','Male',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 06:44:10',NULL),(2,10,'PAT-CHG-1111','$2b$12$dGXobHUILjyO1n9whtYIKeapXfsBOeDOHHsb9AfP9lUFS08daJm0O','pranay','2026-07-30','Male',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 06:49:25',NULL),(3,10,'PAT-CHG-0002','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','ASHISH',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'referral','OPD-CHG-70518','2026-07-30 09:02:52',NULL),(4,10,'PAT-CHG-0003','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','VIKRAM',NULL,NULL,'9137731642','A-704, Regnecy Garden Purnima Kalyan west',NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 09:25:11','B+'),(5,10,'PAT-CHG-0004','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','NITISH',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 10:31:18',NULL),(6,10,'PAT-CHG-1001','$2b$12$la785cUg4SmKGYY3lSWcMerwhV.M92hDeOICq.kJUGin7wpDkbtF6','RASHMI SHETTY',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-05 09:23:01',NULL),(7,10,'PAT-CHG-1002','$2b$12$hysfLzNQUFaCqYQsCFz5GeQrfKZW8GQgbMAXNAN/93qKwmhWZKT.K','SAKSHI',NULL,'Female',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-05 10:22:37',NULL);
 /*!40000 ALTER TABLE `patients` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -726,7 +912,7 @@ CREATE TABLE `user_directory` (
 
 LOCK TABLES `user_directory` WRITE;
 /*!40000 ALTER TABLE `user_directory` DISABLE KEYS */;
-INSERT INTO `user_directory` VALUES ('AD-CHG-64701',10,'2026-07-29 12:15:45','staff'),('DR-CHG-1616',10,'2026-08-05 10:16:56','staff'),('DR-CHG-49545',10,'2026-07-30 08:35:18','staff'),('NR-CHG-88859',10,'2026-07-30 08:31:37','staff'),('OPD-CHG-70518',10,'2026-07-30 04:36:36','staff'),('PAT-CHG-0002',10,'2026-07-30 09:02:52','patient'),('PAT-CHG-0003',10,'2026-07-30 09:25:11','patient'),('PAT-CHG-0004',10,'2026-07-30 10:31:18','patient'),('PAT-CHG-1001',10,'2026-08-05 09:23:01','patient'),('PAT-CHG-1002',10,'2026-08-05 10:22:37','patient'),('PAT-CHG-1111',10,'2026-08-03 05:45:42','patient'),('PATHOLAB-CHG-0001',10,'2026-08-03 05:04:48','staff'),('PATHOLOGY-CHG-0001',10,'2026-08-03 05:04:48','staff'),('PHARMA-CHG-0001',10,'2026-08-05 10:07:34','staff'),('RA-CHG-33409',10,'2026-07-31 06:07:25','staff'),('RADIO-CHG-0001',10,'2026-08-03 05:04:48','staff');
+INSERT INTO `user_directory` VALUES ('AD-CHG-64701',10,'2026-07-29 12:15:45','staff'),('BB-CHG-14153',10,'2026-08-06 08:34:24','staff'),('BB-CHG-92247',10,'2026-08-06 08:23:27','staff'),('DR-CHG-1616',10,'2026-08-05 10:16:56','staff'),('DR-CHG-49545',10,'2026-07-30 08:35:18','staff'),('NR-CHG-88859',10,'2026-07-30 08:31:37','staff'),('OPD-CHG-70518',10,'2026-07-30 04:36:36','staff'),('PAT-CHG-0002',10,'2026-07-30 09:02:52','patient'),('PAT-CHG-0003',10,'2026-07-30 09:25:11','patient'),('PAT-CHG-0004',10,'2026-07-30 10:31:18','patient'),('PAT-CHG-1001',10,'2026-08-05 09:23:01','patient'),('PAT-CHG-1002',10,'2026-08-05 10:22:37','patient'),('PAT-CHG-1111',10,'2026-08-03 05:45:42','patient'),('PATHOLAB-CHG-0001',10,'2026-08-03 05:04:48','staff'),('PATHOLOGY-CHG-0001',10,'2026-08-03 05:04:48','staff'),('PHARMA-CHG-0001',10,'2026-08-05 10:07:34','staff'),('RA-CHG-33409',10,'2026-07-31 06:07:25','staff'),('RADIO-CHG-0001',10,'2026-08-03 05:04:48','staff');
 /*!40000 ALTER TABLE `user_directory` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -751,7 +937,7 @@ CREATE TABLE `users` (
   `hospital_id` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `user_id` (`user_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=30 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -760,7 +946,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'C5-202226','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','Core5 Super Admin','superadmin','2026-07-29 09:12:39',NULL,NULL,NULL,NULL,NULL),(2,'superadmin','$2b$12$R4vVNgm8vGhKw5qKHN/ADeum8prl40jQZy.S/Gy7A5AvA3FtetONK','Core5 Super Admin','superadmin','2026-08-03 04:31:11',NULL,NULL,NULL,NULL,NULL),(3,'AD-CHG-64701','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','Rashmi Shetty','hospital_admin','2026-07-29 11:17:02',NULL,NULL,NULL,NULL,10),(4,'OPD-CHG-70518','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','Jhon Jacob','receptionist','2026-07-30 04:36:36','jhon.jacob@gmail.com',NULL,'{\"shift\": \"Morning\"}',NULL,10),(5,'NR-CHG-88859','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','dipti','nurse','2026-07-30 08:31:37','dipti@core5.co.in',NULL,'{\"ward\": \"4A\", \"shift\": \"Morning\", \"qualification\": \"\"}',NULL,10),(6,'DR-CHG-49545','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','Shubham','doctor','2026-07-30 08:35:18','shubham@core5.co.in',NULL,'{\"licenseNumber\": \"\", \"qualification\": \"\", \"specialization\": \"\"}',NULL,10),(7,'RA-CHG-33409','$2b$12$cdKc0u6PrQ.15PYjqN6S/.ETzIm/2HtppR4IXGd9gtD5VQIapBXsu','Aniket','pathology_staff','2026-07-31 06:07:25','aniket.singh@core5.co.in','09137731642','{\"designation\": \"Radiologist\", \"certification\": \"\", \"licenseNumber\": \"\"}',NULL,10),(8,'PATHOLOGY-CHG-0001','$2b$12$dGXobHUILjyO1n9whtYIKeapXfsBOeDOHHsb9AfP9lUFS08daJm0O','Ram','pathology_staff','2026-08-03 05:04:48','ram.pathology@chg.medisys.local',NULL,'{\"designation\": \"Pathologist\"}',NULL,10),(9,'PATHOLAB-CHG-0001','$2b$12$dGXobHUILjyO1n9whtYIKeapXfsBOeDOHHsb9AfP9lUFS08daJm0O','Sham','pathology_staff','2026-08-03 05:04:48','sham.labassistant@chg.medisys.local',NULL,'{\"designation\": \"Lab Assistant\"}',NULL,10),(10,'RADIO-CHG-0001','$2b$12$dGXobHUILjyO1n9whtYIKeapXfsBOeDOHHsb9AfP9lUFS08daJm0O','Dham','pathology_staff','2026-08-03 05:04:48','dham.radiology@chg.medisys.local',NULL,'{\"designation\": \"Radiologist\"}',NULL,10),(26,'PHARMA-CHG-0001','$2b$12$dLvDaX.Mzg/6oUuewFxqeO1DZmEV8L9Mtb1hbtINnf1Dq26q8yg7e','YUVRAJ','pharmacist','2026-08-05 10:07:34','yuvraj@core5.co.in',NULL,'{\"licenseNumber\": \"\", \"qualification\": \"\"}',NULL,10),(27,'DR-CHG-1616','$2b$12$YpA.tziLl7oQc2y6AdZC1.9EQPGQLIUVMBe4eygZfz6rA0QXWqyzu','ARYAN GUPTA','doctor','2026-08-05 10:16:56','aryan@core5.co.in',NULL,'{\"licenseNumber\": \"\", \"qualification\": \"\", \"specialization\": \"CARDIOLOGY\"}',NULL,10);
+INSERT INTO `users` VALUES (1,'C5-202226','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','Core5 Super Admin','superadmin','2026-07-29 09:12:39',NULL,NULL,NULL,NULL,NULL),(2,'superadmin','$2b$12$R4vVNgm8vGhKw5qKHN/ADeum8prl40jQZy.S/Gy7A5AvA3FtetONK','Core5 Super Admin','superadmin','2026-08-03 04:31:11',NULL,NULL,NULL,NULL,NULL),(3,'AD-CHG-64701','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','Rashmi Shetty','hospital_admin','2026-07-29 11:17:02',NULL,NULL,NULL,NULL,10),(4,'OPD-CHG-70518','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','Jhon Jacob','receptionist','2026-07-30 04:36:36','jhon.jacob@gmail.com',NULL,'{\"shift\": \"Morning\"}',NULL,10),(5,'NR-CHG-88859','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','dipti','nurse','2026-07-30 08:31:37','dipti@core5.co.in',NULL,'{\"ward\": \"4A\", \"shift\": \"Morning\", \"qualification\": \"\"}',NULL,10),(6,'DR-CHG-49545','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','Shubham','doctor','2026-07-30 08:35:18','shubham@core5.co.in',NULL,'{\"licenseNumber\": \"\", \"qualification\": \"\", \"specialization\": \"\"}',NULL,10),(7,'RA-CHG-33409','$2b$12$cdKc0u6PrQ.15PYjqN6S/.ETzIm/2HtppR4IXGd9gtD5VQIapBXsu','Aniket','pathology_staff','2026-07-31 06:07:25','aniket.singh@core5.co.in','09137731642','{\"designation\": \"Radiologist\", \"certification\": \"\", \"licenseNumber\": \"\"}',NULL,10),(8,'PATHOLOGY-CHG-0001','$2b$12$dGXobHUILjyO1n9whtYIKeapXfsBOeDOHHsb9AfP9lUFS08daJm0O','Ram','pathology_staff','2026-08-03 05:04:48','ram.pathology@chg.medisys.local',NULL,'{\"designation\": \"Pathologist\"}',NULL,10),(9,'PATHOLAB-CHG-0001','$2b$12$dGXobHUILjyO1n9whtYIKeapXfsBOeDOHHsb9AfP9lUFS08daJm0O','Sham','pathology_staff','2026-08-03 05:04:48','sham.labassistant@chg.medisys.local',NULL,'{\"designation\": \"Lab Assistant\"}',NULL,10),(10,'RADIO-CHG-0001','$2b$12$dGXobHUILjyO1n9whtYIKeapXfsBOeDOHHsb9AfP9lUFS08daJm0O','Dham','pathology_staff','2026-08-03 05:04:48','dham.radiology@chg.medisys.local',NULL,'{\"designation\": \"Radiologist\"}',NULL,10),(26,'PHARMA-CHG-0001','$2b$12$dLvDaX.Mzg/6oUuewFxqeO1DZmEV8L9Mtb1hbtINnf1Dq26q8yg7e','YUVRAJ','pharmacist','2026-08-05 10:07:34','yuvraj@core5.co.in',NULL,'{\"licenseNumber\": \"\", \"qualification\": \"\"}',NULL,10),(27,'DR-CHG-1616','$2b$12$YpA.tziLl7oQc2y6AdZC1.9EQPGQLIUVMBe4eygZfz6rA0QXWqyzu','ARYAN GUPTA','doctor','2026-08-05 10:16:56','aryan@core5.co.in',NULL,'{\"licenseNumber\": \"\", \"qualification\": \"\", \"specialization\": \"CARDIOLOGY\"}',NULL,10),(28,'BB-CHG-92247','$2b$12$k0jdURweev2tdC0wHCZS9.SIDr60ZaqxwLA6V3ueKmOXiiU.8UCNy','Reena Fernandes','blood_bank_staff','2026-08-06 08:23:27','reena@chg.medisys.local','9822033445','{\"certification\": \"BB Tech Cert\", \"licenseNumber\": \"BBL-9012\"}',NULL,10),(29,'BB-CHG-14153','$2b$12$dP8/QFwRreuZhTqqSogbPeTz6P0ABKyZaKf6Tb/eA76J.Lx9cX1Ly','pradip','blood_bank_staff','2026-08-06 08:34:24','aniket.singh@core5.co.in',NULL,'{\"certification\": \"\", \"licenseNumber\": \"\"}',NULL,10);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -841,4 +1027,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-08-06 11:36:11
+-- Dump completed on 2026-08-06 14:33:33
