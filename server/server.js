@@ -2544,6 +2544,11 @@ app.delete("/api/hospitals/:id", requireSuperadmin, async (req, res) => {
 
     // Every hospital-scoped table, deleted by hospital_id now that all tenants share one database.
     const scopedTables = [
+      "blood_billing",
+      "blood_requests",
+      "blood_inventory_units",
+      "blood_patient_donations",
+      "blood_donors",
       "doctor_nurse_teams",
       "nurse_shift_roster",
       "medication_administration",
@@ -2574,6 +2579,517 @@ app.delete("/api/hospitals/:id", requireSuperadmin, async (req, res) => {
   } catch (err) {
     console.error("Delete hospital error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Blood Bank ----------
+
+const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const BLOOD_RATES = {
+  "Whole Blood": 1200,
+  "Packed RBC": 1500,
+  "Fresh Frozen Plasma": 800,
+  Platelets: 2000,
+  Cryoprecipitate: 1000,
+};
+
+function bloodExpiryFor(component, collectedAt) {
+  const days = component === "Platelets" ? 5 : 35;
+  return new Date(collectedAt.getTime() + days * 86400000);
+}
+
+function requireBloodBankStaff(req, res, next) {
+  const role = req.session.user && req.session.user.role;
+  if (role === "blood_bank_staff" || role === "hospital_admin") return next();
+  return res.status(401).json({ success: false, message: "Blood bank staff session required." });
+}
+
+// Standard donor screening thresholds — mirrors the client-side pre-check so a request
+// can't be forced through even if the browser check is bypassed.
+function checkDonorEligibility({ age, weight, hb, systolic, diastolic, pulse, temperature, lastDonationDate, flags }) {
+  const reasons = [];
+  if (age !== null && (age < 18 || age > 65)) reasons.push(`Age ${age} is outside the 18–65 donation range`);
+  if (weight < 45) reasons.push(`Weight ${weight}kg is below the 45kg minimum`);
+  if (hb < 12.5) reasons.push(`Haemoglobin ${hb} g/dL is below the 12.5 g/dL minimum`);
+  if (systolic < 100 || systolic > 180) reasons.push(`Systolic BP ${systolic} is outside the safe range (100–180)`);
+  if (diastolic < 60 || diastolic > 100) reasons.push(`Diastolic BP ${diastolic} is outside the safe range (60–100)`);
+  if (pulse < 50 || pulse > 100) reasons.push(`Pulse ${pulse} bpm is outside the normal range (50–100)`);
+  if (temperature > 37.5) reasons.push(`Temperature ${temperature}°C indicates fever`);
+  if (lastDonationDate) {
+    const daysSince = (Date.now() - new Date(lastDonationDate).getTime()) / 86400000;
+    if (daysSince < 90) reasons.push(`Last donation was ${Math.floor(daysSince)} day(s) ago — 90-day gap required`);
+  }
+  const FLAG_LABELS = {
+    fever: "Currently has fever / recent infection",
+    surgeryRecent: "Surgery or major dental work in the last 6 months",
+    tattoo: "Tattoo or piercing in the last 12 months",
+    pregnancy: "Currently pregnant or breastfeeding",
+    medication: "On blood-thinners or other disqualifying medication",
+    chronicIllness: "Diagnosed chronic illness affecting donation",
+  };
+  Object.keys(flags || {}).forEach((k) => {
+    if (flags[k]) reasons.push(FLAG_LABELS[k] || k);
+  });
+  return { eligible: reasons.length === 0, reasons };
+}
+
+// Blood bank staff can't call the admin-only /api/hospital/staff — this gives them
+// just enough (their own team's names/IDs) to populate the "assign to" dropdown.
+app.get("/api/bloodbank/staff", requireBloodBankStaff, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT user_id, full_name FROM users WHERE hospital_id = ? AND role = 'blood_bank_staff' ORDER BY full_name ASC`,
+      [req.session.user.hospitalId]
+    );
+    res.json({ success: true, staff: rows });
+  } catch (err) {
+    console.error("List blood bank staff error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/bloodbank/requests", requireBloodBankStaff, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM blood_requests WHERE hospital_id = ? ORDER BY created_at DESC`,
+      [req.session.user.hospitalId]
+    );
+    res.json({ success: true, requests: rows });
+  } catch (err) {
+    console.error("List blood requests error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/bloodbank/requests", requireBloodBankStaff, async (req, res) => {
+  const { patientUhid, patientName, age, sex, bloodGroup, component, unitsRequired, priority, wardLocation, refPhysician } =
+    req.body || {};
+  if (!patientName || !bloodGroup || !component || !unitsRequired) {
+    return res.status(400).json({ success: false, message: "Patient name, blood group, component, and units are required." });
+  }
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const requestCode = "BB-" + (4000 + Math.floor(Math.random() * 900));
+    const [result] = await pool.query(
+      `INSERT INTO blood_requests
+        (hospital_id, request_code, patient_uhid, patient_name, age, sex, blood_group, component, units_required,
+         priority, ward_location, ref_physician, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?)`,
+      [
+        hospitalId,
+        requestCode,
+        patientUhid || null,
+        patientName,
+        age || null,
+        sex || null,
+        bloodGroup,
+        component,
+        unitsRequired,
+        priority || "Routine",
+        wardLocation || null,
+        refPhysician || null,
+        userId,
+      ]
+    );
+    res.json({ success: true, id: result.insertId, requestCode });
+  } catch (err) {
+    console.error("Create blood request error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.patch("/api/bloodbank/requests/:id/assign", requireBloodBankStaff, async (req, res) => {
+  const { staffId } = req.body || {};
+  try {
+    const { hospitalId } = req.session.user;
+    const assignedId = staffId && staffId !== "Unassigned" ? staffId : null;
+    const [[reqRow]] = await pool.query(
+      `SELECT status FROM blood_requests WHERE id = ? AND hospital_id = ? LIMIT 1`,
+      [req.params.id, hospitalId]
+    );
+    if (!reqRow) return res.status(404).json({ success: false, message: "Request not found." });
+
+    const nextStatus = assignedId && reqRow.status === "requested" ? "crossmatch" : reqRow.status;
+    await pool.query(`UPDATE blood_requests SET assigned_staff_id = ?, status = ? WHERE id = ? AND hospital_id = ?`, [
+      assignedId,
+      nextStatus,
+      req.params.id,
+      hospitalId,
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Assign blood request error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.patch("/api/bloodbank/requests/:id/crossmatch", requireBloodBankStaff, async (req, res) => {
+  const { field, value } = req.body || {};
+  const columns = { sample: "crossmatch_sample", abo: "crossmatch_abo", screen: "crossmatch_screen" };
+  if (!columns[field]) return res.status(400).json({ success: false, message: "Invalid crossmatch field." });
+  try {
+    await pool.query(`UPDATE blood_requests SET ${columns[field]} = ? WHERE id = ? AND hospital_id = ?`, [
+      !!value,
+      req.params.id,
+      req.session.user.hospitalId,
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Update crossmatch error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.patch("/api/bloodbank/requests/:id/notes", requireBloodBankStaff, async (req, res) => {
+  const { notes } = req.body || {};
+  try {
+    await pool.query(`UPDATE blood_requests SET notes = ? WHERE id = ? AND hospital_id = ?`, [
+      notes || "",
+      req.params.id,
+      req.session.user.hospitalId,
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Save blood request notes error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/bloodbank/requests/:id/issue", requireBloodBankStaff, async (req, res) => {
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const [[r]] = await pool.query(`SELECT * FROM blood_requests WHERE id = ? AND hospital_id = ? LIMIT 1`, [
+      req.params.id,
+      hospitalId,
+    ]);
+    if (!r) return res.status(404).json({ success: false, message: "Request not found." });
+    if (!(r.crossmatch_sample && r.crossmatch_abo && r.crossmatch_screen)) {
+      return res.status(400).json({ success: false, message: "Complete the crossmatch checklist before issuing." });
+    }
+    if (r.status === "issued") {
+      return res.status(409).json({ success: false, message: "This request has already been issued." });
+    }
+
+    const [units] = await pool.query(
+      `SELECT id, unit_code FROM blood_inventory_units
+       WHERE hospital_id = ? AND blood_group = ? AND component = ? AND status = 'available'
+       ORDER BY expiry_at ASC LIMIT ?`,
+      [hospitalId, r.blood_group, r.component, r.units_required]
+    );
+    if (units.length < r.units_required) {
+      return res.status(409).json({
+        success: false,
+        message: `Only ${units.length} unit(s) of ${r.blood_group} ${r.component} in stock — cannot issue ${r.units_required}.`,
+      });
+    }
+
+    const unitIds = units.map((u) => u.id);
+    await pool.query(`UPDATE blood_inventory_units SET status = 'issued', issued_to_request_id = ? WHERE id IN (?)`, [
+      req.params.id,
+      unitIds,
+    ]);
+
+    const issuedNote = `Issued ${r.units_required} unit(s): ${units.map((u) => u.unit_code).join(", ")}`;
+    await pool.query(
+      `UPDATE blood_requests SET status = 'issued', issued_at = NOW(), notes = CONCAT(IF(notes IS NULL OR notes = '', '', CONCAT(notes, '\n')), ?) WHERE id = ? AND hospital_id = ?`,
+      [issuedNote, req.params.id, hospitalId]
+    );
+
+    const amount = (BLOOD_RATES[r.component] || 1000) * r.units_required;
+    await pool.query(
+      `INSERT INTO blood_billing (hospital_id, request_id, patient_uhid, patient_name, component, units, amount, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      [hospitalId, req.params.id, r.patient_uhid, r.patient_name, r.component, r.units_required, amount, userId]
+    );
+
+    res.json({ success: true, unitsIssued: units.map((u) => u.unit_code), amount });
+  } catch (err) {
+    console.error("Issue blood units error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/bloodbank/requests/:id/reject", requireBloodBankStaff, async (req, res) => {
+  try {
+    await pool.query(`UPDATE blood_requests SET status = 'rejected' WHERE id = ? AND hospital_id = ?`, [
+      req.params.id,
+      req.session.user.hospitalId,
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Reject blood request error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/bloodbank/inventory", requireBloodBankStaff, async (req, res) => {
+  try {
+    const [units] = await pool.query(
+      `SELECT id, unit_code, blood_group, component, collected_at, expiry_at, status
+       FROM blood_inventory_units WHERE hospital_id = ? AND status = 'available' ORDER BY expiry_at ASC`,
+      [req.session.user.hospitalId]
+    );
+    res.json({ success: true, units });
+  } catch (err) {
+    console.error("Get blood inventory error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/bloodbank/donors", requireBloodBankStaff, async (req, res) => {
+  try {
+    const [donors] = await pool.query(`SELECT * FROM blood_donors WHERE hospital_id = ? ORDER BY full_name ASC`, [
+      req.session.user.hospitalId,
+    ]);
+    res.json({ success: true, donors });
+  } catch (err) {
+    console.error("List blood donors error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/bloodbank/donors", requireBloodBankStaff, async (req, res) => {
+  const { name, bloodGroup, phone, lastDonationDate } = req.body || {};
+  if (!name || !bloodGroup) {
+    return res.status(400).json({ success: false, message: "Donor name and blood group are required." });
+  }
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const [result] = await pool.query(
+      `INSERT INTO blood_donors (hospital_id, full_name, blood_group, phone, last_donation_date, created_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [hospitalId, name, bloodGroup, phone || null, lastDonationDate || null, userId]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    console.error("Add blood donor error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/bloodbank/donations", requireBloodBankStaff, async (req, res) => {
+  const { donorId, component, units } = req.body || {};
+  const unitCount = parseInt(units, 10) || 1;
+  if (!donorId || !component) {
+    return res.status(400).json({ success: false, message: "Donor and component are required." });
+  }
+  try {
+    const { hospitalId } = req.session.user;
+    const [[donor]] = await pool.query(`SELECT * FROM blood_donors WHERE id = ? AND hospital_id = ? LIMIT 1`, [
+      donorId,
+      hospitalId,
+    ]);
+    if (!donor) return res.status(404).json({ success: false, message: "Donor not found." });
+
+    const now = new Date();
+    const expiry = bloodExpiryFor(component, now);
+    const rows = [];
+    for (let i = 0; i < unitCount; i++) {
+      const unitCode = "BU-" + (1000 + Math.floor(Math.random() * 9000));
+      rows.push([hospitalId, unitCode, donor.blood_group, component, donorId, now, expiry, "available"]);
+    }
+    await pool.query(
+      `INSERT INTO blood_inventory_units (hospital_id, unit_code, blood_group, component, donor_id, collected_at, expiry_at, status) VALUES ?`,
+      [rows]
+    );
+
+    await pool.query(
+      `UPDATE blood_donors SET last_donation_date = CURDATE(), total_donations = total_donations + ? WHERE id = ?`,
+      [unitCount, donorId]
+    );
+
+    res.json({ success: true, unitsAdded: unitCount });
+  } catch (err) {
+    console.error("Record blood donation error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/bloodbank/patient-donations", requireBloodBankStaff, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM blood_patient_donations WHERE hospital_id = ? ORDER BY created_at DESC LIMIT 30`,
+      [req.session.user.hospitalId]
+    );
+    res.json({ success: true, donations: rows });
+  } catch (err) {
+    console.error("List patient donations error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/bloodbank/patient-donations/check-eligibility", requireBloodBankStaff, async (req, res) => {
+  const { patientUhid, weight, hb, systolic, diastolic, pulse, temperature, flags } = req.body || {};
+  try {
+    const { hospitalId } = req.session.user;
+    let age = null;
+    let lastDonationDate = null;
+    if (patientUhid) {
+      const [[patient]] = await pool.query(`SELECT dob FROM patients WHERE uhid = ? AND hospital_id = ? LIMIT 1`, [
+        patientUhid,
+        hospitalId,
+      ]);
+      if (patient && patient.dob) {
+        age = Math.floor((Date.now() - new Date(patient.dob).getTime()) / (365.25 * 86400000));
+      }
+      const [[lastDonation]] = await pool.query(
+        `SELECT created_at FROM blood_patient_donations WHERE patient_uhid = ? AND hospital_id = ? ORDER BY created_at DESC LIMIT 1`,
+        [patientUhid, hospitalId]
+      );
+      if (lastDonation) lastDonationDate = lastDonation.created_at;
+    }
+
+    const result = checkDonorEligibility({
+      age,
+      weight: parseFloat(weight) || 0,
+      hb: parseFloat(hb) || 0,
+      systolic: parseInt(systolic, 10) || 0,
+      diastolic: parseInt(diastolic, 10) || 0,
+      pulse: parseInt(pulse, 10) || 0,
+      temperature: parseFloat(temperature) || 0,
+      lastDonationDate,
+      flags,
+    });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error("Check donor eligibility error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/bloodbank/patient-donations", requireBloodBankStaff, async (req, res) => {
+  const {
+    patientUhid,
+    donorName,
+    bloodGroup,
+    component,
+    units,
+    weight,
+    hb,
+    systolic,
+    diastolic,
+    pulse,
+    temperature,
+    flags,
+    consent,
+  } = req.body || {};
+
+  if (!patientUhid || !donorName || !bloodGroup || !component || !consent) {
+    return res.status(400).json({
+      success: false,
+      message: "Patient, blood group, component, and consent confirmation are required.",
+    });
+  }
+
+  try {
+    const { hospitalId, userId } = req.session.user;
+
+    let age = null;
+    const [[patient]] = await pool.query(`SELECT dob FROM patients WHERE uhid = ? AND hospital_id = ? LIMIT 1`, [
+      patientUhid,
+      hospitalId,
+    ]);
+    if (patient && patient.dob) {
+      age = Math.floor((Date.now() - new Date(patient.dob).getTime()) / (365.25 * 86400000));
+    }
+    const [[lastDonation]] = await pool.query(
+      `SELECT created_at FROM blood_patient_donations WHERE patient_uhid = ? AND hospital_id = ? ORDER BY created_at DESC LIMIT 1`,
+      [patientUhid, hospitalId]
+    );
+
+    const eligibility = checkDonorEligibility({
+      age,
+      weight: parseFloat(weight) || 0,
+      hb: parseFloat(hb) || 0,
+      systolic: parseInt(systolic, 10) || 0,
+      diastolic: parseInt(diastolic, 10) || 0,
+      pulse: parseInt(pulse, 10) || 0,
+      temperature: parseFloat(temperature) || 0,
+      lastDonationDate: lastDonation ? lastDonation.created_at : null,
+      flags,
+    });
+
+    if (!eligibility.eligible) {
+      return res.status(400).json({
+        success: false,
+        message: "Patient does not meet donation eligibility criteria.",
+        reasons: eligibility.reasons,
+      });
+    }
+
+    const unitCount = parseInt(units, 10) || 1;
+    await pool.query(
+      `INSERT INTO blood_patient_donations
+        (hospital_id, patient_uhid, donor_name, blood_group, component, units, weight, hb, systolic, diastolic,
+         pulse, temperature, flags, eligible, ineligible_reasons, consent, recorded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, NULL, TRUE, ?)`,
+      [
+        hospitalId,
+        patientUhid,
+        donorName,
+        bloodGroup,
+        component,
+        unitCount,
+        weight || null,
+        hb || null,
+        systolic || null,
+        diastolic || null,
+        pulse || null,
+        temperature || null,
+        JSON.stringify(flags || {}),
+        userId,
+      ]
+    );
+
+    // Screening-confirmed blood group is a reliable source — persist it to the patient record.
+    await pool.query(`UPDATE patients SET blood_group = ? WHERE uhid = ? AND hospital_id = ?`, [
+      bloodGroup,
+      patientUhid,
+      hospitalId,
+    ]);
+
+    const now = new Date();
+    const expiry = bloodExpiryFor(component, now);
+    const rows = [];
+    for (let i = 0; i < unitCount; i++) {
+      const unitCode = "BU-" + (1000 + Math.floor(Math.random() * 9000));
+      rows.push([hospitalId, unitCode, bloodGroup, component, null, now, expiry, "available"]);
+    }
+    await pool.query(
+      `INSERT INTO blood_inventory_units (hospital_id, unit_code, blood_group, component, donor_id, collected_at, expiry_at, status) VALUES ?`,
+      [rows]
+    );
+
+    res.json({ success: true, unitsAdded: unitCount });
+  } catch (err) {
+    console.error("Record patient donation error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/bloodbank/billing", requireBloodBankStaff, async (req, res) => {
+  try {
+    const [rows] = await pool.query(`SELECT * FROM blood_billing WHERE hospital_id = ? ORDER BY created_at DESC`, [
+      req.session.user.hospitalId,
+    ]);
+    res.json({ success: true, billing: rows });
+  } catch (err) {
+    console.error("List blood billing error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/bloodbank/billing/:id/pay", requireBloodBankStaff, async (req, res) => {
+  const { paymentType } = req.body || {};
+  try {
+    await pool.query(
+      `UPDATE blood_billing SET status = 'paid', payment_type = ?, paid_at = NOW() WHERE id = ? AND hospital_id = ?`,
+      [paymentType || "Cash", req.params.id, req.session.user.hospitalId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Mark blood billing paid error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
   }
 });
 

@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MEDISYS Blood Bank</title>
+<link rel="stylesheet" href="../style.css" />
+<link rel="stylesheet" href="../admin/admin.css" />
+<style>
+  :root{
+    --bg:#f8fafc; --surface:#FFFFFF; --surface-2:#f1f5f9;
+    --ink:#0f172a; --ink-soft:#334155; --ink-mute:#64748b; --line:#e2e8f0;
+    --blood:#1b2f6e; --blood-deep:#142357; --blood-tint:#EEF1FB;
+    --amber:#B4740E; --amber-tint:#FAEEDA;
+    --red:#A32D2D; --red-tint:#FCEBEB;
+    --green:#227A5B; --green-tint:#E4F4EC;
+    --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:var(--sans); background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;}
+  a{color:inherit;}
+
+  .toast-container{position:fixed; top:18px; right:18px; z-index:9999; display:flex; flex-direction:column; gap:10px; pointer-events:none;}
+  .toast{display:flex; align-items:center; gap:10px; background:var(--blood-deep); color:#fff; padding:14px 18px; border-radius:8px; box-shadow:0 18px 48px rgba(20,35,87,.28); font-size:13.5px; font-weight:600; max-width:360px; opacity:0; transform:translateX(20px); transition:opacity .25s ease, transform .25s ease; cursor:pointer; pointer-events:auto;}
+  .toast-show{opacity:1; transform:translateX(0);}
+  .toast-error{background:var(--red);}
+
+  .layout{display:grid; grid-template-columns:220px 1fr; min-height:calc(100vh - 60px);}
+  .sidebar{background:var(--surface); border-right:1px solid var(--line); padding:20px 14px;}
+  .sidebar h4{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-mute); margin:18px 6px 8px;}
+  .sidebar h4:first-child{margin-top:0;}
+  .side-item{display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:8px; font-size:13.5px; cursor:pointer; margin-bottom:2px; color:var(--ink-soft);}
+  .side-item.active{background:var(--blood-tint); color:var(--blood-deep); font-weight:600;}
+  .side-item:hover:not(.active){background:var(--surface-2);}
+  .side-item .count{font-family:var(--mono); font-size:11px; color:var(--ink-mute); background:var(--surface-2); padding:1px 7px; border-radius:20px;}
+  .side-item.active .count{background:#fff; color:var(--blood-deep);}
+
+  .main{padding:24px 28px 60px;}
+
+  .triage{display:flex; border-radius:var(--radius); overflow:hidden; height:46px; margin-bottom:22px; border:1px solid var(--line);}
+  .triage-seg{display:flex; align-items:center; justify-content:center; gap:8px; color:#fff; font-size:12.5px; font-weight:600; letter-spacing:.03em;}
+  .triage-seg span.n{font-family:var(--mono); font-size:14px;}
+  .triage-seg.stat{background:var(--red);}
+  .triage-seg.urgent{background:var(--amber);}
+  .triage-seg.routine{background:var(--blood);}
+
+  .metrics{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px;}
+  .metric{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  .metric .label{font-size:12px; color:var(--ink-mute); margin-bottom:6px;}
+  .metric .value{font-size:26px; font-weight:700; font-family:var(--mono);}
+  .metric .delta{font-size:11.5px; color:var(--blood); margin-top:4px;}
+  .metric .delta.down{color:var(--red);}
+
+  .tabs{display:flex; gap:6px; margin-bottom:18px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
+  .tab{padding:9px 16px; font-size:13px; font-weight:600; color:var(--ink-mute); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;}
+  .tab.active{color:var(--blood-deep); border-bottom-color:var(--blood);}
+  .tabpage{display:none;}
+  .tabpage.active{display:block;}
+
+  .section-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+  .section-head h3{font-size:14px; margin:0;}
+
+  .inv-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px;}
+  .inv-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px;}
+  .inv-card .grp{font-family:var(--mono); font-weight:700; font-size:16px; color:var(--blood-deep); margin-bottom:8px;}
+  .inv-row{display:flex; justify-content:space-between; font-size:12px; padding:3px 0; color:var(--ink-soft);}
+  .inv-row .u{font-family:var(--mono); font-weight:700;}
+  .inv-row.low .u{color:var(--red);}
+  .inv-row.ok .u{color:var(--green);}
+
+  .toolbar{display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;}
+  .toolbar input[type=text]{flex:1; min-width:220px; padding:9px 12px; border:1px solid var(--line); border-radius:8px; font-size:13.5px; background:var(--surface);}
+  .toolbar select{padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:var(--surface);}
+  .toolbar .count-label{font-size:12.5px; color:var(--ink-mute); margin-left:auto;}
+  .board{display:grid; grid-template-columns:1.5fr 1fr; gap:18px; align-items:start;}
+  table{width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  thead th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-mute); padding:11px 14px; background:var(--surface-2); border-bottom:1px solid var(--line);}
+  tbody td{padding:12px 14px; font-size:13.5px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr{cursor:pointer;}
+  tbody tr:hover{background:var(--surface-2);}
+  tbody tr.selected{background:var(--blood-tint);}
+  .pname{font-weight:600;}
+  .puhid{font-family:var(--mono); font-size:11px; color:var(--ink-mute);}
+  .badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.02em;}
+  .badge.STAT{background:var(--red-tint); color:var(--red);}
+  .badge.Urgent{background:var(--amber-tint); color:var(--amber);}
+  .badge.Routine{background:var(--surface-2); color:var(--ink-soft);}
+  .badge.group{background:var(--blood-tint); color:var(--blood-deep); font-family:var(--mono);}
+  .badge.paid{background:var(--green-tint); color:var(--green);}
+  .badge.pending{background:var(--amber-tint); color:var(--amber);}
+  .status-pill{display:flex; align-items:center; gap:6px; font-size:12.5px;}
+  .dot{width:7px; height:7px; border-radius:50%;}
+  .dot.requested{background:var(--ink-mute);}
+  .dot.crossmatch{background:var(--amber);}
+  .dot.issued{background:var(--green);}
+  .dot.rejected{background:var(--red);}
+
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px; position:sticky; top:20px;}
+  .panel-head{display:flex; align-items:center; gap:12px; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--line);}
+  .panel-avatar{width:42px; height:42px; border-radius:50%; background:var(--blood-tint); color:var(--blood-deep); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;}
+  .panel-name{font-weight:700; font-size:15px;}
+  .panel-meta{font-size:12px; color:var(--ink-mute); font-family:var(--mono);}
+  .info-grid{font-size:12.5px; margin-bottom:14px;}
+  .info-row{display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px dashed var(--line);}
+  .info-row .k{color:var(--ink-mute);}
+  .info-row .v{font-weight:600;}
+  .field-label{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-mute); margin:14px 0 6px;}
+  select.full, input.full, textarea.full{width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:12.5px; font-family:var(--sans); background:var(--surface-2);}
+  textarea.full{min-height:70px; resize:vertical; line-height:1.5;}
+  .checklist{display:flex; flex-direction:column; gap:8px; margin-bottom:6px;}
+  .checklist label{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-soft);}
+  .panel-actions{display:flex; gap:8px; margin-top:14px;}
+  .btn{flex:1; padding:9px 0; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; border:1px solid var(--line); background:var(--surface); color:var(--ink);}
+  .btn:hover{background:var(--surface-2);}
+  .btn.primary{background:var(--blood); color:#fff; border-color:var(--blood);}
+  .btn.primary:hover{background:var(--blood-deep);}
+  .btn.critical{background:var(--red); color:#fff; border-color:var(--red);}
+  .btn.ghost{background:transparent;}
+  .empty{padding:40px 20px; text-align:center; color:var(--ink-mute); font-size:13px;}
+
+  .card-form{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:16px;}
+  .card-form .fw label{font-size:11px; color:var(--ink-mute); display:block; margin-bottom:4px;}
+  .card-form button{grid-column:1/-1; margin-top:4px;}
+  .eligible{color:var(--green); font-weight:600;}
+  .not-eligible{color:var(--red); font-weight:600;}
+  .expiry-warn{background:var(--amber-tint); color:var(--amber); font-size:11px; padding:2px 8px; border-radius:20px; font-weight:700;}
+
+  .modal-backdrop{position:fixed; inset:0; background:rgba(36,20,24,.45); display:none; align-items:center; justify-content:center; z-index:999;}
+  .modal-backdrop.open{display:flex;}
+  .modal{background:var(--surface); border-radius:var(--radius); padding:22px; width:420px; max-width:92vw;}
+  .modal h3{margin:0 0 4px;}
+  .modal .sub{font-size:12px; color:var(--ink-mute); margin-bottom:16px;}
+  .modal-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;}
+  .modal-grid label{font-size:11px; color:var(--ink-mute); display:block; margin-bottom:4px;}
+  .modal-actions{display:flex; gap:8px; margin-top:6px;}
+
+  .compat-grid{display:grid; grid-template-columns:130px 1fr; gap:14px; align-items:start;}
+  .compat-result{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px;}
+  .compat-list{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
+  .compat-chip{background:var(--blood-tint); color:var(--blood-deep); font-family:var(--mono); font-weight:700; font-size:12px; padding:4px 10px; border-radius:20px;}
+
+  .report-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .report-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  .report-card h4{margin:0 0 12px; font-size:12.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-mute);}
+  .bar-row{display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:12px;}
+  .bar-row .lbl{width:52px; font-family:var(--mono); font-weight:700; flex-shrink:0;}
+  .bar-track{flex:1; height:8px; background:var(--surface-2); border-radius:6px; overflow:hidden;}
+  .bar-fill{height:100%; background:var(--blood);}
+  .bar-row .val{width:26px; text-align:right; font-family:var(--mono); color:var(--ink-mute); flex-shrink:0;}
+
+  .loading-state{padding:60px; text-align:center; color:var(--ink-mute); font-size:13.5px;}
+
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr;}
+    .sidebar{display:flex; overflow-x:auto; gap:6px; padding:12px;}
+    .board{grid-template-columns:1fr;}
+    .metrics{grid-template-columns:repeat(2,1fr);}
+    .inv-grid{grid-template-columns:repeat(2,1fr);}
+    .card-form{grid-template-columns:repeat(2,1fr);}
+    .report-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<header class="site-header">
+  <div class="brand">
+    <img src="../logo.png" alt="Core5 MEDISYS" class="brand-logo" />
+  </div>
+  <div class="portal-header-right">
+    <span class="portal-user" id="portalUser"></span>
+    <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+  </div>
+</header>
+
+<main class="portal-main" style="max-width: 1400px; margin: 0 auto; padding: 20px 20px 0;">
+  <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
+</main>
+
+<div id="appRoot" class="loading-state">Loading blood bank data…</div>
+
+<template id="appTemplate">
+<div class="layout">
+  <div class="sidebar">
+    <h4>Queue</h4>
+    <div class="side-item active" data-scope="all">All requests <span class="count" id="cntAll">0</span></div>
+    <div class="side-item" data-scope="mine">Handled by me <span class="count" id="cntMine">0</span></div>
+    <div class="side-item" data-scope="unassigned">Unassigned <span class="count" id="cntUnassigned">0</span></div>
+
+    <h4>Blood group</h4>
+    <div id="groupSideItems"></div>
+
+    <h4>Status</h4>
+    <div class="side-item active" data-status="all">All <span class="count" id="cntStatusAll">0</span></div>
+    <div class="side-item" data-status="requested">Requested <span class="count" id="cntRequested">0</span></div>
+    <div class="side-item" data-status="crossmatch">Crossmatch <span class="count" id="cntCrossmatch">0</span></div>
+    <div class="side-item" data-status="issued">Issued <span class="count" id="cntIssued">0</span></div>
+    <div class="side-item" data-status="rejected">Rejected <span class="count" id="cntRejected">0</span></div>
+  </div>
+
+  <div class="main">
+
+    <div class="triage" id="triageStrip"></div>
+    <div class="metrics" id="metricsRow"></div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="requests">Requests &amp; issue</div>
+      <div class="tab" data-tab="inventory">Inventory</div>
+      <div class="tab" data-tab="donors">Donor register</div>
+      <div class="tab" data-tab="patientdonation">Patient blood donation</div>
+      <div class="tab" data-tab="compat">Compatibility checker</div>
+      <div class="tab" data-tab="billing">Billing</div>
+      <div class="tab" data-tab="reports">Reports</div>
+    </div>
+
+    <!-- ===== REQUESTS TAB ===== -->
+    <div class="tabpage active" id="tab-requests">
+      <div class="toolbar">
+        <input type="text" id="search" placeholder="Search patient, UHID or request ID">
+        <select id="sortSelect">
+          <option value="time">Sort: request time</option>
+          <option value="priority">Sort: priority</option>
+          <option value="name">Sort: patient name</option>
+        </select>
+        <button class="btn primary" style="flex:none; padding:9px 16px;" id="newRequestBtn">+ New request</button>
+        <span class="count-label" id="countLabel"></span>
+      </div>
+      <div class="board">
+        <table>
+          <thead><tr><th>Patient</th><th>Group / Unit</th><th>Priority</th><th>Status</th></tr></thead>
+          <tbody id="worklistBody"></tbody>
+        </table>
+        <div class="panel" id="panel"></div>
+      </div>
+    </div>
+
+    <!-- ===== INVENTORY TAB ===== -->
+    <div class="tabpage" id="tab-inventory">
+      <div class="section-head">
+        <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-mute);">Stock by blood group &amp; component</h3>
+        <button class="btn primary" style="flex:none; padding:8px 14px;" id="recordDonationBtn">+ Record donation</button>
+      </div>
+      <div class="inv-grid" id="invGrid"></div>
+      <h4 style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-mute); margin:0 0 10px;">Units expiring within 7 days</h4>
+      <table style="margin-bottom:20px;">
+        <thead><tr><th>Unit ID</th><th>Group</th><th>Component</th><th>Collected</th><th>Expires</th></tr></thead>
+        <tbody id="expiryBody"></tbody>
+      </table>
+    </div>
+
+    <!-- ===== PATIENT BLOOD DONATION TAB ===== -->
+    <div class="tabpage" id="tab-patientdonation">
+      <div class="board" style="grid-template-columns:1fr 1fr;">
+        <div>
+          <div class="field-label" style="margin-top:0;">Find patient</div>
+          <input class="full" id="pdSearch" placeholder="Search by UHID or name" autocomplete="off">
+          <div id="pdSearchResults" style="margin-top:6px;"></div>
+          <div id="pdPatientCard" style="margin-top:10px;"></div>
+
+          <div class="field-label">Screening details</div>
+          <div class="modal-grid" style="margin-bottom:0;">
+            <div><label>Weight (kg)</label><input class="full" id="pdWeight" type="number" min="0" step="0.5"></div>
+            <div><label>Haemoglobin (g/dL)</label><input class="full" id="pdHb" type="number" min="0" step="0.1"></div>
+            <div><label>Systolic BP</label><input class="full" id="pdSystolic" type="number" min="0"></div>
+            <div><label>Diastolic BP</label><input class="full" id="pdDiastolic" type="number" min="0"></div>
+            <div><label>Pulse (bpm)</label><input class="full" id="pdPulse" type="number" min="0"></div>
+            <div><label>Temperature (°C)</label><input class="full" id="pdTemp" type="number" min="30" max="42" step="0.1"></div>
+          </div>
+
+          <div class="field-label">Health questionnaire</div>
+          <div class="checklist">
+            <label><input type="checkbox" id="pdFlagFever"> Fever / recent infection</label>
+            <label><input type="checkbox" id="pdFlagSurgery"> Surgery or major dental work in last 6 months</label>
+            <label><input type="checkbox" id="pdFlagTattoo"> Tattoo / piercing in last 12 months</label>
+            <label><input type="checkbox" id="pdFlagPregnancy"> Currently pregnant / breastfeeding</label>
+            <label><input type="checkbox" id="pdFlagMedication"> On blood-thinners / disqualifying medication</label>
+            <label><input type="checkbox" id="pdFlagChronic"> Diagnosed chronic illness affecting donation</label>
+          </div>
+
+          <div class="field-label">Blood group &amp; component</div>
+          <div class="modal-grid" style="margin-bottom:0;">
+            <div><label>Blood group</label>
+              <select class="full" id="pdGroup"><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select>
+            </div>
+            <div><label>Component donated</label>
+              <select class="full" id="pdComponent"><option>Whole Blood</option><option>Packed RBC</option><option>Fresh Frozen Plasma</option><option>Platelets</option></select>
+            </div>
+            <div><label>Units collected</label><input class="full" id="pdUnits" type="number" min="1" value="1"></div>
+          </div>
+
+          <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-soft); margin:14px 0;">
+            <input type="checkbox" id="pdConsent"> Patient has given informed consent for blood donation
+          </label>
+
+          <div class="panel-actions">
+            <button class="btn" id="pdCheckBtn">Check eligibility</button>
+            <button class="btn primary" id="pdSubmitBtn">Record donation</button>
+          </div>
+        </div>
+
+        <div class="panel" style="position:static;">
+          <div class="field-label" style="margin-top:0;">Eligibility result</div>
+          <div id="pdEligibilityResult" class="empty" style="padding:24px 10px;">Fill in the screening details and click "Check eligibility".</div>
+
+          <div class="field-label">Recent patient donations</div>
+          <table>
+            <thead><tr><th>Patient</th><th>Group</th><th>Component</th><th>Date</th></tr></thead>
+            <tbody id="patientDonationBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DONORS TAB (external donor register) ===== -->
+    <div class="tabpage" id="tab-donors">
+      <div class="card-form">
+        <div class="fw"><label>Full name</label><input id="dName" class="full" placeholder="Donor name"></div>
+        <div class="fw"><label>Blood group</label>
+          <select id="dGroup" class="full">
+            <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+            <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+          </select>
+        </div>
+        <div class="fw"><label>Phone</label><input id="dPhone" class="full" placeholder="10-digit number"></div>
+        <div class="fw"><label>Last donation date</label><input id="dDate" type="date" class="full"></div>
+        <button class="btn primary" id="addDonorBtn">+ Add donor</button>
+      </div>
+      <table>
+        <thead><tr><th>Donor</th><th>Group</th><th>Phone</th><th>Last donation</th><th>Total donations</th></tr></thead>
+        <tbody id="donorBody"></tbody>
+      </table>
+    </div>
+
+    <!-- ===== COMPATIBILITY TAB ===== -->
+    <div class="tabpage" id="tab-compat">
+      <div class="compat-grid">
+        <div>
+          <div class="field-label">Recipient blood group</div>
+          <select class="full" id="compatGroup">
+            <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+            <option>AB+</option><option>AB-</option><option selected>O+</option><option>O-</option>
+          </select>
+          <div class="field-label">Component</div>
+          <select class="full" id="compatComponent">
+            <option>Packed RBC</option><option>Whole Blood</option><option>Fresh Frozen Plasma</option><option>Platelets</option>
+          </select>
+        </div>
+        <div class="compat-result" id="compatResult"></div>
+      </div>
+    </div>
+
+    <!-- ===== BILLING TAB ===== -->
+    <div class="tabpage" id="tab-billing">
+      <div class="toolbar">
+        <span class="count-label" id="billingSummary" style="margin-left:0;"></span>
+      </div>
+      <table>
+        <thead><tr><th>Patient</th><th>Component</th><th>Units</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody id="billingBody"></tbody>
+      </table>
+    </div>
+
+    <!-- ===== REPORTS TAB ===== -->
+    <div class="tabpage" id="tab-reports">
+      <div class="report-grid">
+        <div class="report-card">
+          <h4>Units issued by blood group (all time)</h4>
+          <div id="reportIssuedByGroup"></div>
+        </div>
+        <div class="report-card">
+          <h4>Current stock by blood group</h4>
+          <div id="reportStockByGroup"></div>
+        </div>
+        <div class="report-card">
+          <h4>Requests by status</h4>
+          <div id="reportByStatus"></div>
+        </div>
+        <div class="report-card">
+          <h4>Summary</h4>
+          <div class="info-grid" id="reportSummary"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</template>
+
+<!-- ===== New request modal ===== -->
+<div class="modal-backdrop" id="reqModalBackdrop">
+  <div class="modal">
+    <h3>New blood request</h3>
+    <div class="sub">Raised on behalf of a ward / OT / OPD</div>
+    <div class="field-label" style="margin-top:0;">Find patient (optional — autofills the fields below)</div>
+    <input class="full" id="nrSearch" placeholder="Search by UHID or name" autocomplete="off" style="margin-bottom:6px;">
+    <div id="nrSearchResults" style="margin-bottom:14px;"></div>
+    <div class="modal-grid">
+      <div><label>Patient name</label><input class="full" id="nrName"></div>
+      <div><label>UHID</label><input class="full" id="nrUhid" placeholder="leave blank if not registered"></div>
+      <div><label>Age</label><input class="full" id="nrAge" type="number" min="0"></div>
+      <div><label>Sex</label><select class="full" id="nrSex"><option>M</option><option>F</option></select></div>
+      <div><label>Blood group</label>
+        <select class="full" id="nrGroup"><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select>
+      </div>
+      <div><label>Component</label>
+        <select class="full" id="nrComponent"><option>Packed RBC</option><option>Whole Blood</option><option>Fresh Frozen Plasma</option><option>Platelets</option><option>Cryoprecipitate</option></select>
+      </div>
+      <div><label>Units required</label><input class="full" id="nrUnits" type="number" min="1" value="1"></div>
+      <div><label>Priority</label><select class="full" id="nrPriority"><option>Routine</option><option>Urgent</option><option>STAT</option></select></div>
+      <div><label>Ward / location</label><input class="full" id="nrWard"></div>
+      <div><label>Requesting physician</label><input class="full" id="nrRef"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="nrCancel">Cancel</button>
+      <button class="btn primary" id="nrSubmit">Create request</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Record donation modal ===== -->
+<div class="modal-backdrop" id="donModalBackdrop">
+  <div class="modal">
+    <h3>Record donation</h3>
+    <div class="sub">Adds a new unit to stock and updates the donor's history</div>
+    <div class="modal-grid">
+      <div style="grid-column:1/-1;"><label>Donor</label><select class="full" id="donDonor"></select></div>
+      <div><label>Component</label>
+        <select class="full" id="donComponent"><option>Whole Blood</option><option>Packed RBC</option><option>Fresh Frozen Plasma</option><option>Platelets</option><option>Cryoprecipitate</option></select>
+      </div>
+      <div><label>Units collected</label><input class="full" id="donUnits" type="number" min="1" value="1"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="donCancel">Cancel</button>
+      <button class="btn primary" id="donSubmit">Add to stock</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="blood-bank-queue.js"></script>
+</body>
+</html>

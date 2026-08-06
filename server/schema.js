@@ -92,6 +92,7 @@ async function ensureSchema(connection) {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await ensureColumn(connection, "patients", "blood_group", "VARCHAR(4) NULL");
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS doctor_schedules (
@@ -407,6 +408,107 @@ async function ensureSchema(connection) {
       doctor_user_id VARCHAR(50) NOT NULL,
       nurse_user_id VARCHAR(50) NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // ---------- Blood Bank ----------
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS blood_donors (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      full_name VARCHAR(150) NOT NULL,
+      patient_uhid VARCHAR(30) NULL,
+      blood_group VARCHAR(4) NOT NULL,
+      phone VARCHAR(20),
+      last_donation_date DATE NULL,
+      total_donations INT NOT NULL DEFAULT 0,
+      created_by VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS blood_inventory_units (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      unit_code VARCHAR(30) NOT NULL,
+      blood_group VARCHAR(4) NOT NULL,
+      component VARCHAR(30) NOT NULL,
+      donor_id INT NULL,
+      collected_at TIMESTAMP NOT NULL,
+      expiry_at TIMESTAMP NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'available',
+      issued_to_request_id INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS blood_requests (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      request_code VARCHAR(30) NOT NULL,
+      patient_uhid VARCHAR(30) NULL,
+      patient_name VARCHAR(150) NOT NULL,
+      age INT NULL,
+      sex VARCHAR(4) NULL,
+      blood_group VARCHAR(4) NOT NULL,
+      component VARCHAR(30) NOT NULL,
+      units_required INT NOT NULL DEFAULT 1,
+      priority VARCHAR(20) NOT NULL DEFAULT 'Routine',
+      ward_location VARCHAR(150),
+      ref_physician VARCHAR(150),
+      status VARCHAR(20) NOT NULL DEFAULT 'requested',
+      assigned_staff_id VARCHAR(50) NULL,
+      crossmatch_sample BOOLEAN NOT NULL DEFAULT FALSE,
+      crossmatch_abo BOOLEAN NOT NULL DEFAULT FALSE,
+      crossmatch_screen BOOLEAN NOT NULL DEFAULT FALSE,
+      notes TEXT,
+      created_by VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      issued_at TIMESTAMP NULL
+    )
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS blood_patient_donations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      patient_uhid VARCHAR(30) NOT NULL,
+      donor_name VARCHAR(150) NOT NULL,
+      blood_group VARCHAR(4) NOT NULL,
+      component VARCHAR(30) NOT NULL,
+      units INT NOT NULL DEFAULT 1,
+      weight DECIMAL(5,1),
+      hb DECIMAL(4,1),
+      systolic INT,
+      diastolic INT,
+      pulse INT,
+      temperature DECIMAL(4,1),
+      flags JSON,
+      eligible BOOLEAN NOT NULL,
+      ineligible_reasons TEXT,
+      consent BOOLEAN NOT NULL DEFAULT FALSE,
+      recorded_by VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS blood_billing (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      request_id INT NOT NULL,
+      patient_uhid VARCHAR(30) NULL,
+      patient_name VARCHAR(150) NOT NULL,
+      component VARCHAR(30) NOT NULL,
+      units INT NOT NULL,
+      amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      payment_type VARCHAR(30) NULL,
+      created_by VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      paid_at TIMESTAMP NULL
     )
   `);
 
