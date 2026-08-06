@@ -1535,41 +1535,49 @@ app.post("/api/pharmacy-orders/:id/dispense", requireTenantUser, async (req, res
       }
     }
 
-    // 3. Mark order as dispensed
+    // 3. Price this dose now, while we still know which stock batch it came from —
+    // billing reads this back later instead of re-matching stock at bill time.
+    const dispensedAmount = matchingStock.length > 0 && matchingStock[0].unit_price
+      ? matchingStock[0].unit_price
+      : (order.amount || 15.00);
+
+    // 4. Mark order as dispensed. No invoice is created here — dispensing just moves
+    // the medicine into the "ready to bill" pool; a pharmacist combines everything
+    // pending for a patient into one invoice from the Billing tab.
     await pool.query(
-      `UPDATE medisys_pharmacy.pharmacy_orders SET status = 'dispensed', dispensed_by = ?, dispensed_at = NOW() WHERE id = ?`,
-      [userId, orderId]
+      `UPDATE medisys_pharmacy.pharmacy_orders
+       SET status = 'dispensed', dispensed_by = ?, dispensed_at = NOW(), amount = ?
+       WHERE id = ?`,
+      [userId, dispensedAmount, orderId]
     );
 
-    // 4. Auto-create Invoice in pharmacy_invoices table
-    let patientName = "Patient (" + order.patient_uhid + ")";
-    const [pRows] = await pool.query(`SELECT full_name FROM patients WHERE uhid = ?`, [order.patient_uhid]);
-    if (pRows.length > 0 && pRows[0].full_name) {
-      patientName = pRows[0].full_name;
-    }
-
-    const invNum = "PHINV-" + (8800 + Math.floor(Math.random() * 1000));
-    let invAmount = order.amount || 15.00;
-    if (matchingStock.length > 0 && matchingStock[0].unit_price) {
-      invAmount = matchingStock[0].unit_price;
-    }
-
-    await pool.query(
-      `INSERT INTO medisys_pharmacy.pharmacy_invoices 
-       (hospital_id, invoice_number, order_id, patient_uhid, patient_name, payment_type, item_count, total_amount, payment_status, created_by)
-       VALUES (?, ?, ?, ?, ?, 'Cash', 1, ?, 'Pending', ?)`,
-      [order.hospital_id || 1, invNum, orderId, order.patient_uhid, patientName, invAmount, userId]
-    );
-
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: "Medicine dispensed successfully.",
       stockDeducted,
       stockWarning,
-      invoiceNumber: invNum
     });
   } catch (err) {
     console.error("Dispense pharmacy order error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// Dispensed medicines waiting to be combined into one bill for their patient.
+app.get("/api/pharmacy-orders/ready-to-bill", requireTenantUser, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const [orders] = await pool.query(
+      `SELECT po.*, p.full_name as patient_name, p.dob as patient_dob, p.gender as patient_gender
+       FROM medisys_pharmacy.pharmacy_orders po
+       LEFT JOIN patients p ON po.patient_uhid = p.uhid
+       WHERE po.hospital_id = ? AND po.status = 'dispensed' AND po.invoice_id IS NULL
+       ORDER BY po.dispensed_at DESC`,
+      [hospitalId]
+    );
+    res.json({ success: true, orders });
+  } catch (err) {
+    console.error("Get ready-to-bill orders error:", err.message);
     res.status(500).json({ success: false, message: "Server error." });
   }
 });
@@ -1624,6 +1632,77 @@ app.post("/api/pharmacy-invoices/:id/pay", requireTenantUser, async (req, res) =
     res.json({ success: true, message: "Payment marked as Paid." });
   } catch (err) {
     console.error("Mark invoice paid error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// Combines every dispensed-but-unbilled medicine picked for one patient into a
+// single invoice — this is the "final combined bill" a pharmacist generates.
+app.post("/api/pharmacy-invoices/generate", requireTenantUser, async (req, res) => {
+  const { orderIds } = req.body || {};
+  if (!Array.isArray(orderIds) || orderIds.length === 0) {
+    return res.status(400).json({ success: false, message: "Select at least one dispensed medicine to bill." });
+  }
+
+  try {
+    const { userId, hospitalId } = req.session.user;
+
+    const [orders] = await pool.query(
+      `SELECT * FROM medisys_pharmacy.pharmacy_orders
+       WHERE id IN (?) AND hospital_id = ? AND status = 'dispensed' AND invoice_id IS NULL`,
+      [orderIds, hospitalId]
+    );
+
+    if (orders.length === 0) {
+      return res.status(409).json({
+        success: false,
+        message: "Those medicines are no longer available to bill — they may already be on another invoice.",
+      });
+    }
+
+    const patientUhid = orders[0].patient_uhid;
+    if (orders.some((o) => o.patient_uhid !== patientUhid)) {
+      return res.status(400).json({ success: false, message: "All medicines in one bill must belong to the same patient." });
+    }
+
+    let patientName = "Patient (" + patientUhid + ")";
+    const [pRows] = await pool.query(`SELECT full_name FROM patients WHERE uhid = ?`, [patientUhid]);
+    if (pRows.length > 0 && pRows[0].full_name) patientName = pRows[0].full_name;
+
+    const totalAmount = orders.reduce((sum, o) => sum + parseFloat(o.amount || 15), 0);
+    const invNum = "PHINV-" + (8800 + Math.floor(Math.random() * 1000));
+
+    const [result] = await pool.query(
+      `INSERT INTO medisys_pharmacy.pharmacy_invoices
+       (hospital_id, invoice_number, order_id, patient_uhid, patient_name, payment_type, item_count, total_amount, payment_status, created_by)
+       VALUES (?, ?, ?, ?, ?, 'Cash', ?, ?, 'Pending', ?)`,
+      [hospitalId, invNum, orders[0].id, patientUhid, patientName, orders.length, totalAmount, userId]
+    );
+    const invoiceId = result.insertId;
+
+    await pool.query(`UPDATE medisys_pharmacy.pharmacy_orders SET invoice_id = ? WHERE id IN (?)`, [
+      invoiceId,
+      orders.map((o) => o.id),
+    ]);
+
+    res.json({ success: true, invoiceId, invoiceNumber: invNum, itemCount: orders.length, totalAmount });
+  } catch (err) {
+    console.error("Generate pharmacy invoice error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// The medicine-level line items behind one invoice — what the printed bill itemizes.
+app.get("/api/pharmacy-invoices/:id/items", requireTenantUser, async (req, res) => {
+  try {
+    const [items] = await pool.query(
+      `SELECT id, medicine_name, dosage, duration, urgency, amount, doctor_user_id, dispensed_at
+       FROM medisys_pharmacy.pharmacy_orders WHERE invoice_id = ? ORDER BY id ASC`,
+      [req.params.id]
+    );
+    res.json({ success: true, items });
+  } catch (err) {
+    console.error("Get invoice items error:", err.message);
     res.status(500).json({ success: false, message: "Server error." });
   }
 });

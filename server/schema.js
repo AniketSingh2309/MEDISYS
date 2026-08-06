@@ -384,6 +384,10 @@ async function ensureSchema(connection) {
     )
   `);
 
+  // Links a dispensed medicine to the one combined invoice it was billed under —
+  // lets an invoice cover every medicine from a visit instead of one invoice each.
+  await ensureColumnInSchema(connection, "medisys_pharmacy", "pharmacy_orders", "invoice_id", "INT NULL");
+
   await connection.query(`
     CREATE TABLE IF NOT EXISTS nurse_shift_roster (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -417,6 +421,19 @@ async function ensureColumn(connection, table, column, definition) {
   );
   if (columns.length === 0) {
     await connection.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+  }
+}
+
+// Same idea as ensureColumn, but for a table in a different database (e.g. the
+// cross-database medisys_pharmacy tables), where DATABASE() would check the wrong schema.
+async function ensureColumnInSchema(connection, schema, table, column, definition) {
+  const [columns] = await connection.query(
+    `SELECT COLUMN_NAME FROM information_schema.columns
+     WHERE table_schema = ? AND table_name = ? AND COLUMN_NAME = ?`,
+    [schema, table, column]
+  );
+  if (columns.length === 0) {
+    await connection.query(`ALTER TABLE \`${schema}\`.\`${table}\` ADD COLUMN \`${column}\` ${definition}`);
   }
 }
 

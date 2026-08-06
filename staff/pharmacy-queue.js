@@ -93,86 +93,119 @@
   function renderTable() {
     const grid = document.getElementById("pharmacyGrid");
     const emptyState = document.getElementById("pharmacyEmptyState");
-    
-    // 1. Filter by Tab
-    let filtered = allOrders.filter(o => 
-      currentTab === "pending" ? o.status === "pending" : o.status === "dispensed"
+
+    // 1. Filter by Tab. Orders default to 'pending_pharmacy' until dispensed — matches
+    // the status the server actually writes (see schema.js / POST /api/pharmacy-orders).
+    let filtered = allOrders.filter(o =>
+      currentTab === "pending" ? o.status === "pending_pharmacy" : o.status === "dispensed"
     );
 
     // 2. Filter by Search Query
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(o => 
+      filtered = filtered.filter(o =>
         (o.patient_uhid && o.patient_uhid.toLowerCase().includes(q)) ||
         (o.patient_name && o.patient_name.toLowerCase().includes(q)) ||
         (o.medicine_name && o.medicine_name.toLowerCase().includes(q))
       );
     }
-    
+
     if (filtered.length === 0) {
       grid.innerHTML = "";
-      emptyState.querySelector('p').textContent = currentTab === "pending" 
-        ? "No pending prescriptions right now." 
+      emptyState.querySelector('p').textContent = currentTab === "pending"
+        ? "No pending prescriptions right now."
         : "No dispensed history found.";
       emptyState.hidden = false;
       return;
     }
 
     emptyState.hidden = true;
-    
-    grid.innerHTML = filtered.map(order => {
-      const isDispensed = order.status === 'dispensed';
-      const isIPD = !!order.ipd_admission_id;
+
+    // 3. Group every order onto one card per patient, so a doctor's full prescription
+    // for that visit reads as a single list instead of one card per medicine.
+    const groups = [];
+    const groupIndexByKey = new Map();
+    filtered.forEach((order) => {
+      const key = `${order.patient_uhid}::${order.opd_visit_id || ""}::${order.ipd_admission_id || ""}`;
+      if (!groupIndexByKey.has(key)) {
+        groupIndexByKey.set(key, groups.length);
+        groups.push({
+          patient_uhid: order.patient_uhid,
+          patient_name: order.patient_name,
+          patient_dob: order.patient_dob,
+          patient_gender: order.patient_gender,
+          doctor_user_id: order.doctor_user_id,
+          ipd_admission_id: order.ipd_admission_id,
+          latest_created_at: order.created_at,
+          orders: [],
+        });
+      }
+      const group = groups[groupIndexByKey.get(key)];
+      group.orders.push(order);
+      if (new Date(order.created_at) > new Date(group.latest_created_at)) {
+        group.latest_created_at = order.created_at;
+      }
+    });
+
+    grid.innerHTML = groups.map((group) => {
+      const isIPD = !!group.ipd_admission_id;
       const typePill = isIPD ? `<span class="pill ipd">IPD</span>` : `<span class="pill opd">OPD</span>`;
-      
+
       let ageStr = '';
-      if (order.patient_dob) {
-        const age = Math.floor((new Date() - new Date(order.patient_dob)) / 31557600000);
-        const g = order.patient_gender ? order.patient_gender.charAt(0).toUpperCase() : '';
+      if (group.patient_dob) {
+        const age = Math.floor((new Date() - new Date(group.patient_dob)) / 31557600000);
+        const g = group.patient_gender ? group.patient_gender.charAt(0).toUpperCase() : '';
         ageStr = `${age}${g} &bull; `;
       }
 
-      const urgencyPill = order.urgency === 'urgent' 
-        ? `<span class="pill urgent">Urgent</span>` 
-        : (order.urgency === 'routine' ? `<span class="pill routine">Routine</span>` : '');
-      
-      const actionHtml = isDispensed 
-        ? `<div style="display: flex; gap: 8px; align-items: center;">
-             <span class="status-dispensed">Dispensed</span>
-             <button onclick="window.__printPrescriptionSlip(${order.id})" style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; cursor: pointer; color: #334155; font-weight: 500;">
-               <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print
-             </button>
-           </div>` 
-        : `<button class="btn-dispense dispense-btn" data-id="${order.id}">Dispense</button>`;
-        
-      // Extract time from created_at if available
-      const timeStr = order.created_at ? new Date(order.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
-        
+      const hasUrgent = group.orders.some((o) => o.urgency === 'urgent');
+      const urgencyPill = hasUrgent ? `<span class="pill urgent">Urgent</span>` : `<span class="pill routine">Routine</span>`;
+      const medCountPill = `<span class="pill" style="background:#e0e7ff;color:#3730a3;">${group.orders.length} medicine${group.orders.length > 1 ? 's' : ''}</span>`;
+
+      const timeStr = group.latest_created_at
+        ? new Date(group.latest_created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '';
+
+      const medRows = group.orders
+        .map((order) => {
+          const isDispensed = order.status === 'dispensed';
+          const actionHtml = isDispensed
+            ? `<span class="status-dispensed">Dispensed</span>`
+            : `<button class="btn-dispense dispense-btn" data-id="${order.id}">Dispense</button>`;
+
+          return `
+            <div class="med-row">
+              <div>
+                <div class="med-item">${escapeHtml(order.medicine_name)}${order.urgency === 'urgent' ? ' <span class="pill urgent">Urgent</span>' : ''}</div>
+                <div class="med-dose">Dose: ${escapeHtml(order.dosage)} &nbsp;|&nbsp; For: ${escapeHtml(order.duration)}</div>
+              </div>
+              <div>${actionHtml}</div>
+            </div>`;
+        })
+        .join("");
+
       return `
         <div class="prescription-card">
           <div class="card-header">
             <div>
-              <div class="patient-name">${escapeHtml(order.patient_name || 'Unknown Patient')}</div>
-              <div class="patient-meta">${ageStr}${escapeHtml(order.patient_uhid)} &bull; Dr. ${escapeHtml(order.doctor_user_id)}</div>
+              <div class="patient-name">${escapeHtml(group.patient_name || 'Unknown Patient')}</div>
+              <div class="patient-meta">${ageStr}${escapeHtml(group.patient_uhid)} &bull; Dr. ${escapeHtml(group.doctor_user_id)}</div>
             </div>
             <div>
               ${urgencyPill}
               ${typePill}
+              ${medCountPill}
             </div>
           </div>
-          
+
           <div class="med-list">
-            <div class="med-item">${escapeHtml(order.medicine_name)}</div>
-            <div class="med-dose">Dose: ${escapeHtml(order.dosage)} &nbsp;|&nbsp; For: ${escapeHtml(order.duration)} Days</div>
+            ${medRows}
           </div>
-          
+
           <div class="card-footer">
             <div class="time-stamp">
               <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
               ${escapeHtml(timeStr)}
-            </div>
-            <div>
-              ${actionHtml}
             </div>
           </div>
         </div>
@@ -484,14 +517,12 @@
     const navPrescriptions = document.getElementById("navPrescriptions");
     const navStock = document.getElementById("navStock");
     const navSummary = document.getElementById("navSummary");
-    const navReorder = document.getElementById("navReorder");
     const navBilling = document.getElementById("navBilling");
     const navPatients = document.getElementById("navPatients");
     
     const sectionPrescriptions = document.getElementById("sectionPrescriptions");
     const sectionStock = document.getElementById("sectionStock");
     const sectionSummary = document.getElementById("sectionSummary");
-    const sectionReorder = document.getElementById("sectionReorder");
     const sectionBilling = document.getElementById("sectionBilling");
     const sectionPatients = document.getElementById("sectionPatients");
     
@@ -499,7 +530,6 @@
       if (sectionPrescriptions) sectionPrescriptions.hidden = true;
       if (sectionStock) sectionStock.hidden = true;
       if (sectionSummary) sectionSummary.hidden = true;
-      if (sectionReorder) sectionReorder.hidden = true;
       if (sectionBilling) sectionBilling.hidden = true;
       if (sectionPatients) sectionPatients.hidden = true;
       document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
@@ -531,113 +561,121 @@
       });
     }
 
-  // --- REORDER & PURCHASE ORDERS ---
-  async function loadReorderSection() {
+  // --- READY TO BILL: dispensed medicines waiting to be combined into one invoice ---
+  async function loadReadyToBill() {
     try {
-      // 1. Fetch latest stock
-      const stockRes = await fetch("/api/pharmacy-stock", { credentials: "same-origin" });
-      const stockData = await stockRes.json();
-      if (stockData.success) {
-        allStock = stockData.stock;
-        renderReorderTable();
-      }
-
-      // 2. Fetch purchase orders
-      const poRes = await fetch("/api/pharmacy-purchase-orders", { credentials: "same-origin" });
-      const poData = await poRes.json();
-      if (poData.success) {
-        renderPOTable(poData.orders);
-      }
+      const res = await fetch("/api/pharmacy-orders/ready-to-bill", { credentials: "same-origin" });
+      const data = await res.json();
+      if (data.success) renderReadyToBill(data.orders || []);
     } catch (err) {
-      console.error("Error loading reorder section:", err);
+      console.error("Error loading ready-to-bill orders:", err);
     }
   }
 
-  function renderReorderTable() {
-    const tbody = document.getElementById("reorderTableBody");
-    const emptyState = document.getElementById("reorderEmptyState");
-    const lowStock = allStock.filter(s => s.stock_quantity <= s.min_stock_level);
+  function renderReadyToBill(orders) {
+    const container = document.getElementById("readyToBillContainer");
+    const emptyState = document.getElementById("readyToBillEmptyState");
+    if (!container) return;
 
-    if (!tbody || !emptyState) return;
-
-    if (lowStock.length === 0) {
-      tbody.innerHTML = "";
-      emptyState.style.display = "block";
+    if (orders.length === 0) {
+      container.innerHTML = "";
+      if (emptyState) emptyState.hidden = false;
       return;
     }
+    if (emptyState) emptyState.hidden = true;
 
-    emptyState.style.display = "none";
-    tbody.innerHTML = lowStock.map(item => {
-      const suggestedQty = Math.max(item.min_stock_level * 5, 100);
-      return `
-        <tr style="border-bottom: 1px solid #f1f5f9;">
-          <td style="padding: 14px 16px; font-weight: 600; color: #0f172a;">${escapeHtml(item.medicine_name)}</td>
-          <td style="padding: 14px 16px; color: #b91c1c; font-weight: 700;">${item.stock_quantity} units</td>
-          <td style="padding: 14px 16px; color: #64748b;">${item.min_stock_level} units</td>
-          <td style="padding: 14px 16px; font-weight: 600; color: var(--navy);">${suggestedQty} units</td>
-        </tr>
-      `;
-    }).join("");
-  }
-
-  function renderPOTable(orders) {
-    const tbody = document.getElementById("poTableBody");
-    const emptyState = document.getElementById("poEmptyState");
-
-    if (!tbody || !emptyState) return;
-
-    if (!orders || orders.length === 0) {
-      tbody.innerHTML = "";
-      emptyState.style.display = "block";
-      return;
-    }
-
-    emptyState.style.display = "none";
-    tbody.innerHTML = orders.map(po => {
-      const dateStr = po.created_at ? new Date(po.created_at).toLocaleDateString() : 'N/A';
-      return `
-        <tr style="border-bottom: 1px solid #f1f5f9;">
-          <td style="padding: 14px 16px; font-weight: 700; color: var(--navy-dark);">${escapeHtml(po.po_number)}</td>
-          <td style="padding: 14px 16px; color: #334155;">${escapeHtml(po.supplier_name)}</td>
-          <td style="padding: 14px 16px; color: #64748b;">${escapeHtml(po.items_summary)}</td>
-          <td style="padding: 14px 16px; color: #64748b;">${dateStr}</td>
-          <td style="padding: 14px 16px;">
-            <span style="background: #ecfdf5; color: #047857; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 12px;">${escapeHtml(po.status)}</span>
-          </td>
-        </tr>
-      `;
-    }).join("");
-  }
-
-  if (navReorder) {
-    navReorder.addEventListener("click", () => {
-      hideAllSections();
-      navReorder.classList.add("active");
-      if (sectionReorder) sectionReorder.hidden = false;
-      loadReorderSection();
-    });
-  }
-
-  const btnGeneratePO = document.getElementById("btnGeneratePO");
-  if (btnGeneratePO) {
-    btnGeneratePO.addEventListener("click", async () => {
-      try {
-        const res = await fetch("/api/pharmacy-purchase-orders/auto-generate", {
-          method: "POST",
-          credentials: "same-origin"
+    // Group purely by patient — one card, and so exactly one Paid button, per patient,
+    // no matter how many separate medicines or visits contributed to what they owe.
+    const groups = [];
+    const groupIndexByKey = new Map();
+    orders.forEach((order) => {
+      const key = order.patient_uhid;
+      if (!groupIndexByKey.has(key)) {
+        groupIndexByKey.set(key, groups.length);
+        groups.push({
+          patient_uhid: order.patient_uhid,
+          patient_name: order.patient_name,
+          doctor_user_id: order.doctor_user_id,
+          orders: [],
         });
-        const data = await res.json();
-        if (data.success) {
-          alert(data.message);
-          loadReorderSection();
-        } else {
-          alert(data.message);
-        }
-      } catch (err) {
-        console.error("Generate PO error:", err);
-        alert("Server error");
       }
+      groups[groupIndexByKey.get(key)].orders.push(order);
     });
+
+    container.innerHTML = groups.map((group) => {
+      const total = group.orders.reduce((sum, o) => sum + (parseFloat(o.amount) || 15), 0);
+      const orderIds = group.orders.map((o) => o.id).join(",");
+      const medLines = group.orders.map((o) =>
+        `<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f1f5f9; font-size:13.5px;">
+           <span style="color:#334155;">${escapeHtml(o.medicine_name)} <span style="color:#94a3b8;">&middot; ${escapeHtml(o.dosage)}</span></span>
+           <span style="font-weight:600; color:#0f172a;">₹${(parseFloat(o.amount) || 15).toFixed(2)}</span>
+         </div>`
+      ).join("");
+
+      return `
+        <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; background: #f8fafc;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <div>
+              <div style="font-weight:700; font-size:15px; color:#0f172a;">${escapeHtml(group.patient_name || 'Unknown Patient')}</div>
+              <div style="font-size:12.5px; color:#64748b; margin-top:2px;">${escapeHtml(group.patient_uhid)} &bull; Dr. ${escapeHtml(group.doctor_user_id)} &bull; ${group.orders.length} medicine${group.orders.length > 1 ? 's' : ''}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.4px;">Amount due</div>
+              <div style="font-size:19px; font-weight:700; font-family:serif; color:var(--navy);">₹${total.toFixed(2)}</div>
+            </div>
+          </div>
+          <div style="margin-bottom:12px;">${medLines}</div>
+          <button class="btn-dispense mark-paid-btn" data-order-ids="${orderIds}" style="width:100%;">Mark Paid &amp; Generate Bill</button>
+        </div>`;
+    }).join("");
+
+    container.querySelectorAll(".mark-paid-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const orderIds = btn.dataset.orderIds.split(",").map(Number);
+        await payAndGenerateBill(orderIds, btn);
+      });
+    });
+  }
+
+  // One click: combine everything a patient owes into one invoice, mark it Paid
+  // immediately, then hand back the finished bill to print.
+  async function payAndGenerateBill(orderIds, triggerBtn) {
+    if (triggerBtn) triggerBtn.disabled = true;
+    try {
+      const genRes = await fetch("/api/pharmacy-invoices/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ orderIds }),
+      });
+      const genData = await genRes.json();
+      if (!genData.success) {
+        showToast(genData.message || "Could not generate bill.", "error");
+        if (triggerBtn) triggerBtn.disabled = false;
+        return;
+      }
+
+      const payRes = await fetch(`/api/pharmacy-invoices/${genData.invoiceId}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ paymentType: "Cash" }),
+      });
+      const payData = await payRes.json();
+      if (!payData.success) {
+        showToast(payData.message || "Bill generated but payment could not be recorded.", "error");
+        if (triggerBtn) triggerBtn.disabled = false;
+        return;
+      }
+
+      showToast(`Paid — bill ${genData.invoiceNumber} for ₹${genData.totalAmount.toFixed(2)}.`, "success");
+      await Promise.all([loadReadyToBill(), loadBillingSection()]);
+      window.__printInvoiceSlip(genData.invoiceId);
+    } catch (err) {
+      console.error("Pay & generate bill error:", err);
+      showToast("Server error generating bill.", "error");
+      if (triggerBtn) triggerBtn.disabled = false;
+    }
   }
 
   // --- BILLING & INVOICES ---
@@ -651,7 +689,7 @@
       const data = await res.json();
       if (data.success) {
         allInvoices = data.invoices || [];
-        
+
         // Update Stats
         const stats = data.stats || {};
         document.getElementById("billingTotalBilled").textContent = "₹" + (stats.totalBilled || 0).toFixed(2);
@@ -688,50 +726,173 @@
     renderBillingTable(filtered);
   }
 
+  // One card per patient — every invoice they have, paid or pending, rolls up into a
+  // single combined bill instead of one row per billing event.
   function renderBillingTable(invoices) {
-    const tbody = document.getElementById("billingTableBody");
+    const container = document.getElementById("billingCardsContainer");
     const emptyState = document.getElementById("billingEmptyState");
 
-    if (!tbody || !emptyState) return;
+    if (!container || !emptyState) return;
 
     if (!invoices || invoices.length === 0) {
-      tbody.innerHTML = "";
+      container.innerHTML = "";
       emptyState.style.display = "block";
       return;
     }
 
     emptyState.style.display = "none";
-    tbody.innerHTML = invoices.map(inv => {
-      const isPaid = inv.payment_status === 'Paid';
-      const statusBadge = isPaid
-        ? `<span style="background: #ecfdf5; color: #047857; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 12px;">Paid</span>`
-        : `<span style="background: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 12px;">Pending</span>`;
 
-      const actionBtn = isPaid
-        ? `<button onclick="window.__printInvoiceSlip(${inv.id})" style="display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; padding: 6px 12px; background: white; border: 1px solid #cbd5e1; color: #334155; border-radius: 8px; font-weight: 500; font-size: 12px; cursor: pointer;">
-             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Receipt
-           </button>`
-        : `<button onclick="window.__markInvoicePaidModal(${inv.id})" style="margin-left: 8px; padding: 6px 14px; background: #0f766e; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer;">Mark Paid</button>
-           <button onclick="window.__printInvoiceSlip(${inv.id})" style="display: inline-flex; align-items: center; gap: 5px; margin-left: 6px; padding: 6px 10px; background: white; border: 1px solid #cbd5e1; color: #334155; border-radius: 8px; font-weight: 500; font-size: 12px; cursor: pointer;">
-             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print
-           </button>`;
+    const groups = [];
+    const groupIndexByUhid = new Map();
+    invoices.forEach((inv) => {
+      const key = inv.patient_uhid;
+      if (!groupIndexByUhid.has(key)) {
+        groupIndexByUhid.set(key, groups.length);
+        groups.push({ patient_uhid: inv.patient_uhid, patient_name: inv.patient_name, invoices: [] });
+      }
+      groups[groupIndexByUhid.get(key)].invoices.push(inv);
+    });
 
-      const pMethod = inv.payment_type || 'Cash';
-      const methodBadge = `<span style="background: #f1f5f9; color: #475569; padding: 3px 10px; border-radius: 6px; font-weight: 600; font-size: 12px; border: 1px solid #e2e8f0;">${escapeHtml(pMethod)}</span>`;
+    container.innerHTML = groups.map((group) => {
+      const totalAmount = group.invoices.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0);
+      const totalItems = group.invoices.reduce((s, i) => s + (i.item_count || 0), 0);
+      const allPaid = group.invoices.every((i) => i.payment_status === 'Paid');
+      const anyPaid = group.invoices.some((i) => i.payment_status === 'Paid');
+      const statusLabel = allPaid ? 'Paid' : (anyPaid ? 'Partially Paid' : 'Pending');
+      const statusBadge = allPaid
+        ? `<span style="background: #ecfdf5; color: #047857; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 12px;">${statusLabel}</span>`
+        : `<span style="background: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 12px;">${statusLabel}</span>`;
+
+      const methods = [...new Set(group.invoices.filter((i) => i.payment_status === 'Paid').map((i) => i.payment_type || 'Cash'))];
+      const methodBadge = methods.length
+        ? methods.map((m) => `<span style="background: #f1f5f9; color: #475569; padding: 3px 10px; border-radius: 6px; font-weight: 600; font-size: 12px; border: 1px solid #e2e8f0; margin-right:4px;">${escapeHtml(m)}</span>`).join("")
+        : `<span style="color:#94a3b8; font-size:12px;">&mdash;</span>`;
+
+      const invoiceIds = group.invoices.map((i) => i.id).join(",");
+      const pendingInvoiceIds = group.invoices.filter((i) => i.payment_status !== 'Paid').map((i) => i.id).join(",");
+      const invoiceRefs = group.invoices
+        .map((i) => `${escapeHtml(i.invoice_number)}${i.payment_status === 'Paid' ? '' : ' (pending)'}`)
+        .join(', ');
+
+      const markPaidBtn = !allPaid
+        ? `<button class="mark-remaining-paid-btn" data-pending-ids="${pendingInvoiceIds}" style="padding: 6px 14px; background: #0f766e; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer;">Mark Paid</button>`
+        : '';
 
       return `
-        <tr style="border-bottom: 1px solid #f1f5f9;">
-          <td style="padding: 14px 16px; font-weight: 700; color: #0f172a;">${escapeHtml(inv.invoice_number)}</td>
-          <td style="padding: 14px 16px; color: #334155; font-weight: 500;">${escapeHtml(inv.patient_name)}</td>
-          <td style="padding: 14px 16px; color: #64748b;">${inv.item_count} item(s)</td>
-          <td style="padding: 14px 16px; font-weight: 600; color: #0f172a;">₹${(parseFloat(inv.total_amount) || 0).toFixed(2)}</td>
-          <td style="padding: 14px 16px;">${statusBadge}</td>
-          <td style="padding: 14px 16px;">${methodBadge}</td>
-          <td style="padding: 14px 16px;">${actionBtn}</td>
-        </tr>
-      `;
+        <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; background: white;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: 16px; flex-wrap: wrap;">
+            <div>
+              <div style="font-weight:700; font-size:15px; color:#0f172a;">${escapeHtml(group.patient_name)}</div>
+              <div style="font-size:12.5px; color:#64748b; margin-top:2px;">${escapeHtml(group.patient_uhid)} &bull; ${totalItems} item(s) across ${group.invoices.length} bill${group.invoices.length > 1 ? 's' : ''}</div>
+              <div style="font-size:11px; color:#94a3b8; margin-top:4px;">${invoiceRefs}</div>
+            </div>
+            <div style="display:flex; align-items:center; gap: 14px; flex-wrap: wrap;">
+              <div style="text-align:right;">
+                <div style="font-size:19px; font-weight:700; font-family:serif; color:#0f172a;">₹${totalAmount.toFixed(2)}</div>
+                <div style="margin-top:4px;">${statusBadge}</div>
+              </div>
+              <div>${methodBadge}</div>
+              <div style="display:flex; gap:6px;">
+                ${markPaidBtn}
+                <button class="print-combined-btn" data-invoice-ids="${invoiceIds}" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background: white; border: 1px solid #cbd5e1; color: #334155; border-radius: 8px; font-weight: 500; font-size: 12px; cursor: pointer;">
+                  <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print Bill
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>`;
     }).join("");
+
+    container.querySelectorAll(".print-combined-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const invoiceIds = btn.dataset.invoiceIds.split(",").map(Number);
+        window.__printCombinedBill(invoiceIds);
+      });
+    });
+
+    container.querySelectorAll(".mark-remaining-paid-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const pendingIds = btn.dataset.pendingIds.split(",").filter(Boolean).map(Number);
+        await markMultiplePaid(pendingIds);
+      });
+    });
   }
+
+  async function markMultiplePaid(invoiceIds) {
+    try {
+      await Promise.all(
+        invoiceIds.map((id) =>
+          fetch(`/api/pharmacy-invoices/${id}/pay`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ paymentType: "Cash" }),
+          })
+        )
+      );
+      showToast("Marked as Paid.", "success");
+      loadBillingSection();
+    } catch (err) {
+      console.error("Mark remaining paid error:", err);
+      showToast("Server error.", "error");
+    }
+  }
+
+  // Merges every invoice for one patient into a single printed bill.
+  window.__printCombinedBill = async function (invoiceIds) {
+    try {
+      const invoicesForPatient = allInvoices.filter((i) => invoiceIds.includes(i.id));
+      if (invoicesForPatient.length === 0) return alert("Invoice not found.");
+
+      const itemsResults = await Promise.all(
+        invoiceIds.map((id) => fetch(`/api/pharmacy-invoices/${id}/items`, { credentials: "same-origin" }).then((r) => r.json()))
+      );
+
+      let items = [];
+      let doctorName = "N/A";
+      itemsResults.forEach((res, idx) => {
+        if (res.success && res.items.length > 0) {
+          if (doctorName === "N/A") doctorName = res.items[0].doctor_user_id || "N/A";
+          items = items.concat(
+            res.items.map((it) => ({
+              medName: it.medicine_name,
+              dosage: it.dosage,
+              duration: it.duration,
+              amount: parseFloat(it.amount) || 0,
+            }))
+          );
+        } else {
+          const inv = invoicesForPatient[idx];
+          items.push({
+            medName: `Prescription Medicine (${inv.item_count} item)`,
+            dosage: "As Prescribed",
+            duration: "N/A",
+            amount: parseFloat(inv.total_amount) || 0,
+          });
+        }
+      });
+
+      const totalAmount = invoicesForPatient.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0);
+      const allPaid = invoicesForPatient.every((i) => i.payment_status === 'Paid');
+      const first = invoicesForPatient[0];
+      const dateStr = first.created_at ? new Date(first.created_at).toLocaleString() : new Date().toLocaleString();
+
+      openPrintWindow({
+        title: "PHARMACY INVOICE & RECEIPT",
+        slipNo: invoicesForPatient.map((i) => i.invoice_number).join(', '),
+        dateStr,
+        patientName: first.patient_name,
+        uhid: first.patient_uhid,
+        doctor: doctorName,
+        items,
+        amount: `₹${totalAmount.toFixed(2)}`,
+        status: allPaid ? "PAID" : "PARTIALLY PAID",
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Print error.");
+    }
+  };
 
   // --- CSV EXPORT FOR SALES REPORT ---
   function exportBillingCSV() {
@@ -899,13 +1060,27 @@
 
   window.__printInvoiceSlip = async function(invoiceId) {
     try {
-      const res = await fetch("/api/pharmacy-invoices", { credentials: "same-origin" });
-      const data = await res.json();
+      const [invRes, itemsRes] = await Promise.all([
+        fetch("/api/pharmacy-invoices", { credentials: "same-origin" }),
+        fetch(`/api/pharmacy-invoices/${invoiceId}/items`, { credentials: "same-origin" }),
+      ]);
+      const data = await invRes.json();
+      const itemsData = await itemsRes.json();
       if (!data.success) return alert("Error fetching invoice.");
-      
+
       const inv = data.invoices.find(i => i.id === invoiceId);
       if (!inv) return alert("Invoice not found.");
 
+      const items = (itemsData.success && itemsData.items.length > 0)
+        ? itemsData.items.map(it => ({
+            medName: it.medicine_name,
+            dosage: it.dosage,
+            duration: it.duration,
+            amount: parseFloat(it.amount) || 0,
+          }))
+        : [{ medName: `Prescription Medicine (${inv.item_count} item)`, dosage: "As Prescribed", duration: "N/A", amount: parseFloat(inv.total_amount) || 0 }];
+
+      const doctorName = (itemsData.success && itemsData.items[0]) ? itemsData.items[0].doctor_user_id : "N/A";
       const dateStr = inv.created_at ? new Date(inv.created_at).toLocaleString() : new Date().toLocaleString();
 
       openPrintWindow({
@@ -914,10 +1089,8 @@
         dateStr: dateStr,
         patientName: inv.patient_name,
         uhid: inv.patient_uhid,
-        doctor: "N/A",
-        medName: `Prescription Medicine (${inv.item_count} item)`,
-        dosage: "As Prescribed",
-        duration: "N/A",
+        doctor: doctorName,
+        items,
         amount: `₹${(parseFloat(inv.total_amount) || 0).toFixed(2)}`,
         status: inv.payment_status.toUpperCase()
       });
@@ -930,6 +1103,20 @@
   function openPrintWindow(info) {
     const hospName = (sessionUser && sessionUser.hospitalName) ? sessionUser.hospitalName.toUpperCase() : 'CORE5 MEDISYS HOSPITAL';
     const pharmacistName = (sessionUser && (sessionUser.fullName || sessionUser.userId)) ? sessionUser.fullName || sessionUser.userId : 'Staff';
+
+    // Single-medicine callers (legacy) pass medName/dosage/duration/amount directly;
+    // bill callers pass a proper items[] array. Normalize to one shape here.
+    const items = Array.isArray(info.items) && info.items.length > 0
+      ? info.items
+      : [{ medName: info.medName, dosage: info.dosage, duration: info.duration, amount: info.amount }];
+
+    const rows = items.map((it) => `
+      <tr>
+        <td><strong>${escapeHtml(it.medName)}</strong></td>
+        <td>${escapeHtml(it.dosage || '—')}</td>
+        <td>${escapeHtml(it.duration || '—')}</td>
+        <td style="text-align: right;">${typeof it.amount === 'number' ? '₹' + it.amount.toFixed(2) : escapeHtml(String(it.amount ?? '—'))}</td>
+      </tr>`).join("");
 
     const printWin = window.open('', '_blank', 'width=650,height=700');
     if (!printWin) return alert("Please allow popups to print the receipt.");
@@ -959,9 +1146,9 @@
       <body>
         <div class="header">
           <h1>${escapeHtml(hospName)}</h1>
-          <p>Pharmacy Department &bull; Tax Invoice / Dispensing Slip</p>
+          <p>Pharmacy Department &bull; Tax Invoice / Dispensing Bill</p>
         </div>
-        
+
         <div class="meta-grid">
           <div>
             <strong>Receipt No:</strong> ${info.slipNo}<br/>
@@ -985,12 +1172,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td><strong>${escapeHtml(info.medName)}</strong></td>
-              <td>${escapeHtml(info.dosage)}</td>
-              <td>${escapeHtml(info.duration)}</td>
-              <td style="text-align: right;">${info.amount}</td>
-            </tr>
+            ${rows}
           </tbody>
         </table>
 
@@ -1056,6 +1238,7 @@
       hideAllSections();
       navBilling.classList.add("active");
       if (sectionBilling) sectionBilling.hidden = false;
+      loadReadyToBill();
       loadBillingSection();
     });
   }
