@@ -22,6 +22,12 @@
   --gold-tint: #FDF1DC;
   --red: #C0392B;
   --red-tint: #FBE9E7;
+  --indigo: #4F5BD5;
+  --indigo-dark: #3B44A8;
+  --indigo-tint: #EEEFFC;
+  --coral: #E2613F;
+  --coral-dark: #C24A2B;
+  --coral-tint: #FCECE6;
   --radius-lg: 16px;
   --radius-md: 12px;
   --radius-sm: 8px;
@@ -40,6 +46,41 @@ body {
   color: var(--ink);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+/* Ambient colour glow — soft, blurred, fixed to the viewport so it reads as
+   atmosphere behind the content rather than a decoration that scrolls oddly.
+   Pure CSS, no markup changes, so every page picks it up automatically. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(90px);
+  z-index: 0;
+  pointer-events: none;
+}
+body::before {
+  width: 480px;
+  height: 480px;
+  top: -160px;
+  right: -140px;
+  background: radial-gradient(circle, rgba(18, 137, 122, 0.16), transparent 70%);
+}
+body::after {
+  width: 420px;
+  height: 420px;
+  bottom: -140px;
+  left: -120px;
+  background: radial-gradient(circle, rgba(217, 164, 65, 0.13), transparent 70%);
+}
+.site-header,
+.site-footer,
+.portal-main,
+.lp-page {
+  position: relative;
+  z-index: 1;
 }
 
 ::selection {
@@ -83,7 +124,7 @@ button, input, select, textarea {
 
 /* Header */
 .site-header {
-  background: linear-gradient(135deg, #eaf6f3 0%, #eef1fb 100%);
+  background: linear-gradient(120deg, #DDF3EC 0%, #E4E7FA 55%, #FCEFD9 100%);
   padding: 10px 32px;
   display: flex;
   align-items: center;
@@ -293,7 +334,7 @@ button, input, select, textarea {
 }
 
 .login-btn {
-  background: var(--navy);
+  background: linear-gradient(120deg, var(--navy) 0%, var(--teal-dark) 160%);
   color: #fff;
   border: none;
   border-radius: var(--radius-sm);
@@ -303,11 +344,11 @@ button, input, select, textarea {
   letter-spacing: 0.5px;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(27, 47, 110, 0.22);
-  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .login-btn:hover {
-  background: var(--navy-dark);
+  filter: brightness(1.08);
   transform: translateY(-1px);
   box-shadow: 0 8px 20px rgba(27, 47, 110, 0.28);
 }
