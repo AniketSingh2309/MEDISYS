@@ -114,5 +114,10 @@
     wireLogout();
     wireForm();
     loadQueue();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("opd_queue", loadQueue);
+      MEDISYS_RT.on("ipd_admissions", loadQueue);
+    }
   });
 })();

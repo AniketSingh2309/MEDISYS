@@ -96,5 +96,10 @@
     if (!user) return;
     wireLogout();
     loadPending();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("ipd_admissions", loadPending);
+      MEDISYS_RT.on("wards_beds", loadPending);
+    }
   });
 })();

@@ -109,5 +109,9 @@
     wireLogout();
     wireAddWard();
     loadWards();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("wards_beds", loadWards);
+    }
   });
 })();

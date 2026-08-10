@@ -75,6 +75,11 @@
     const emptyState = document.getElementById("emptyState");
     if (!table) return;
 
+    if (window.MEDISYS_RT && !table.dataset.rtWired) {
+      table.dataset.rtWired = "true";
+      MEDISYS_RT.on("hospitals", initDashboard);
+    }
+
     const res = await fetch("/api/hospitals", { credentials: "same-origin" });
     const data = await res.json();
 

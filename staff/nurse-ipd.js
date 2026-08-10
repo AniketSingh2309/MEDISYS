@@ -115,5 +115,9 @@
     wireLogout();
     wireActions();
     loadAdmissions();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("ipd_admissions", loadAdmissions);
+    }
   });
 })();

@@ -674,4 +674,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   wireStaticFilters();
   if (studies.length) selectedId = studies[0].id;
   renderAll();
+
+  if (window.MEDISYS_RT) {
+    const knownStudyIds = new Set(studies.map((s) => s.id));
+    MEDISYS_RT.on("lab_orders", async () => {
+      const hadStudiesBefore = knownStudyIds.size > 0;
+      await loadStudies();
+      studies.forEach((s) => {
+        if (!knownStudyIds.has(s.id)) {
+          knownStudyIds.add(s.id);
+          if (hadStudiesBefore && s.status === "pending") showToast(`New order: ${s.test_name || "study"} for ${s.patient_name || s.patient_uhid}`, "success");
+        }
+      });
+      renderAll();
+    });
+  }
 });

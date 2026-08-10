@@ -1,8 +1,8 @@
 (function () {
-  // Polling is fine to start (well under the 10s freshness target). A future iteration
-  // could replace this with a WebSocket/SSE push from the server the moment
-  // resolveNurseAssignment() runs, avoiding the fixed poll interval entirely.
-  const POLL_INTERVAL_MS = 8000;
+  // Live push (MEDISYS_RT, see realtime-client.js) now does the real-time work
+  // the moment resolveNurseAssignment() runs server-side; this interval is
+  // just a slow safety-net fallback in case a socket ever silently drops.
+  const POLL_INTERVAL_MS = 60000;
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, (c) => ({
@@ -64,5 +64,8 @@
     wireLogout();
     loadMyPatients();
     setInterval(loadMyPatients, POLL_INTERVAL_MS);
+    if (window.MEDISYS_RT) {
+      ["ipd_admissions", "patients", "vitals"].forEach((resource) => MEDISYS_RT.on(resource, loadMyPatients));
+    }
   });
 })();

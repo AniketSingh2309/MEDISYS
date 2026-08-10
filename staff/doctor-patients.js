@@ -251,5 +251,11 @@
     wireLogout();
     wirePatientEdit();
     loadPatients();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("opd_queue", loadPatients);
+      MEDISYS_RT.on("ipd_admissions", loadPatients);
+      MEDISYS_RT.on("lab_orders", loadPatients);
+    }
   });
 })();

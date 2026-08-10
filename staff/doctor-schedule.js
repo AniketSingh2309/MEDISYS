@@ -141,5 +141,9 @@
     document.getElementById("availDate").value = todayStr;
     document.getElementById("repeatEndDate").min = todayStr;
     loadSchedule();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("consultations", loadSchedule);
+    }
   });
 })();

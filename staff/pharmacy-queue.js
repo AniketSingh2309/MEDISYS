@@ -1479,7 +1479,19 @@
   setupStockModal();
   setupPayModal();
 
-  setInterval(loadPharmacyOrders, 15000);
+  // Live push does the real-time work now; this is just a safety-net in case
+  // a socket ever silently drops.
+  setInterval(loadPharmacyOrders, 60000);
+
+  if (window.MEDISYS_RT) {
+    MEDISYS_RT.on("pharmacy_orders", () => {
+      loadPharmacyOrders();
+      loadReadyToBill();
+    });
+    MEDISYS_RT.on("pharmacy_invoices", loadBillingSection);
+    MEDISYS_RT.on("pharmacy_stock", loadPharmacyStock);
+    MEDISYS_RT.on("patients", () => loadPatientsSection());
+  }
 }
 
   document.addEventListener("DOMContentLoaded", init);

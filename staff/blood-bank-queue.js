@@ -729,7 +729,29 @@
 
     renderAll();
 
-    setInterval(async () => { await loadAll(); renderAll(); }, 20000);
+    const knownRequestIds = new Set(requests.map((r) => r.id));
+
+    async function refreshAndRerender() {
+      const hadRequestsBefore = knownRequestIds.size > 0;
+      await loadAll();
+      requests.forEach((r) => {
+        if (!knownRequestIds.has(r.id)) {
+          knownRequestIds.add(r.id);
+          if (hadRequestsBefore) showToast(`New blood request: ${r.request_code || "#" + r.id} (${r.blood_group} ${r.component})`, "success");
+        }
+      });
+      renderAll();
+    }
+
+    // Live push does the real-time work now; this is just a safety-net in case
+    // a socket ever silently drops.
+    setInterval(refreshAndRerender, 60000);
+
+    if (window.MEDISYS_RT) {
+      ["bloodbank_requests", "bloodbank_inventory", "bloodbank_donors", "bloodbank_billing"].forEach((resource) =>
+        MEDISYS_RT.on(resource, refreshAndRerender)
+      );
+    }
   }
 
   document.addEventListener("DOMContentLoaded", init);

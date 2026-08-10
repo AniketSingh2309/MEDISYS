@@ -336,5 +336,9 @@
     wireTestOrderWidget();
     wireAddMedButton();
     loadQueue();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("opd_queue", loadQueue);
+    }
   });
 })();

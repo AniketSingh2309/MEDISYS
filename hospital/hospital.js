@@ -331,6 +331,11 @@
     const container = document.getElementById("staffGroups");
     if (!container) return;
 
+    if (window.MEDISYS_RT && !container.dataset.rtWired) {
+      container.dataset.rtWired = "true";
+      MEDISYS_RT.on("staff", initStaffList);
+    }
+
     const res = await fetch("/api/hospital/staff", { credentials: "same-origin" });
     const data = await res.json();
 
@@ -442,6 +447,10 @@
     });
 
     loadDepartments();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("departments", loadDepartments);
+    }
   }
 
   const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -608,6 +617,13 @@
 
     loadRoster();
     loadTeams();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("nurse_roster", () => {
+        loadRoster();
+        loadTeams();
+      });
+    }
   }
 
   document.addEventListener("DOMContentLoaded", async () => {
@@ -620,5 +636,10 @@
     initStaffList();
     initDepartments();
     initNurseAssignment();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("staff", loadStaffCount);
+      MEDISYS_RT.on("hospitals", loadHospital);
+    }
   });
 })();

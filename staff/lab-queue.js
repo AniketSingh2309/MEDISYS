@@ -216,5 +216,13 @@
     loadUnclaimed();
     loadMine();
     loadCompleted();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("lab_orders", () => {
+        loadUnclaimed();
+        loadMine();
+        loadCompleted();
+      });
+    }
   });
 })();

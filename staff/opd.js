@@ -303,5 +303,16 @@
 
     await loadDepartments();
     await loadDoctors();
+
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on("opd_queue", loadQueue);
+      MEDISYS_RT.on("consultations", loadQueue);
+      MEDISYS_RT.on("ipd_admissions", () => {
+        loadNeedsAdmission();
+        loadWardPatients();
+      });
+      MEDISYS_RT.on("wards_beds", loadWardPatients);
+      MEDISYS_RT.on("departments", loadDepartments);
+    }
   });
 })();

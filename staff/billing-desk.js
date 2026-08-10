@@ -905,16 +905,35 @@ async function init() {
 
   renderDashboard();
 
-  setInterval(async () => {
+  const knownPatientUhids = new Set(patients.map((p) => p.uhid));
+
+  async function refreshAndRerender() {
+    let previousCount = patients.length;
     try {
       await loadAll();
     } catch (err) {
       console.error('Background refresh failed (will retry next cycle):', err);
       return;
     }
+    patients.forEach((p) => {
+      if (!knownPatientUhids.has(p.uhid)) {
+        knownPatientUhids.add(p.uhid);
+        if (previousCount > 0) showToast(`New patient: ${p.fullName || p.uhid}`, 'success');
+      }
+    });
     const activeView = document.querySelector('.nav-item.active');
     if (activeView) switchView(activeView.dataset.view);
-  }, 25000);
+  }
+
+  // Live push does the real-time work now; this is just a safety-net in case
+  // a socket ever silently drops.
+  setInterval(refreshAndRerender, 60000);
+
+  if (window.MEDISYS_RT) {
+    ['billing_patients', 'billing_bills', 'billing_payments', 'billing_tariff', 'pharmacy_invoices', 'pharmacy_orders'].forEach(
+      (resource) => MEDISYS_RT.on(resource, refreshAndRerender)
+    );
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

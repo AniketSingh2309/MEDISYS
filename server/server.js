@@ -12,6 +12,7 @@ const { buildShortCode, generateStaffUserId, generateTempPassword, generateUhid 
 const { ROLE_PREFIXES, ROLE_LABELS, STAFF_ROLES, DESIGNATION_PREFIXES } = require("./roles");
 const { computeAvailableSlots } = require("./slots");
 const { assignNurseForAdmission } = require("./nurseAssignment");
+const { initRealtime, broadcast, broadcastGlobal } = require("./realtime");
 
 const UPLOADS_DIR = path.join(__dirname, "uploads", "lab-results");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -58,17 +59,19 @@ function parseDateStrUTC(dateStr) {
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      maxAge: 8 * 60 * 60 * 1000,
-    },
-  })
-);
+// Named so the same instance can be reused to authenticate the Socket.IO
+// handshake (see initRealtime below) — a second session({...}) call would
+// create a disconnected in-memory store and never find the cookie's session.
+const sessionMiddleware = session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    maxAge: 8 * 60 * 60 * 1000,
+  },
+});
+app.use(sessionMiddleware);
 // Guard against express.static serving repo-root paths it shouldn't (server source/secrets,
 // SQL dumps with password hashes, and uploaded patient files) — only the frontend
 // folders (html/css/js/images at the repo root) are meant to be publicly reachable.
@@ -294,6 +297,7 @@ app.patch("/api/hospital/settings", requireHospitalAdmin, async (req, res) => {
       nurseAssignmentMode,
       req.session.user.hospitalId,
     ]);
+    broadcast(req, "hospitals");
     res.json({ success: true, nurseAssignmentMode });
   } catch (err) {
     console.error("Update hospital settings error:", err.message);
@@ -407,6 +411,7 @@ app.post("/api/hospital/staff", requireHospitalAdmin, async (req, res) => {
       hospitalId,
     ]);
 
+    broadcast(req, "staff");
     res.json({
       success: true,
       staff: { userId, password, role, roleLabel: ROLE_LABELS[role] || role, fullName },
@@ -501,6 +506,7 @@ app.patch("/api/patients/:uhid", requireRole("doctor", "receptionist", "hospital
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: "Patient not found." });
     }
+    broadcast(req, "patients");
     res.json({ success: true });
   } catch (err) {
     console.error("Update patient error:", err.message);
@@ -593,6 +599,7 @@ app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
       [uhid, hospitalId]
     );
 
+    broadcast(req, "patients");
     res.json({
       success: true,
       patient: { uhid, fullName, dob, gender, phone, category, password },
@@ -696,6 +703,7 @@ app.post("/api/doctor/schedule", requireRole("doctor"), async (req, res) => {
        VALUES ?`,
       [values]
     );
+    broadcast(req, "consultations");
     res.json({ success: true, datesRequested: dates.length, datesCreated: result.affectedRows });
   } catch (err) {
     console.error("Create schedule error:", err.message);
@@ -709,6 +717,7 @@ app.delete("/api/doctor/schedule/:id", requireRole("doctor"), async (req, res) =
       `DELETE FROM doctor_calendar_availability WHERE id = ? AND hospital_id = ? AND doctor_user_id = ?`,
       [req.params.id, req.session.user.hospitalId, req.session.user.userId]
     );
+    broadcast(req, "consultations");
     res.json({ success: true });
   } catch (err) {
     console.error("Delete schedule error:", err.message);
@@ -743,6 +752,7 @@ app.post("/api/departments", requireRole("hospital_admin"), async (req, res) => 
       `INSERT INTO departments (hospital_id, name, created_by) VALUES (?, ?, ?)`,
       [req.session.user.hospitalId, name, req.session.user.userId]
     );
+    broadcast(req, "departments");
     res.json({ success: true, id: result.insertId });
   } catch (err) {
     console.error("Create department error:", err.message);
@@ -758,6 +768,7 @@ app.delete("/api/departments/:id", requireRole("hospital_admin"), async (req, re
       hospitalId,
     ]);
     await pool.query(`DELETE FROM departments WHERE id = ? AND hospital_id = ?`, [req.params.id, hospitalId]);
+    broadcast(req, "departments");
     res.json({ success: true });
   } catch (err) {
     console.error("Delete department error:", err.message);
@@ -900,6 +911,8 @@ app.post("/api/opd/visits", requireReceptionistOrAdmin, async (req, res) => {
       : "[stub] No phone on file for this patient — confirmation not sent.";
     console.log(confirmation);
 
+    broadcast(req, "opd_queue");
+    broadcast(req, "patients");
     res.json({
       success: true,
       visit: { id: result.insertId, tokenNumber, visitDate, slotTime: slotTime || null, source },
@@ -950,6 +963,7 @@ app.patch("/api/opd/visits/:id/status", requireRole("doctor", "hospital_admin"),
       req.params.id,
       req.session.user.hospitalId,
     ]);
+    broadcast(req, "opd_queue");
     res.json({ success: true });
   } catch (err) {
     console.error("Update visit status error:", err.message);
@@ -1111,6 +1125,11 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
       }
     }
 
+    broadcast(req, "opd_queue");
+    broadcast(req, "consultations");
+    if (prescriptions.length > 0) broadcast(req, "pharmacy_orders");
+    if (tests.length > 0) broadcast(req, "lab_orders");
+    if (wantsAdmit) broadcast(req, "ipd_admissions");
     res.json({
       success: true,
       admissionId,
@@ -1191,6 +1210,7 @@ app.post("/api/lab-orders/:id/claim", requireRole("pathology_staff"), async (req
     if (result.affectedRows === 0) {
       return res.status(409).json({ success: false, message: "This order has already been claimed." });
     }
+    broadcast(req, "lab_orders");
     res.json({ success: true });
   } catch (err) {
     console.error("Claim lab order error:", err.message);
@@ -1224,6 +1244,7 @@ app.post(
       if (result.affectedRows === 0) {
         return res.status(409).json({ success: false, message: "This order was already completed." });
       }
+      broadcast(req, "lab_orders");
       res.json({ success: true });
     } catch (err) {
       console.error("Complete lab order error:", err.message);
@@ -1264,6 +1285,7 @@ app.post("/api/lab-orders/:id/priority", requireRole("pathology_staff", "hospita
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: "Order not found." });
     }
+    broadcast(req, "lab_orders");
     res.json({ success: true });
   } catch (err) {
     console.error("Update lab order priority error:", err.message);
@@ -1287,6 +1309,7 @@ app.post("/api/lab-orders/:id/draft", requireRole("pathology_staff"), async (req
     if (result.affectedRows === 0) {
       return res.status(409).json({ success: false, message: "This order is already finalized." });
     }
+    broadcast(req, "lab_orders");
     res.json({ success: true });
   } catch (err) {
     console.error("Save lab order draft error:", err.message);
@@ -1309,6 +1332,7 @@ app.post("/api/lab-orders/:id/verify", requireRole("pathology_staff"), async (re
     if (result.affectedRows === 0) {
       return res.status(409).json({ success: false, message: "This order is already finalized." });
     }
+    broadcast(req, "lab_orders");
     res.json({ success: true });
   } catch (err) {
     console.error("Verify lab order error:", err.message);
@@ -1330,6 +1354,7 @@ app.post("/api/lab-orders/:id/reassign", requireRole("pathology_staff", "hospita
       if (result.affectedRows === 0) {
         return res.status(409).json({ success: false, message: "This order is already finalized." });
       }
+      broadcast(req, "lab_orders");
       return res.json({ success: true });
     }
 
@@ -1350,6 +1375,7 @@ app.post("/api/lab-orders/:id/reassign", requireRole("pathology_staff", "hospita
     if (result.affectedRows === 0) {
       return res.status(409).json({ success: false, message: "This order is already finalized." });
     }
+    broadcast(req, "lab_orders");
     res.json({ success: true });
   } catch (err) {
     console.error("Reassign lab order error:", err.message);
@@ -1431,6 +1457,7 @@ app.post(
         `SELECT id, file_name AS fileName FROM lab_order_images WHERE lab_order_id = ? AND hospital_id = ? ORDER BY id`,
         [req.params.id, hospitalId]
       );
+      broadcast(req, "lab_orders");
       res.json({ success: true, images: rows });
     } catch (err) {
       console.error("Upload lab order images error:", err.message);
@@ -1472,6 +1499,7 @@ app.post("/api/pharmacy-orders", requireRole("doctor"), async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [hospitalId || 1, opdVisitId || null, ipdAdmissionId || null, patientUhid, userId, medicineName, dosage, duration, urgency || 'routine']
     );
+    broadcast(req, "pharmacy_orders");
     res.json({ success: true, message: "Prescription sent to pharmacy." });
   } catch (err) {
     console.error("Create pharmacy order error:", err.message);
@@ -1551,6 +1579,8 @@ app.post("/api/pharmacy-orders/:id/dispense", requireTenantUser, async (req, res
       [userId, dispensedAmount, orderId]
     );
 
+    broadcast(req, "pharmacy_orders");
+    broadcast(req, "pharmacy_stock");
     res.json({
       success: true,
       message: "Medicine dispensed successfully.",
@@ -1629,6 +1659,7 @@ app.post("/api/pharmacy-invoices/:id/pay", requireTenantUser, async (req, res) =
       `UPDATE medisys_pharmacy.pharmacy_invoices SET payment_status = 'Paid', payment_type = ?, paid_at = NOW() WHERE id = ?`,
       [pType, req.params.id]
     );
+    broadcast(req, "pharmacy_invoices");
     res.json({ success: true, message: "Payment marked as Paid." });
   } catch (err) {
     console.error("Mark invoice paid error:", err.message);
@@ -1685,6 +1716,8 @@ app.post("/api/pharmacy-invoices/generate", requireTenantUser, async (req, res) 
       orders.map((o) => o.id),
     ]);
 
+    broadcast(req, "pharmacy_orders");
+    broadcast(req, "pharmacy_invoices");
     res.json({ success: true, invoiceId, invoiceNumber: invNum, itemCount: orders.length, totalAmount });
   } catch (err) {
     console.error("Generate pharmacy invoice error:", err.message);
@@ -1803,6 +1836,8 @@ app.post("/api/pharmacy-direct-sale", requireTenantUser, async (req, res) => {
       [hospitalId || 1, invNum, pUhid, pName, qty, totalAmount, userId]
     );
 
+    broadcast(req, "pharmacy_stock");
+    broadcast(req, "pharmacy_invoices");
     res.json({
       success: true,
       message: `Successfully dispensed ${qty} unit(s) of ${stock.medicine_name}. Stock auto-deducted!`,
@@ -1844,6 +1879,7 @@ app.post("/api/pharmacy-stock", requireTenantUser, async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [hospitalId || 1, medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel || 10, unitPrice || null, userId]
     );
+    broadcast(req, "pharmacy_stock");
     res.json({ success: true, message: "Stock added successfully." });
   } catch (err) {
     console.error("Add pharmacy stock error:", err.message);
@@ -1862,6 +1898,7 @@ app.put("/api/pharmacy-stock/:id", requireTenantUser, async (req, res) => {
        WHERE id = ?`,
       [medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel || 10, unitPrice || null, req.params.id]
     );
+    broadcast(req, "pharmacy_stock");
     res.json({ success: true, message: "Stock updated." });
   } catch (err) {
     console.error("Update pharmacy stock error:", err.message);
@@ -1873,6 +1910,7 @@ app.put("/api/pharmacy-stock/:id", requireTenantUser, async (req, res) => {
 app.delete("/api/pharmacy-stock/:id", requireTenantUser, async (req, res) => {
   try {
     await pool.query(`DELETE FROM medisys_pharmacy.pharmacy_stock WHERE id = ?`, [req.params.id]);
+    broadcast(req, "pharmacy_stock");
     res.json({ success: true, message: "Stock entry deleted." });
   } catch (err) {
     console.error("Delete pharmacy stock error:", err.message);
@@ -1956,6 +1994,7 @@ app.post("/api/wards", requireRole("nurse", "hospital_admin"), async (req, res) 
       `INSERT INTO wards (hospital_id, name, created_by) VALUES (?, ?, ?)`,
       [req.session.user.hospitalId, name, req.session.user.userId]
     );
+    broadcast(req, "wards_beds");
     res.json({ success: true, id: result.insertId });
   } catch (err) {
     console.error("Create ward error:", err.message);
@@ -1973,6 +2012,7 @@ app.post("/api/wards/:wardId/beds", requireRole("nurse", "hospital_admin"), asyn
       `INSERT INTO beds (hospital_id, ward_id, bed_number) VALUES (?, ?, ?)`,
       [req.session.user.hospitalId, req.params.wardId, bedNumber]
     );
+    broadcast(req, "wards_beds");
     res.json({ success: true, id: result.insertId });
   } catch (err) {
     console.error("Create bed error:", err.message);
@@ -2032,6 +2072,7 @@ app.post("/api/nurse-roster", requireRole("hospital_admin"), async (req, res) =>
        VALUES (?, ?, ?, ?, ?)`,
       [req.session.user.hospitalId, nurseUserId, wardId, shift, dayOfWeek]
     );
+    broadcast(req, "nurse_roster");
     res.json({ success: true, id: result.insertId });
   } catch (err) {
     console.error("Create nurse roster entry error:", err.message);
@@ -2045,6 +2086,7 @@ app.delete("/api/nurse-roster/:id", requireRole("hospital_admin"), async (req, r
       req.params.id,
       req.session.user.hospitalId,
     ]);
+    broadcast(req, "nurse_roster");
     res.json({ success: true });
   } catch (err) {
     console.error("Delete nurse roster entry error:", err.message);
@@ -2083,6 +2125,7 @@ app.post("/api/doctor-nurse-teams", requireRole("hospital_admin"), async (req, r
       `INSERT INTO doctor_nurse_teams (hospital_id, doctor_user_id, nurse_user_id) VALUES (?, ?, ?)`,
       [req.session.user.hospitalId, doctorUserId, nurseUserId]
     );
+    broadcast(req, "nurse_roster");
     res.json({ success: true, id: result.insertId });
   } catch (err) {
     console.error("Create doctor-nurse team error:", err.message);
@@ -2096,6 +2139,7 @@ app.delete("/api/doctor-nurse-teams/:id", requireRole("hospital_admin"), async (
       req.params.id,
       req.session.user.hospitalId,
     ]);
+    broadcast(req, "nurse_roster");
     res.json({ success: true });
   } catch (err) {
     console.error("Delete doctor-nurse team error:", err.message);
@@ -2136,6 +2180,7 @@ app.post("/api/ipd/admissions", requireReceptionistOrAdmin, async (req, res) => 
         req.session.user.userId,
       ]
     );
+    broadcast(req, "ipd_admissions");
     res.json({ success: true, id: result.insertId });
   } catch (err) {
     console.error("Create admission error:", err.message);
@@ -2253,6 +2298,8 @@ app.post("/api/ipd/admissions/:id/allocate-bed", requireRole("nurse", "hospital_
 
     const nurseAssignment = await assignNurseForAdmission(pool, hospitalId, req.params.id);
 
+    broadcast(req, "ipd_admissions");
+    broadcast(req, "wards_beds");
     res.json({ success: true, nurseAssignment });
   } catch (err) {
     console.error("Allocate bed error:", err.message);
@@ -2276,6 +2323,7 @@ app.post("/api/ipd/admissions/:id/orders", requireRole("doctor"), async (req, re
        VALUES (?, ?, ?, ?, ?)`,
       [req.session.user.hospitalId, req.params.id, orderType, description, req.session.user.userId]
     );
+    broadcast(req, "ipd_admissions");
     res.json({ success: true });
   } catch (err) {
     console.error("Create order error:", err.message);
@@ -2305,6 +2353,7 @@ app.post("/api/ipd/admissions/:id/mar", requireRole("nurse"), async (req, res) =
         notes || null,
       ]
     );
+    broadcast(req, "ipd_admissions");
     res.json({ success: true });
   } catch (err) {
     console.error("Log MAR error:", err.message);
@@ -2326,6 +2375,7 @@ app.post("/api/ipd/admissions/:id/notes", requireRole("doctor", "nurse"), async 
        VALUES (?, ?, ?, ?, ?)`,
       [req.session.user.hospitalId, req.params.id, finalNoteType, message, req.session.user.userId]
     );
+    broadcast(req, "ipd_admissions");
     res.json({ success: true });
   } catch (err) {
     console.error("Create note error:", err.message);
@@ -2360,6 +2410,7 @@ app.post("/api/vitals", requireRole("nurse", "hospital_admin"), async (req, res)
         req.session.user.userId,
       ]
     );
+    broadcast(req, "vitals");
     res.json({ success: true });
   } catch (err) {
     console.error("Log vitals error:", err.message);
@@ -2522,6 +2573,7 @@ app.post("/api/hospitals", requireSuperadmin, async (req, res) => {
 
     console.log(`[hospital] "${name}" registered (hospital_id ${hospitalId}). Admin login: ${adminUserId}`);
 
+    broadcastGlobal("hospitals", { action: "create", hospitalId });
     res.json({
       success: true,
       hospitalId,
@@ -2581,6 +2633,7 @@ app.delete("/api/hospitals/:id", requireSuperadmin, async (req, res) => {
     await pool.query("DELETE FROM user_directory WHERE hospital_id = ?", [hospitalId]);
     await pool.query("DELETE FROM hospitals WHERE id = ?", [hospitalId]);
 
+    broadcastGlobal("hospitals", { action: "delete", hospitalId });
     res.json({ success: true });
   } catch (err) {
     console.error("Delete hospital error:", err.message);
@@ -2697,6 +2750,7 @@ app.post("/api/bloodbank/requests", requireBloodBankStaff, async (req, res) => {
         userId,
       ]
     );
+    broadcast(req, "bloodbank_requests", { action: "create" });
     res.json({ success: true, id: result.insertId, requestCode });
   } catch (err) {
     console.error("Create blood request error:", err.message);
@@ -2722,6 +2776,7 @@ app.patch("/api/bloodbank/requests/:id/assign", requireBloodBankStaff, async (re
       req.params.id,
       hospitalId,
     ]);
+    broadcast(req, "bloodbank_requests");
     res.json({ success: true });
   } catch (err) {
     console.error("Assign blood request error:", err.message);
@@ -2739,6 +2794,7 @@ app.patch("/api/bloodbank/requests/:id/crossmatch", requireBloodBankStaff, async
       req.params.id,
       req.session.user.hospitalId,
     ]);
+    broadcast(req, "bloodbank_requests");
     res.json({ success: true });
   } catch (err) {
     console.error("Update crossmatch error:", err.message);
@@ -2754,6 +2810,7 @@ app.patch("/api/bloodbank/requests/:id/notes", requireBloodBankStaff, async (req
       req.params.id,
       req.session.user.hospitalId,
     ]);
+    broadcast(req, "bloodbank_requests");
     res.json({ success: true });
   } catch (err) {
     console.error("Save blood request notes error:", err.message);
@@ -2808,6 +2865,9 @@ app.post("/api/bloodbank/requests/:id/issue", requireBloodBankStaff, async (req,
       [hospitalId, req.params.id, r.patient_uhid, r.patient_name, r.component, r.units_required, amount, userId]
     );
 
+    broadcast(req, "bloodbank_requests");
+    broadcast(req, "bloodbank_inventory");
+    broadcast(req, "bloodbank_billing");
     res.json({ success: true, unitsIssued: units.map((u) => u.unit_code), amount });
   } catch (err) {
     console.error("Issue blood units error:", err.message);
@@ -2821,6 +2881,7 @@ app.post("/api/bloodbank/requests/:id/reject", requireBloodBankStaff, async (req
       req.params.id,
       req.session.user.hospitalId,
     ]);
+    broadcast(req, "bloodbank_requests");
     res.json({ success: true });
   } catch (err) {
     console.error("Reject blood request error:", err.message);
@@ -2866,6 +2927,7 @@ app.post("/api/bloodbank/donors", requireBloodBankStaff, async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?)`,
       [hospitalId, name, bloodGroup, phone || null, lastDonationDate || null, userId]
     );
+    broadcast(req, "bloodbank_donors");
     res.json({ success: true, id: result.insertId });
   } catch (err) {
     console.error("Add blood donor error:", err.message);
@@ -2904,6 +2966,8 @@ app.post("/api/bloodbank/donations", requireBloodBankStaff, async (req, res) => 
       [unitCount, donorId]
     );
 
+    broadcast(req, "bloodbank_inventory");
+    broadcast(req, "bloodbank_donors");
     res.json({ success: true, unitsAdded: unitCount });
   } catch (err) {
     console.error("Record blood donation error:", err.message);
@@ -3066,6 +3130,8 @@ app.post("/api/bloodbank/patient-donations", requireBloodBankStaff, async (req, 
       [rows]
     );
 
+    broadcast(req, "bloodbank_inventory");
+    broadcast(req, "patients");
     res.json({ success: true, unitsAdded: unitCount });
   } catch (err) {
     console.error("Record patient donation error:", err.message);
@@ -3092,6 +3158,7 @@ app.post("/api/bloodbank/billing/:id/pay", requireBloodBankStaff, async (req, re
       `UPDATE blood_billing SET status = 'paid', payment_type = ?, paid_at = NOW() WHERE id = ? AND hospital_id = ?`,
       [paymentType || "Cash", req.params.id, req.session.user.hospitalId]
     );
+    broadcast(req, "bloodbank_billing");
     res.json({ success: true });
   } catch (err) {
     console.error("Mark blood billing paid error:", err.message);
@@ -3213,6 +3280,8 @@ app.post("/api/billing/bills", requireBillingStaff, async (req, res) => {
       );
     }
 
+    broadcast(req, "billing_bills");
+    if (paid > 0) broadcast(req, "billing_payments");
     res.json({ success: true, id: billId, billNo, total: totals.total, balance: totals.balance, status: totals.status });
   } catch (err) {
     console.error("Create bill error:", err.message);
@@ -3246,6 +3315,8 @@ app.post("/api/billing/bills/:id/payments", requireBillingStaff, async (req, res
       newPaid, newBalance, newStatus, req.params.id, hospitalId,
     ]);
 
+    broadcast(req, "billing_bills");
+    broadcast(req, "billing_payments");
     res.json({ success: true, paidAmount: newPaid, balance: newBalance, status: newStatus });
   } catch (err) {
     console.error("Record bill payment error:", err.message);
@@ -3279,6 +3350,7 @@ app.patch("/api/billing/bills/:id/claim", requireBillingStaff, async (req, res) 
       `UPDATE bills SET claim_status = ?, approved_amount = ? WHERE id = ? AND hospital_id = ? AND is_insurance = TRUE`,
       [claimStatus, approvedAmount === undefined || approvedAmount === null || approvedAmount === "" ? null : approvedAmount, req.params.id, req.session.user.hospitalId]
     );
+    broadcast(req, "billing_bills");
     res.json({ success: true });
   } catch (err) {
     console.error("Update claim status error:", err.message);
@@ -3308,6 +3380,7 @@ app.post("/api/billing/tariff", requireBillingStaff, async (req, res) => {
       `INSERT INTO billing_tariff (hospital_id, charge_head, department, default_rate) VALUES (?, ?, ?, ?)`,
       [req.session.user.hospitalId, chargeHead, department, parseFloat(defaultRate) || 0]
     );
+    broadcast(req, "billing_tariff");
     res.json({ success: true, id: result.insertId });
   } catch (err) {
     console.error("Add tariff error:", err.message);
@@ -3326,6 +3399,7 @@ app.put("/api/billing/tariff/:id", requireBillingStaff, async (req, res) => {
       [chargeHead, department, parseFloat(defaultRate) || 0, req.params.id, req.session.user.hospitalId]
     );
     if (result.affectedRows === 0) return res.status(404).json({ success: false, message: "Tariff item not found." });
+    broadcast(req, "billing_tariff");
     res.json({ success: true });
   } catch (err) {
     console.error("Update tariff error:", err.message);
@@ -3339,6 +3413,7 @@ app.delete("/api/billing/tariff/:id", requireBillingStaff, async (req, res) => {
       req.params.id,
       req.session.user.hospitalId,
     ]);
+    broadcast(req, "billing_tariff");
     res.json({ success: true });
   } catch (err) {
     console.error("Delete tariff error:", err.message);
@@ -3551,6 +3626,9 @@ app.post("/api/billing/patients/:uhid/collect", requireBillingStaff, async (req,
     ]);
     await pool.query(`UPDATE patient_charges SET bill_id = ? WHERE id IN (?)`, [billId, charges.map((c) => c.id)]);
 
+    broadcast(req, "billing_bills");
+    broadcast(req, "billing_payments");
+    broadcast(req, "billing_patients");
     res.json({ success: true, billId, billNo, total });
   } catch (err) {
     console.error("Collect patient charges error:", err.message);
@@ -3579,7 +3657,13 @@ async function start() {
     connection.release();
   }
 
-  app.listen(PORT, () => {
+  // socket.io needs a raw http.Server (not the bare one app.listen() creates
+  // internally) so it can hook the 'upgrade' event for the WebSocket handshake.
+  const http = require("http");
+  const httpServer = http.createServer(app);
+  initRealtime(httpServer, sessionMiddleware);
+
+  httpServer.listen(PORT, () => {
     console.log(`MEDISYS server running at http://localhost:${PORT}`);
   });
 }
