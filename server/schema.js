@@ -512,6 +512,95 @@ async function ensureSchema(connection) {
     )
   `);
 
+  // ---------- Billing Desk (OPD/IPD/Pathology/Radiology/Pharmacy consolidated billing) ----------
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS bills (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      bill_no VARCHAR(30) NOT NULL,
+      patient_uhid VARCHAR(30) NULL,
+      patient_name VARCHAR(150) NOT NULL,
+      abha_id VARCHAR(50),
+      department VARCHAR(30) NOT NULL,
+      doctor_user_id VARCHAR(50) NULL,
+      bill_date DATE NOT NULL,
+      subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
+      discount_pct DECIMAL(5,2) NOT NULL DEFAULT 0,
+      discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+      tax_pct DECIMAL(5,2) NOT NULL DEFAULT 0,
+      tax_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+      total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+      paid_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+      balance_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+      status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+      is_insurance BOOLEAN NOT NULL DEFAULT FALSE,
+      payer_name VARCHAR(150) NULL,
+      policy_no VARCHAR(100) NULL,
+      claim_status VARCHAR(20) NULL,
+      approved_amount DECIMAL(10,2) NULL,
+      created_by VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS bill_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      bill_id INT NOT NULL,
+      description VARCHAR(200) NOT NULL,
+      department VARCHAR(30),
+      qty DECIMAL(10,2) NOT NULL DEFAULT 1,
+      rate DECIMAL(10,2) NOT NULL DEFAULT 0,
+      amount DECIMAL(10,2) NOT NULL DEFAULT 0
+    )
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS bill_payments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      bill_id INT NOT NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      mode VARCHAR(30) NOT NULL,
+      reference VARCHAR(50),
+      paid_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_by VARCHAR(50)
+    )
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS billing_tariff (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      charge_head VARCHAR(150) NOT NULL,
+      department VARCHAR(30) NOT NULL,
+      default_rate DECIMAL(10,2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Event-sourced charges: one row per real thing that should be billed (registration,
+  // an OPD visit, a lab order, a bed admission). source_type + source_id point back at
+  // the row that generated the charge, so re-reconciling never double-charges the same
+  // event. bill_id stays NULL until a billing-desk staffer actually collects payment for
+  // it — at that point it's grouped into a normal `bills` row like any manual bill.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS patient_charges (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      patient_uhid VARCHAR(30) NOT NULL,
+      source_type VARCHAR(20) NOT NULL,
+      source_id INT NOT NULL,
+      description VARCHAR(200) NOT NULL,
+      department VARCHAR(30) NOT NULL,
+      rate DECIMAL(10,2) NOT NULL DEFAULT 0,
+      bill_id INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_patient_charge_source (hospital_id, source_type, source_id)
+    )
+  `);
+
   await seedDefaultUsers(connection);
 }
 
@@ -592,6 +681,29 @@ async function seedTestCatalog(connection, hospitalId) {
     `INSERT INTO test_catalog (hospital_id, name, category, department, sample_type, price, turnaround_hours) VALUES ?`,
     [tests.map((t) => [hospitalId, ...t])]
   );
+}
+
+async function seedBillingTariff(connection, hospitalId) {
+  const [[{ cnt }]] = await connection.query(
+    "SELECT COUNT(*) AS cnt FROM billing_tariff WHERE hospital_id = ?",
+    [hospitalId]
+  );
+  if (cnt > 0) return;
+
+  const tariff = [
+    ["Consultation Fee", "OPD", 600],
+    ["Registration Fee", "OPD", 100],
+    ["Pathology — Test Panel", "Pathology", 450],
+    ["Radiology — Imaging", "Radiology", 1200],
+    ["Bed Charges (per day) — General Ward", "IPD", 1800],
+    ["Bed Charges (per day) — ICU", "IPD", 6500],
+    ["Nursing Charges", "IPD", 300],
+    ["Pharmacy — Medicines", "Pharmacy", 0],
+  ];
+
+  await connection.query(`INSERT INTO billing_tariff (hospital_id, charge_head, department, default_rate) VALUES ?`, [
+    tariff.map((t) => [hospitalId, ...t]),
+  ]);
 }
 
 const bcrypt = require("bcrypt");
@@ -713,4 +825,4 @@ async function seedDefaultUsers(connection) {
   }
 }
 
-module.exports = { ensureSchema, seedTestCatalog };
+module.exports = { ensureSchema, seedTestCatalog, seedBillingTariff };

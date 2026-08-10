@@ -105,11 +105,13 @@
       actionCards.innerHTML = actionCard("pharmacy-queue.html", "queue", "Pharmacy Queue", "View pending prescriptions and dispense medicines");
     } else if (role === "blood_bank_staff") {
       actionCards.innerHTML = actionCard("blood-bank-queue.html", "queue", "Blood Bank", "Requests, crossmatch, inventory, donors, and billing");
+    } else if (role === "billing_staff") {
+      actionCards.innerHTML = actionCard("billing-desk.html", "queue", "Billing Desk", "Create bills, collect payments, and track insurance claims");
     }
 
     // Only show "Coming soon" for roles that have a ROLE_MODULE but no action cards yet.
     // Since pharmacist/blood_bank_staff now have an action card, we can omit them from the generic grid.
-    const moduleKey = (role === "pathology_staff" || role === "pharmacist" || role === "blood_bank_staff") ? null : ROLE_MODULE[role];
+    const moduleKey = (role === "pathology_staff" || role === "pharmacist" || role === "blood_bank_staff" || role === "billing_staff") ? null : ROLE_MODULE[role];
     const grid = document.getElementById("staffModuleGrid");
     grid.innerHTML = moduleKey
       ? `<div class="module-card readonly">

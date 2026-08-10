@@ -7,7 +7,7 @@ const session = require("express-session");
 const bcrypt = require("bcrypt");
 const multer = require("multer");
 const pool = require("./db");
-const { ensureSchema, seedTestCatalog } = require("./schema");
+const { ensureSchema, seedTestCatalog, seedBillingTariff } = require("./schema");
 const { buildShortCode, generateStaffUserId, generateTempPassword, generateUhid } = require("./credentials");
 const { ROLE_PREFIXES, ROLE_LABELS, STAFF_ROLES, DESIGNATION_PREFIXES } = require("./roles");
 const { computeAvailableSlots } = require("./slots");
@@ -2518,6 +2518,7 @@ app.post("/api/hospitals", requireSuperadmin, async (req, res) => {
     ]);
 
     await seedTestCatalog(pool, hospitalId);
+    await seedBillingTariff(pool, hospitalId);
 
     console.log(`[hospital] "${name}" registered (hospital_id ${hospitalId}). Admin login: ${adminUserId}`);
 
@@ -2544,6 +2545,11 @@ app.delete("/api/hospitals/:id", requireSuperadmin, async (req, res) => {
 
     // Every hospital-scoped table, deleted by hospital_id now that all tenants share one database.
     const scopedTables = [
+      "bill_payments",
+      "bill_items",
+      "bills",
+      "patient_charges",
+      "billing_tariff",
       "blood_billing",
       "blood_requests",
       "blood_inventory_units",
@@ -3093,6 +3099,465 @@ app.post("/api/bloodbank/billing/:id/pay", requireBloodBankStaff, async (req, re
   }
 });
 
+// ---------- Billing Desk ----------
+
+function requireBillingStaff(req, res, next) {
+  const role = req.session.user && req.session.user.role;
+  if (role === "billing_staff" || role === "hospital_admin") return next();
+  return res.status(401).json({ success: false, message: "Billing staff session required." });
+}
+
+function computeBillTotals({ items, discountPct, taxPct, paidAmount }) {
+  const subtotal = items.reduce((s, it) => s + (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0), 0);
+  const discountAmount = subtotal * ((parseFloat(discountPct) || 0) / 100);
+  const taxAmount = (subtotal - discountAmount) * ((parseFloat(taxPct) || 0) / 100);
+  const total = subtotal - discountAmount + taxAmount;
+  const balance = Math.max(0, +(total - paidAmount).toFixed(2));
+  let status = "Pending";
+  if (paidAmount >= total && total > 0) status = "Paid";
+  else if (paidAmount > 0) status = "Partial";
+  return { subtotal, discountAmount, taxAmount, total, balance, status };
+}
+
+app.get("/api/billing/bills", requireBillingStaff, async (req, res) => {
+  try {
+    const [bills] = await pool.query(
+      `SELECT b.*, u.full_name AS doctor_name FROM bills b
+       LEFT JOIN users u ON u.user_id = b.doctor_user_id
+       WHERE b.hospital_id = ? ORDER BY b.created_at DESC`,
+      [req.session.user.hospitalId]
+    );
+    res.json({ success: true, bills });
+  } catch (err) {
+    console.error("List bills error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/billing/bills/:id", requireBillingStaff, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const [[bill]] = await pool.query(
+      `SELECT b.*, u.full_name AS doctor_name FROM bills b
+       LEFT JOIN users u ON u.user_id = b.doctor_user_id
+       WHERE b.id = ? AND b.hospital_id = ? LIMIT 1`,
+      [req.params.id, hospitalId]
+    );
+    if (!bill) return res.status(404).json({ success: false, message: "Bill not found." });
+
+    const [items] = await pool.query(`SELECT * FROM bill_items WHERE bill_id = ? AND hospital_id = ?`, [
+      req.params.id,
+      hospitalId,
+    ]);
+    const [payments] = await pool.query(
+      `SELECT * FROM bill_payments WHERE bill_id = ? AND hospital_id = ? ORDER BY paid_at ASC`,
+      [req.params.id, hospitalId]
+    );
+    res.json({ success: true, bill, items, payments });
+  } catch (err) {
+    console.error("Get bill error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/billing/bills", requireBillingStaff, async (req, res) => {
+  const {
+    patientUhid, patientName, abhaId, department, doctorUserId, billDate,
+    items, discountPct, taxPct, receivedAmount, paymentMode,
+    isInsurance, payerName, policyNo,
+  } = req.body || {};
+
+  if (!patientName || !department || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, message: "Patient name, department, and at least one line item are required." });
+  }
+  for (const it of items) {
+    if (!it.description) return res.status(400).json({ success: false, message: "Every line item needs a description." });
+  }
+
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const paid = parseFloat(receivedAmount) || 0;
+    const totals = computeBillTotals({ items, discountPct, taxPct, paidAmount: paid });
+    const billNo = "CN/" + new Date().getFullYear() + "/" + (1000 + Math.floor(Math.random() * 8999));
+
+    const [result] = await pool.query(
+      `INSERT INTO bills
+        (hospital_id, bill_no, patient_uhid, patient_name, abha_id, department, doctor_user_id, bill_date,
+         subtotal, discount_pct, discount_amount, tax_pct, tax_amount, total_amount, paid_amount, balance_amount,
+         status, is_insurance, payer_name, policy_no, claim_status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        hospitalId, billNo, patientUhid || null, patientName, abhaId || null, department, doctorUserId || null,
+        billDate || new Date().toISOString().slice(0, 10),
+        totals.subtotal, discountPct || 0, totals.discountAmount, taxPct || 0, totals.taxAmount, totals.total,
+        paid, totals.balance, totals.status,
+        !!isInsurance, isInsurance ? payerName || null : null, isInsurance ? policyNo || null : null,
+        isInsurance ? "Submitted" : null, userId,
+      ]
+    );
+    const billId = result.insertId;
+
+    const itemRows = items.map((it) => [
+      hospitalId, billId, it.description, it.department || department,
+      parseFloat(it.qty) || 1, parseFloat(it.rate) || 0, (parseFloat(it.qty) || 1) * (parseFloat(it.rate) || 0),
+    ]);
+    await pool.query(
+      `INSERT INTO bill_items (hospital_id, bill_id, description, department, qty, rate, amount) VALUES ?`,
+      [itemRows]
+    );
+
+    if (paid > 0) {
+      await pool.query(
+        `INSERT INTO bill_payments (hospital_id, bill_id, amount, mode, reference, created_by) VALUES (?, ?, ?, ?, ?, ?)`,
+        [hospitalId, billId, paid, paymentMode || "Cash", "RCPT-" + (1000 + Math.floor(Math.random() * 8999)), userId]
+      );
+    }
+
+    res.json({ success: true, id: billId, billNo, total: totals.total, balance: totals.balance, status: totals.status });
+  } catch (err) {
+    console.error("Create bill error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/billing/bills/:id/payments", requireBillingStaff, async (req, res) => {
+  const { amount, mode, reference } = req.body || {};
+  const amt = parseFloat(amount) || 0;
+  if (amt <= 0) return res.status(400).json({ success: false, message: "Enter a valid payment amount." });
+
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const [[bill]] = await pool.query(`SELECT * FROM bills WHERE id = ? AND hospital_id = ? LIMIT 1`, [
+      req.params.id,
+      hospitalId,
+    ]);
+    if (!bill) return res.status(404).json({ success: false, message: "Bill not found." });
+    if (bill.status === "Paid") return res.status(409).json({ success: false, message: "This bill is already fully paid." });
+
+    const newPaid = parseFloat(bill.paid_amount) + amt;
+    const newBalance = Math.max(0, +(parseFloat(bill.total_amount) - newPaid).toFixed(2));
+    const newStatus = newPaid >= parseFloat(bill.total_amount) ? "Paid" : "Partial";
+
+    await pool.query(
+      `INSERT INTO bill_payments (hospital_id, bill_id, amount, mode, reference, created_by) VALUES (?, ?, ?, ?, ?, ?)`,
+      [hospitalId, req.params.id, amt, mode || "Cash", reference || "RCPT-" + (1000 + Math.floor(Math.random() * 8999)), userId]
+    );
+    await pool.query(`UPDATE bills SET paid_amount = ?, balance_amount = ?, status = ? WHERE id = ? AND hospital_id = ?`, [
+      newPaid, newBalance, newStatus, req.params.id, hospitalId,
+    ]);
+
+    res.json({ success: true, paidAmount: newPaid, balance: newBalance, status: newStatus });
+  } catch (err) {
+    console.error("Record bill payment error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/billing/payments", requireBillingStaff, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT p.*, b.bill_no, b.patient_name FROM bill_payments p
+       JOIN bills b ON b.id = p.bill_id
+       WHERE p.hospital_id = ? ORDER BY p.paid_at DESC`,
+      [req.session.user.hospitalId]
+    );
+    res.json({ success: true, payments: rows });
+  } catch (err) {
+    console.error("List payments error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.patch("/api/billing/bills/:id/claim", requireBillingStaff, async (req, res) => {
+  const { claimStatus, approvedAmount } = req.body || {};
+  const valid = ["Submitted", "Approved", "Rejected", "Settled"];
+  if (!valid.includes(claimStatus)) {
+    return res.status(400).json({ success: false, message: "Invalid claim status." });
+  }
+  try {
+    await pool.query(
+      `UPDATE bills SET claim_status = ?, approved_amount = ? WHERE id = ? AND hospital_id = ? AND is_insurance = TRUE`,
+      [claimStatus, approvedAmount === undefined || approvedAmount === null || approvedAmount === "" ? null : approvedAmount, req.params.id, req.session.user.hospitalId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Update claim status error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/billing/tariff", requireBillingStaff, async (req, res) => {
+  try {
+    const [rows] = await pool.query(`SELECT * FROM billing_tariff WHERE hospital_id = ? ORDER BY department, charge_head`, [
+      req.session.user.hospitalId,
+    ]);
+    res.json({ success: true, tariff: rows });
+  } catch (err) {
+    console.error("List tariff error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/billing/tariff", requireBillingStaff, async (req, res) => {
+  const { chargeHead, department, defaultRate } = req.body || {};
+  if (!chargeHead || !department) {
+    return res.status(400).json({ success: false, message: "Charge head and department are required." });
+  }
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO billing_tariff (hospital_id, charge_head, department, default_rate) VALUES (?, ?, ?, ?)`,
+      [req.session.user.hospitalId, chargeHead, department, parseFloat(defaultRate) || 0]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    console.error("Add tariff error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.put("/api/billing/tariff/:id", requireBillingStaff, async (req, res) => {
+  const { chargeHead, department, defaultRate } = req.body || {};
+  if (!chargeHead || !department) {
+    return res.status(400).json({ success: false, message: "Charge head and department are required." });
+  }
+  try {
+    const [result] = await pool.query(
+      `UPDATE billing_tariff SET charge_head = ?, department = ?, default_rate = ? WHERE id = ? AND hospital_id = ?`,
+      [chargeHead, department, parseFloat(defaultRate) || 0, req.params.id, req.session.user.hospitalId]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: "Tariff item not found." });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Update tariff error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.delete("/api/billing/tariff/:id", requireBillingStaff, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM billing_tariff WHERE id = ? AND hospital_id = ?`, [
+      req.params.id,
+      req.session.user.hospitalId,
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete tariff error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// ---------- Billing Desk: live per-patient ledger ----------
+// Charges are event-sourced (not typed in manually): reconcilePatientCharges() derives
+// them from real registrations/visits/lab orders/admissions and INSERT IGNOREs against a
+// unique (hospital_id, source_type, source_id) key, so re-running it never double-charges
+// the same event — it only ever adds rows for things that happened since the last check.
+
+async function tariffRate(hospitalId, chargeHead, fallback) {
+  const [[row]] = await pool.query(
+    `SELECT default_rate FROM billing_tariff WHERE hospital_id = ? AND charge_head = ? LIMIT 1`,
+    [hospitalId, chargeHead]
+  );
+  return row ? parseFloat(row.default_rate) : fallback;
+}
+
+async function reconcilePatientCharges(hospitalId) {
+  const regRate = await tariffRate(hospitalId, "Registration Fee", 100);
+  await pool.query(
+    `INSERT IGNORE INTO patient_charges (hospital_id, patient_uhid, source_type, source_id, description, department, rate)
+     SELECT ?, uhid, 'registration', id, 'Registration Fee', 'OPD', ?
+     FROM patients WHERE hospital_id = ? AND uhid IS NOT NULL`,
+    [hospitalId, regRate, hospitalId]
+  );
+
+  const consultRate = await tariffRate(hospitalId, "Consultation Fee", 600);
+  await pool.query(
+    `INSERT IGNORE INTO patient_charges (hospital_id, patient_uhid, source_type, source_id, description, department, rate)
+     SELECT hospital_id, patient_uhid, 'opd_visit', id, 'Consultation Fee', 'OPD', ?
+     FROM opd_visits WHERE hospital_id = ?`,
+    [consultRate, hospitalId]
+  );
+
+  await pool.query(
+    `INSERT IGNORE INTO patient_charges (hospital_id, patient_uhid, source_type, source_id, description, department, rate)
+     SELECT lo.hospital_id, lo.patient_uhid, 'lab_order', lo.id, tc.name, tc.department, tc.price
+     FROM lab_orders lo JOIN test_catalog tc ON tc.id = lo.test_id
+     WHERE lo.hospital_id = ?`,
+    [hospitalId]
+  );
+
+  const icuRate = await tariffRate(hospitalId, "Bed Charges (per day) — ICU", 6500);
+  const genRate = await tariffRate(hospitalId, "Bed Charges (per day) — General Ward", 1800);
+  const [admissions] = await pool.query(
+    `SELECT a.id, a.patient_uhid, w.name AS ward_name, b.bed_number
+     FROM ipd_admissions a
+     LEFT JOIN wards w ON w.id = a.ward_id
+     LEFT JOIN beds b ON b.id = a.bed_id
+     WHERE a.hospital_id = ? AND a.bed_id IS NOT NULL`,
+    [hospitalId]
+  );
+  for (const a of admissions) {
+    const isIcu = (a.ward_name || "").toLowerCase().includes("icu");
+    const rate = isIcu ? icuRate : genRate;
+    await pool.query(
+      `INSERT IGNORE INTO patient_charges (hospital_id, patient_uhid, source_type, source_id, description, department, rate)
+       VALUES (?, ?, 'ipd_admission', ?, ?, 'IPD', ?)`,
+      [hospitalId, a.patient_uhid, a.id, `Bed Charges — ${a.ward_name || "Ward"} (Bed ${a.bed_number || "—"})`, rate]
+    );
+  }
+}
+
+app.get("/api/billing/patients", requireBillingStaff, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    await reconcilePatientCharges(hospitalId);
+
+    const [patients] = await pool.query(
+      `SELECT uhid, full_name, phone, category, created_at FROM patients WHERE hospital_id = ? ORDER BY created_at DESC`,
+      [hospitalId]
+    );
+    const [visits] = await pool.query(
+      `SELECT patient_uhid, status, visit_date, created_at FROM opd_visits WHERE hospital_id = ?`,
+      [hospitalId]
+    );
+    const [admissions] = await pool.query(
+      `SELECT a.patient_uhid, w.name AS ward_name, b.bed_number
+       FROM ipd_admissions a LEFT JOIN wards w ON w.id = a.ward_id LEFT JOIN beds b ON b.id = a.bed_id
+       WHERE a.hospital_id = ? AND a.status = 'admitted'`,
+      [hospitalId]
+    );
+    const [unbilledCharges] = await pool.query(
+      `SELECT patient_uhid, SUM(rate) AS total FROM patient_charges WHERE hospital_id = ? AND bill_id IS NULL GROUP BY patient_uhid`,
+      [hospitalId]
+    );
+    const [pharmacyUnbilled] = await pool.query(
+      `SELECT patient_uhid, SUM(amount) AS total FROM medisys_pharmacy.pharmacy_orders
+       WHERE hospital_id = ? AND status = 'dispensed' AND invoice_id IS NULL GROUP BY patient_uhid`,
+      [hospitalId]
+    );
+    const [pharmacyInvoicePending] = await pool.query(
+      `SELECT patient_uhid, SUM(total_amount) AS total FROM medisys_pharmacy.pharmacy_invoices
+       WHERE hospital_id = ? AND payment_status != 'Paid' GROUP BY patient_uhid`,
+      [hospitalId]
+    );
+
+    const byUhid = (rows) => Object.fromEntries(rows.map((r) => [r.patient_uhid, parseFloat(r.total) || 0]));
+    const chargeMap = byUhid(unbilledCharges);
+    const pharmUnbilledMap = byUhid(pharmacyUnbilled);
+    const pharmInvoiceMap = byUhid(pharmacyInvoicePending);
+
+    const result = patients.map((p) => {
+      const admission = admissions.find((a) => a.patient_uhid === p.uhid);
+      const patientVisits = visits.filter((v) => v.patient_uhid === p.uhid).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const latestVisit = patientVisits[0] || null;
+      const pharmacyOutstanding = (pharmUnbilledMap[p.uhid] || 0) + (pharmInvoiceMap[p.uhid] || 0);
+      const billingDeskOutstanding = chargeMap[p.uhid] || 0;
+      return {
+        uhid: p.uhid,
+        fullName: p.full_name,
+        phone: p.phone,
+        category: p.category,
+        registeredAt: p.created_at,
+        isAdmitted: !!admission,
+        wardName: admission ? admission.ward_name : null,
+        bedNumber: admission ? admission.bed_number : null,
+        visitCount: patientVisits.length,
+        latestVisitStatus: latestVisit ? latestVisit.status : null,
+        latestVisitDate: latestVisit ? latestVisit.visit_date : null,
+        billingDeskOutstanding,
+        pharmacyOutstanding,
+        totalOutstanding: billingDeskOutstanding + pharmacyOutstanding,
+      };
+    });
+
+    res.json({ success: true, patients: result });
+  } catch (err) {
+    console.error("List billing patients error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.get("/api/billing/patients/:uhid/ledger", requireBillingStaff, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    await reconcilePatientCharges(hospitalId);
+    const uhid = req.params.uhid;
+
+    const [[patient]] = await pool.query(`SELECT * FROM patients WHERE uhid = ? AND hospital_id = ? LIMIT 1`, [uhid, hospitalId]);
+    if (!patient) return res.status(404).json({ success: false, message: "Patient not found." });
+
+    const [charges] = await pool.query(
+      `SELECT pc.*, b.status AS bill_status, b.bill_no
+       FROM patient_charges pc LEFT JOIN bills b ON b.id = pc.bill_id
+       WHERE pc.hospital_id = ? AND pc.patient_uhid = ? ORDER BY pc.created_at ASC`,
+      [hospitalId, uhid]
+    );
+
+    const [pharmacyOrders] = await pool.query(
+      `SELECT po.*, pi.payment_status AS invoice_status, pi.invoice_number
+       FROM medisys_pharmacy.pharmacy_orders po
+       LEFT JOIN medisys_pharmacy.pharmacy_invoices pi ON pi.id = po.invoice_id
+       WHERE po.hospital_id = ? AND po.patient_uhid = ? ORDER BY po.created_at ASC`,
+      [hospitalId, uhid]
+    );
+
+    const [admission] = await pool.query(
+      `SELECT a.*, w.name AS ward_name, b.bed_number
+       FROM ipd_admissions a LEFT JOIN wards w ON w.id = a.ward_id LEFT JOIN beds b ON b.id = a.bed_id
+       WHERE a.hospital_id = ? AND a.patient_uhid = ? AND a.status = 'admitted' LIMIT 1`,
+      [hospitalId, uhid]
+    );
+
+    res.json({ success: true, patient, charges, pharmacyOrders, admission: admission[0] || null });
+  } catch (err) {
+    console.error("Get patient ledger error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.post("/api/billing/patients/:uhid/collect", requireBillingStaff, async (req, res) => {
+  const { chargeIds, paymentMode } = req.body || {};
+  if (!Array.isArray(chargeIds) || chargeIds.length === 0) {
+    return res.status(400).json({ success: false, message: "Select at least one charge to collect." });
+  }
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const uhid = req.params.uhid;
+
+    const [charges] = await pool.query(
+      `SELECT * FROM patient_charges WHERE id IN (?) AND hospital_id = ? AND patient_uhid = ? AND bill_id IS NULL`,
+      [chargeIds, hospitalId, uhid]
+    );
+    if (charges.length === 0) {
+      return res.status(409).json({ success: false, message: "Those charges are no longer outstanding — they may already be collected." });
+    }
+
+    const [[patient]] = await pool.query(`SELECT full_name FROM patients WHERE uhid = ? AND hospital_id = ? LIMIT 1`, [uhid, hospitalId]);
+    const total = charges.reduce((s, c) => s + parseFloat(c.rate), 0);
+    const billNo = "CN/" + new Date().getFullYear() + "/" + (1000 + Math.floor(Math.random() * 8999));
+
+    const [result] = await pool.query(
+      `INSERT INTO bills
+        (hospital_id, bill_no, patient_uhid, patient_name, department, bill_date,
+         subtotal, discount_pct, discount_amount, tax_pct, tax_amount, total_amount, paid_amount, balance_amount, status, created_by)
+       VALUES (?, ?, ?, ?, ?, CURDATE(), ?, 0, 0, 0, 0, ?, ?, 0, 'Paid', ?)`,
+      [hospitalId, billNo, uhid, patient ? patient.full_name : uhid, charges[0].department, total, total, total, userId]
+    );
+    const billId = result.insertId;
+
+    const itemRows = charges.map((c) => [hospitalId, billId, c.description, c.department, 1, c.rate, c.rate]);
+    await pool.query(`INSERT INTO bill_items (hospital_id, bill_id, description, department, qty, rate, amount) VALUES ?`, [itemRows]);
+    await pool.query(`INSERT INTO bill_payments (hospital_id, bill_id, amount, mode, reference, created_by) VALUES (?, ?, ?, ?, ?, ?)`, [
+      hospitalId, billId, total, paymentMode || "Cash", "RCPT-" + (1000 + Math.floor(Math.random() * 8999)), userId,
+    ]);
+    await pool.query(`UPDATE patient_charges SET bill_id = ? WHERE id IN (?)`, [billId, charges.map((c) => c.id)]);
+
+    res.json({ success: true, billId, billNo, total });
+  } catch (err) {
+    console.error("Collect patient charges error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 
 async function start() {
@@ -3103,6 +3568,7 @@ async function start() {
     const [hospitals] = await connection.query("SELECT id, admin_user_id FROM hospitals");
     for (const hospital of hospitals) {
       await seedTestCatalog(connection, hospital.id);
+      await seedBillingTariff(connection, hospital.id);
     }
 
     await connection.query(

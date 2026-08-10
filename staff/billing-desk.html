@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MEDISYS Billing Desk</title>
+<link rel="stylesheet" href="../style.css" />
+<link rel="stylesheet" href="../admin/admin.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#111F35;
+  --ink-2:#1E3358;
+  --paper:#f8fafc;
+  --paper-dim:#f1f5f9;
+  --paper-raised:#FFFFFF;
+  --line:#e2e8f0;
+  --line-soft:#e2e8f0;
+  --gold:#1b2f6e;
+  --gold-soft:#EEF1FB;
+  --gold-deep:#142357;
+  --emerald:#106349;
+  --emerald-soft:#D9EEE4;
+  --rust:#9A3A29;
+  --rust-soft:#F3E0D9;
+  --blue:#2A4E85;
+  --blue-soft:#E3E9F6;
+  --violet:#5A3E99;
+  --violet-soft:#EAE4F5;
+  --slate:#5D6C63;
+  --sidebar-1:#0C1A2E;
+  --sidebar-2:#152743;
+  --header-h:66px;
+  font-size:15px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:
+    radial-gradient(1100px 500px at 100% -10%, rgba(27,47,110,0.05), transparent 60%),
+    var(--paper);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.serif{font-family:'Source Serif 4',serif;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+a{color:inherit;}
+button{font-family:inherit;cursor:pointer;}
+svg{display:block;}
+::selection{background:var(--gold-soft);}
+
+/* ---------- LAYOUT ---------- */
+.app{display:grid;grid-template-columns:252px 1fr;min-height:calc(100vh - var(--header-h));}
+.sidebar{
+  background:
+    linear-gradient(175deg, var(--sidebar-2) 0%, var(--sidebar-1) 60%);
+  color:#CFE0EF;
+  padding:20px 16px 16px;
+  display:flex;flex-direction:column;
+  position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));
+  background-image:
+    repeating-linear-gradient(180deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 34px),
+    linear-gradient(175deg, var(--sidebar-2) 0%, var(--sidebar-1) 60%);
+}
+
+.nav-group{margin-bottom:22px;}
+.nav-label{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:#527090;padding:0 12px;margin-bottom:8px;font-weight:700;}
+.nav-item{
+  display:flex;align-items:center;gap:11px;
+  padding:10px 12px;border-radius:8px;font-size:13.5px;font-weight:500;
+  color:#AFC3DB;margin-bottom:3px;position:relative;
+  transition:background .15s ease, color .15s ease, transform .15s ease;
+}
+.nav-item svg{width:16px;height:16px;flex-shrink:0;opacity:.85;}
+.nav-item:hover{background:rgba(255,255,255,0.05);color:#EAF1F9;transform:translateX(1px);}
+.nav-item.active{background:linear-gradient(90deg, rgba(27,47,110,0.35), rgba(27,47,110,0.02));color:#fff;}
+.nav-item.active::before{content:"";position:absolute;left:-16px;top:8px;bottom:8px;width:3px;border-radius:3px;background:#5B7FE0;}
+.nav-item.active svg{opacity:1;color:#5B7FE0;}
+.sidebar-foot{margin-top:auto;padding:14px 12px;font-size:11px;color:#527090;border-top:1px solid rgba(255,255,255,0.09);line-height:1.6;}
+.sidebar-foot b{color:#CFE0EF;}
+.dot-live{display:inline-block;width:6px;height:6px;border-radius:50%;background:#3FBE85;margin-right:6px;box-shadow:0 0 0 3px rgba(63,190,133,0.18);}
+
+.main{padding:26px 38px 70px;max-width:1320px;}
+.eyebrow{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold-deep);font-weight:700;margin-bottom:6px;}
+.topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;gap:20px;flex-wrap:wrap;}
+.topbar h1{font-size:26px;margin:0 0 5px;font-weight:600;letter-spacing:-.01em;}
+.topbar .desc{color:var(--slate);font-size:13.5px;max-width:540px;line-height:1.5;}
+.top-actions{display:flex;gap:10px;align-items:center;}
+.search-box{
+  display:flex;align-items:center;gap:8px;background:var(--paper-raised);
+  border:1px solid var(--line);border-radius:9px;padding:9px 13px;min-width:240px;
+  box-shadow:0 1px 2px rgba(17,31,53,0.03);
+}
+.search-box svg{width:14px;height:14px;color:var(--slate);flex-shrink:0;}
+.search-box input{border:none;outline:none;background:transparent;font-size:13px;width:100%;font-family:inherit;}
+.btn{
+  border:1px solid var(--ink);background:linear-gradient(180deg,#182C4B,var(--ink));color:#fff;
+  padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;
+  display:inline-flex;align-items:center;gap:7px;
+  box-shadow:0 1px 2px rgba(17,31,53,0.15);
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(17,31,53,0.22);}
+.btn.gold{background:linear-gradient(180deg,#28407E,var(--gold-deep));border-color:var(--gold-deep);}
+.btn.secondary{background:transparent;color:var(--ink);border:1px solid var(--line);box-shadow:none;}
+.btn.secondary:hover{border-color:var(--ink);transform:none;box-shadow:none;}
+.btn.ghost{background:transparent;border:none;color:var(--ink-2);padding:6px 8px;font-weight:600;box-shadow:none;}
+.btn.small{padding:7px 12px;font-size:12px;}
+
+/* ---------- KPI ---------- */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:26px;}
+.kpi{
+  background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:12px;
+  padding:18px 20px 14px;position:relative;overflow:hidden;
+  box-shadow:0 1px 3px rgba(17,31,53,0.04);
+}
+.kpi .top-row{display:flex;justify-content:space-between;align-items:flex-start;}
+.kpi .label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--slate);margin-bottom:9px;font-weight:700;}
+.kpi .icon-badge{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.kpi .icon-badge svg{width:15px;height:15px;}
+.kpi.rev .icon-badge{background:var(--gold-soft);color:var(--gold-deep);}
+.kpi.pending .icon-badge{background:var(--rust-soft);color:var(--rust);}
+.kpi.paid .icon-badge{background:var(--emerald-soft);color:var(--emerald);}
+.kpi.claims .icon-badge{background:var(--blue-soft);color:var(--blue);}
+.kpi .value{font-family:'IBM Plex Mono',monospace;font-size:25px;font-weight:600;margin-top:2px;}
+.kpi .delta{font-size:11.5px;margin-top:7px;color:var(--emerald);font-weight:500;}
+.kpi .delta.down{color:var(--rust);}
+.kpi .spark{margin-top:10px;height:28px;}
+
+.panel{background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:12px;padding:22px 24px;margin-bottom:22px;box-shadow:0 1px 3px rgba(17,31,53,0.04);}
+.panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.panel-head h2{font-size:16.5px;margin:0;font-weight:600;}
+.panel-head .hint{font-size:12px;color:var(--slate);}
+
+.two-col{display:grid;grid-template-columns:1.3fr 1fr;gap:22px;align-items:start;}
+
+/* ---------- DONUT ---------- */
+.donut-wrap{display:flex;align-items:center;gap:26px;flex-wrap:wrap;}
+.legend{display:flex;flex-direction:column;gap:10px;flex:1;min-width:180px;}
+.legend-item{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--ink-2);gap:10px;}
+.legend-item .lhs{display:flex;align-items:center;gap:8px;}
+.legend-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+.legend-item .amt{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--ink);}
+
+/* ---------- TABLE ---------- */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{
+  text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--slate);border-bottom:1px solid var(--line);padding:0 10px 10px;font-weight:700;
+}
+tbody td{padding:12px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle;}
+tbody tr{transition:background .12s ease;}
+tbody tr:hover{background:#F6F8FB;}
+tbody tr:last-child td{border-bottom:none;}
+.mono-cell{font-family:'IBM Plex Mono',monospace;}
+.patient-cell{display:flex;align-items:center;gap:9px;}
+.avatar{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Source Serif 4',serif;font-weight:700;font-size:11.5px;color:#fff;
+}
+.pill{
+  display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;
+  font-size:11px;font-weight:700;letter-spacing:.02em;
+}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+.pill.paid{background:var(--emerald-soft);color:var(--emerald);}
+.pill.pending{background:var(--gold-soft);color:var(--gold-deep);}
+.pill.partial{background:var(--blue-soft);color:var(--blue);}
+.pill.overdue{background:var(--rust-soft);color:var(--rust);}
+.pill.submitted{background:var(--blue-soft);color:var(--blue);}
+.pill.approved{background:var(--emerald-soft);color:var(--emerald);}
+.pill.rejected{background:var(--rust-soft);color:var(--rust);}
+.pill.settled{background:var(--violet-soft);color:var(--violet);}
+.row-actions{display:flex;gap:6px;}
+.icon-btn{
+  border:1px solid var(--line);background:var(--paper-raised);border-radius:7px;
+  padding:6px 10px;font-size:11.5px;font-weight:600;color:var(--ink-2);
+  transition:border-color .12s, color .12s;
+}
+.icon-btn:hover{border-color:var(--ink);color:var(--ink);}
+.empty{padding:40px 10px;text-align:center;color:var(--slate);font-size:13px;}
+.empty svg{width:34px;height:34px;color:var(--line);margin-bottom:10px;}
+
+.filter-row{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;align-items:center;}
+select, .txt-input{
+  border:1px solid var(--line);background:var(--paper-raised);border-radius:8px;
+  padding:9px 11px;font-size:12.5px;font-family:inherit;color:var(--ink);
+}
+.chip{
+  padding:7px 15px;border-radius:20px;border:1px solid var(--line);background:var(--paper-raised);
+  font-size:12px;font-weight:700;color:var(--slate);transition:all .12s;
+}
+.chip.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+.chip:hover:not(.active){border-color:var(--ink-2);color:var(--ink);}
+
+/* ---------- NEW BILL ---------- */
+.bill-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:22px;align-items:flex-start;}
+.field{margin-bottom:15px;position:relative;}
+.field label{display:block;font-size:11px;font-weight:700;color:var(--slate);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;}
+.field input, .field select{
+  width:100%;border:1px solid var(--line);background:var(--paper);border-radius:8px;
+  padding:10px 12px;font-size:13.5px;font-family:inherit;transition:border-color .12s, background .12s;
+}
+.field input:focus, .field select:focus{outline:none;border-color:var(--gold);background:#fff;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+.preset-btn{
+  border:1px dashed var(--line);background:var(--paper);border-radius:8px;padding:8px 13px;
+  font-size:12px;font-weight:600;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;
+  transition:border-color .12s, color .12s, background .12s;
+}
+.preset-btn svg{width:13px;height:13px;}
+.preset-btn:hover{border-color:var(--gold);color:var(--gold-deep);background:var(--gold-soft);}
+
+.search-results{position:absolute;top:100%;left:0;right:0;background:var(--paper-raised);border:1px solid var(--line);border-radius:8px;margin-top:4px;max-height:220px;overflow-y:auto;z-index:5;box-shadow:0 8px 20px rgba(17,31,53,0.1);}
+.search-result-item{padding:9px 12px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--line-soft);}
+.search-result-item:last-child{border-bottom:none;}
+.search-result-item:hover{background:var(--paper-dim);}
+.search-result-item .uh{color:var(--slate);font-family:'IBM Plex Mono',monospace;font-size:11px;}
+
+.items-table thead th{background:var(--paper);}
+.items-table th, .items-table td{padding:9px 8px;}
+.items-table input{border:1px solid var(--line-soft);background:var(--paper);border-radius:6px;padding:7px 8px;font-size:12.5px;font-family:inherit;transition:border-color .12s;}
+.items-table input:focus{outline:none;border-color:var(--gold);}
+.items-table input.desc{width:100%;}
+.items-table input.num{width:100%;text-align:right;font-family:'IBM Plex Mono',monospace;}
+.items-table td.amt{font-family:'IBM Plex Mono',monospace;text-align:right;font-weight:600;}
+.rm-row{border:none;background:none;color:var(--rust);font-size:16px;font-weight:700;line-height:1;padding:4px;border-radius:5px;}
+.rm-row:hover{background:var(--rust-soft);}
+
+.summary-box{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:17px 19px;}
+.summary-line{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;color:var(--ink-2);}
+.summary-line.total{border-top:1px dashed var(--line);margin-top:6px;padding-top:13px;font-size:17px;font-weight:700;color:var(--ink);}
+.summary-line span.mono{font-family:'IBM Plex Mono',monospace;}
+
+.discount-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0;}
+
+.toggle-row{display:flex;align-items:center;gap:11px;margin-bottom:15px;}
+.switch{position:relative;width:40px;height:22px;border-radius:20px;background:var(--line);flex-shrink:0;transition:background .15s;cursor:pointer;}
+.switch.on{background:var(--gold);}
+.switch .knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.35);}
+.switch.on .knob{left:20px;}
+
+/* ---------- INVOICE / PRINT ---------- */
+.invoice-wrap{display:none;}
+.invoice-wrap.open{display:block;position:fixed;inset:0;background:rgba(12,26,46,0.66);z-index:50;overflow:auto;padding:36px 0 60px;backdrop-filter:blur(2px);}
+.invoice-sheet{
+  background:#fff;max-width:780px;margin:0 auto;border-radius:6px;
+  box-shadow:0 30px 70px rgba(0,0,0,.4);position:relative;overflow:hidden;
+}
+.invoice-toolbar{
+  max-width:780px;margin:0 auto 14px;display:flex;justify-content:flex-end;gap:9px;padding:0 4px;
+}
+.invoice-toolbar .btn.secondary{background:#fff;}
+.ribbon{
+  position:absolute;top:26px;right:-46px;width:180px;text-align:center;
+  transform:rotate(40deg);padding:6px 0;font-size:11px;font-weight:800;
+  letter-spacing:.1em;text-transform:uppercase;color:#fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.2);z-index:2;
+}
+.ribbon.paid{background:var(--emerald);}
+.ribbon.pending{background:var(--gold);}
+.ribbon.partial{background:var(--blue);}
+.ribbon.overdue{background:var(--rust);}
+.invoice-body{padding:40px 44px 32px;}
+.invoice-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid var(--ink);padding-bottom:18px;margin-bottom:20px;}
+.invoice-brand{display:flex;gap:12px;align-items:center;}
+.invoice-brand img{height:46px;width:auto;}
+.invoice-head .hosp-name{font-family:'Source Serif 4',serif;font-size:22px;font-weight:700;}
+.invoice-head .hosp-meta{font-size:11px;color:var(--slate);margin-top:5px;line-height:1.6;}
+.invoice-head .invoice-tag{text-align:right;}
+.invoice-tag .taglabel{font-size:10px;color:var(--slate);text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
+.invoice-tag .bignum{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;margin-top:3px;}
+.invoice-tag .status-pill{margin-top:8px;}
+.invoice-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px;}
+.meta-block{border:1px solid var(--line);border-radius:9px;padding:13px 15px;background:var(--paper);}
+.meta-block .h{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--slate);margin-bottom:8px;font-weight:800;}
+.meta-block .l{font-size:12.5px;line-height:1.75;}
+.meta-block .l b{font-weight:700;}
+.invoice-items table{font-size:12.5px;}
+.invoice-items thead th{background:var(--ink);color:#fff;border-bottom:none;border-radius:0;}
+.invoice-items thead tr th:first-child{border-radius:6px 0 0 6px;}
+.invoice-items thead tr th:last-child{border-radius:0 6px 6px 0;}
+.invoice-items td, .invoice-items th{padding:9px 10px;}
+.invoice-items td.amt, .invoice-items th.amt{text-align:right;font-family:'IBM Plex Mono',monospace;}
+.invoice-items tbody tr:nth-child(even){background:var(--paper);}
+.invoice-totals{display:flex;justify-content:flex-end;margin-top:8px;}
+.invoice-totals .box{width:290px;}
+.invoice-totals .ln{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;}
+.invoice-totals .ln.grand{border-top:2px solid var(--ink);margin-top:6px;padding-top:11px;font-size:16px;font-weight:700;}
+.invoice-totals .ln span.mono{font-family:'IBM Plex Mono',monospace;}
+.words-line{margin-top:16px;font-size:12px;color:var(--ink-2);font-style:italic;border-top:1px dashed var(--line);padding-top:13px;}
+.invoice-foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:40px;}
+.sign-block{text-align:center;font-size:11px;color:var(--slate);}
+.sign-line{width:155px;border-top:1px solid var(--ink-2);margin-bottom:6px;height:38px;}
+.perforation{
+  height:0;border-top:2px dashed var(--line);position:relative;margin:26px -44px;
+}
+.perforation::before,.perforation::after{
+  content:"";position:absolute;top:-9px;width:18px;height:18px;border-radius:50%;background:var(--paper-dim);
+}
+.perforation::before{left:-9px;}
+.perforation::after{right:-9px;}
+.stub-note{font-size:10.5px;color:var(--slate);text-align:center;letter-spacing:.07em;text-transform:uppercase;padding:0 44px;}
+
+.close-x{position:absolute;top:16px;right:18px;background:rgba(17,31,53,0.06);border:none;font-size:16px;color:var(--slate);width:30px;height:30px;border-radius:50%;z-index:3;}
+.close-x:hover{background:rgba(17,31,53,0.12);}
+
+#toastContainer{position:fixed;top:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none;}
+.toast{display:flex;align-items:center;gap:10px;background:var(--gold-deep);color:#fff;padding:14px 18px;border-radius:8px;box-shadow:0 18px 48px rgba(20,35,87,.28);font-size:13.5px;font-weight:600;max-width:360px;opacity:0;transform:translateX(20px);transition:opacity .25s ease, transform .25s ease;cursor:pointer;pointer-events:auto;}
+.toast-show{opacity:1;transform:translateX(0);}
+.toast-error{background:var(--rust);}
+
+.view{display:none;animation:fadeUp .25s ease;}
+.view.active{display:block;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+@media print{
+  body *{visibility:hidden;}
+  .invoice-sheet, .invoice-sheet *{visibility:visible;}
+  .invoice-sheet{position:absolute;left:0;top:0;box-shadow:none;width:100%;max-width:none;}
+  .invoice-toolbar, .close-x{display:none !important;}
+  .invoice-wrap{position:static;background:none;padding:0;backdrop-filter:none;}
+}
+@media (max-width: 900px){
+  .app{grid-template-columns:1fr;}
+  .sidebar{position:relative;height:auto;}
+  .bill-grid, .two-col{grid-template-columns:1fr;}
+  .kpi-row{grid-template-columns:1fr 1fr;}
+  .invoice-meta-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div id="toastContainer"></div>
+
+<header class="site-header">
+  <div class="brand">
+    <img src="../logo.png" alt="Core5 MEDISYS" class="brand-logo" />
+  </div>
+  <div class="portal-header-right">
+    <a href="dashboard.html" class="portal-back-link" style="margin-right:4px;">&larr; Back to Dashboard</a>
+    <span class="portal-user" id="portalUser"></span>
+    <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+  </div>
+</header>
+
+<div id="appRoot" class="empty" style="padding:60px;">
+  <div id="appLoadingLabel">Loading billing data…</div>
+  <div id="appLoadError" style="display:none;">
+    <p style="color:var(--rust);font-weight:600;margin-bottom:10px;">Couldn't reach the server.</p>
+    <p style="font-size:13px;color:var(--slate);margin-bottom:16px;">Check your connection, or the server may be temporarily down. This won't fix itself — refresh once it's back.</p>
+    <button class="btn gold" style="margin:0 auto;" onclick="location.reload()">Retry</button>
+  </div>
+</div>
+
+<template id="appTemplate">
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="nav-group">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" data-view="patients">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        Patients <span class="pill-badge" id="patientsLiveCount" style="background:rgba(255,255,255,.12);color:#CFE0EF;font-size:10px;padding:2px 7px;border-radius:20px;margin-left:auto;">0</span>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Billing</div>
+      <div class="nav-item" data-view="bills">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v5h5"/><path d="M8 13h8M8 17h5"/></svg>
+        Patient Bills
+      </div>
+      <div class="nav-item" data-view="newbill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Create Bill
+      </div>
+      <div class="nav-item" data-view="payments">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+        Payments
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Insurance</div>
+      <div class="nav-item" data-view="claims">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
+        TPA / Claims
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Insights</div>
+      <div class="nav-item" data-view="reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+        Reports
+      </div>
+      <div class="nav-item" data-view="tariff">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V8a2 2 0 0 1 2-2h5l2-3 2 3h3a2 2 0 0 1 2 2v13"/><path d="M4 21h16M9 21v-6h6v6"/></svg>
+        Tariff Settings
+      </div>
+    </div>
+
+    <div class="sidebar-foot">
+      <span class="dot-live"></span>Session active<br>
+      <b id="sidebarRole">Billing Staff</b><br><span id="sidebarHospital"></span>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- ===================== DASHBOARD ===================== -->
+    <div class="view active" id="view-dashboard">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Today · <span id="date-today-label"></span></div>
+          <h1>Billing Dashboard</h1>
+          <div class="desc">Today's collections, outstanding balances, and claim status across every department.</div>
+        </div>
+        <div class="top-actions">
+          <button class="btn gold" onclick="switchView('newbill')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Create Bill
+          </button>
+        </div>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi rev">
+          <div class="top-row">
+            <div class="label">Collected Today</div>
+            <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          </div>
+          <div class="value" id="kpi-collected">₹0</div>
+          <div class="delta">Across all payment modes</div>
+          <div class="spark" id="spark-collected"></div>
+        </div>
+        <div class="kpi pending">
+          <div class="top-row">
+            <div class="label">Outstanding Balance</div>
+            <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+          </div>
+          <div class="value" id="kpi-outstanding">₹0</div>
+          <div class="delta down" id="kpi-outstanding-count">0 bills pending</div>
+          <div class="spark" id="spark-outstanding"></div>
+        </div>
+        <div class="kpi paid">
+          <div class="top-row">
+            <div class="label">Bills Settled</div>
+            <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div>
+          </div>
+          <div class="value" id="kpi-paidcount">0</div>
+          <div class="delta">Fully paid, this dataset</div>
+          <div class="spark" id="spark-paid"></div>
+        </div>
+        <div class="kpi claims">
+          <div class="top-row">
+            <div class="label">Claims In Process</div>
+            <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg></div>
+          </div>
+          <div class="value" id="kpi-claims">0</div>
+          <div class="delta" style="color:var(--slate)">Awaiting TPA approval</div>
+          <div class="spark" id="spark-claims"></div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Recent Bills</h2>
+            <button class="btn ghost" onclick="switchView('bills')">View all →</button>
+          </div>
+          <table>
+            <thead><tr><th>Bill No.</th><th>Patient</th><th>Date</th><th style="text-align:right">Amount</th><th>Status</th><th></th></tr></thead>
+            <tbody id="dash-recent-body"></tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Revenue by Department</h2></div>
+          <div class="donut-wrap" id="dept-donut"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== PATIENTS (LIVE) ===================== -->
+    <div class="view" id="view-patients">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Live · updates automatically</div>
+          <h1>Patients</h1>
+          <div class="desc">Every patient in this hospital, new and existing, with real-time status and what they currently owe — pulled live from registration, OPD, lab orders, pharmacy, and bed allocation.</div>
+        </div>
+        <div class="top-actions">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+            <input id="patients-search" placeholder="Search UHID or name…" oninput="renderPatientsTable()">
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead><tr>
+            <th>Patient</th><th>Status</th><th>Visits</th>
+            <th style="text-align:right">Billing Desk Owes</th><th style="text-align:right">Pharmacy Owes</th>
+            <th style="text-align:right">Total Outstanding</th><th></th>
+          </tr></thead>
+          <tbody id="patients-body"></tbody>
+        </table>
+        <div class="empty" id="patients-empty" style="display:none">No patients registered yet.</div>
+      </div>
+    </div>
+
+    <!-- ===================== BILLS LIST ===================== -->
+    <div class="view" id="view-bills">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Billing / All Records</div>
+          <h1>Patient Bills</h1>
+          <div class="desc">Search, filter, and manage every invoice raised across OPD, IPD, Lab, Radiology and Pharmacy.</div>
+        </div>
+        <div class="top-actions">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+            <input id="bills-search" placeholder="Search UHID, patient, bill no…" oninput="renderBillsTable()">
+          </div>
+          <button class="btn gold" onclick="switchView('newbill')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Create Bill
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-row" id="status-filters">
+        <span class="chip active" data-status="all">All</span>
+        <span class="chip" data-status="Paid">Paid</span>
+        <span class="chip" data-status="Partial">Partial</span>
+        <span class="chip" data-status="Pending">Pending</span>
+        <span class="chip" data-status="Overdue">Overdue</span>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead><tr>
+            <th>Bill No.</th><th>Patient</th><th>Department</th><th>Date</th>
+            <th style="text-align:right">Total</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th>
+            <th>Status</th><th></th>
+          </tr></thead>
+          <tbody id="bills-body"></tbody>
+        </table>
+        <div class="empty" id="bills-empty" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/></svg><br>
+          No bills match this filter.
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== NEW BILL ===================== -->
+    <div class="view" id="view-newbill">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Billing / New Entry</div>
+          <h1 id="newbill-title">Create Bill</h1>
+          <div class="desc">Pull charges from OPD, Lab, Radiology, Pharmacy and Bed modules, or add custom line items, then collect payment.</div>
+        </div>
+      </div>
+
+      <div class="bill-grid">
+        <!-- LEFT: patient + items -->
+        <div>
+          <div class="panel">
+            <div class="panel-head"><h2>Patient</h2></div>
+            <div class="field-row">
+              <div class="field">
+                <label>Find patient (UHID or name)</label>
+                <input id="nb-search" placeholder="Search registered patients…" autocomplete="off">
+                <div class="search-results" id="nb-search-results" style="display:none"></div>
+              </div>
+              <div class="field">
+                <label>ABHA ID</label>
+                <input id="nb-abha" placeholder="14-digit ABHA (optional)">
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>Patient Name</label>
+                <input id="nb-name" placeholder="Full name">
+              </div>
+              <div class="field">
+                <label>Department</label>
+                <select id="nb-dept">
+                  <option>OPD</option><option>IPD</option><option>Pathology</option>
+                  <option>Radiology</option><option>Pharmacy</option><option>Emergency</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>Consulting Doctor</label>
+                <select id="nb-doctor"><option value="">— none —</option></select>
+              </div>
+              <div class="field">
+                <label>Bill Date</label>
+                <input id="nb-date" type="date">
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h2>Line Items</h2><span class="hint">Click a preset or add a custom row</span></div>
+            <div class="preset-row" id="preset-row"></div>
+            <table class="items-table">
+              <thead><tr><th style="width:38%">Description</th><th>Dept</th><th style="width:60px">Qty</th><th style="width:100px">Rate (₹)</th><th style="width:110px" class="amt">Amount</th><th></th></tr></thead>
+              <tbody id="items-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- RIGHT: summary + payment -->
+        <div>
+          <div class="panel">
+            <div class="panel-head"><h2>Insurance / TPA</h2></div>
+            <div class="toggle-row">
+              <div class="switch" id="insurance-switch" onclick="toggleInsurance()"><div class="knob"></div></div>
+              <span style="font-size:13px;">Bill under insurance / TPA</span>
+            </div>
+            <div id="insurance-fields" style="display:none">
+              <div class="field"><label>Payer / TPA Name</label><input id="nb-payer" placeholder="e.g. Star Health, CGHS"></div>
+              <div class="field"><label>Policy / Claim No.</label><input id="nb-policy" placeholder="Policy number"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h2>Summary</h2></div>
+            <div class="discount-row">
+              <div class="field" style="margin-bottom:0">
+                <label>Discount %</label>
+                <input id="nb-discpct" type="number" value="0" min="0" max="100" oninput="renderSummary()">
+              </div>
+              <div class="field" style="margin-bottom:0">
+                <label>GST %</label>
+                <input id="nb-taxpct" type="number" value="0" min="0" max="28" oninput="renderSummary()">
+              </div>
+            </div>
+            <div class="summary-box">
+              <div class="summary-line"><span>Subtotal</span><span class="mono" id="sum-subtotal">₹0.00</span></div>
+              <div class="summary-line"><span>Discount</span><span class="mono" id="sum-discount">− ₹0.00</span></div>
+              <div class="summary-line"><span>GST</span><span class="mono" id="sum-tax">+ ₹0.00</span></div>
+              <div class="summary-line total"><span>Total Payable</span><span class="mono" id="sum-total">₹0.00</span></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h2>Collect Payment</h2></div>
+            <div class="field">
+              <label>Amount Received Now (₹)</label>
+              <input id="nb-received" type="number" min="0" value="0" oninput="renderSummary()">
+            </div>
+            <div class="field">
+              <label>Payment Mode</label>
+              <select id="nb-mode">
+                <option>Cash</option><option>Card</option><option>UPI</option>
+                <option>Insurance / TPA</option><option>Cheque</option><option>Net Banking</option>
+              </select>
+            </div>
+            <div class="summary-box" style="margin-bottom:15px">
+              <div class="summary-line"><span>Balance Due</span><span class="mono" id="sum-balance">₹0.00</span></div>
+            </div>
+            <p class="empty" id="nb-error" style="display:none;padding:0;color:var(--rust);text-align:left;font-size:12.5px;margin-bottom:10px;"></p>
+            <button class="btn gold" style="width:100%;justify-content:center;padding:13px;" id="save-bill-btn" onclick="saveBill()">Save &amp; Generate Bill</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== PAYMENTS ===================== -->
+    <div class="view" id="view-payments">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Billing / Collections</div>
+          <h1>Payments</h1>
+          <div class="desc">Every payment collected against patient bills, with mode-wise breakdown.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Collection by Mode</h2></div>
+        <div class="donut-wrap" id="mode-donut"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Payment Log</h2></div>
+        <table>
+          <thead><tr><th>Date</th><th>Bill No.</th><th>Patient</th><th>Mode</th><th style="text-align:right">Amount</th><th>Reference</th></tr></thead>
+          <tbody id="payments-body"></tbody>
+        </table>
+        <div class="empty" id="payments-empty" style="display:none">No payments recorded yet.</div>
+      </div>
+    </div>
+
+    <!-- ===================== CLAIMS ===================== -->
+    <div class="view" id="view-claims">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Insurance / TPA</div>
+          <h1>Insurance &amp; TPA Claims</h1>
+          <div class="desc">Track claim lifecycle from submission to settlement, and reconcile patient co-pay.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead><tr>
+            <th>Bill No.</th><th>Patient</th><th>Payer / TPA</th><th>Policy No.</th>
+            <th style="text-align:right">Billed</th><th style="text-align:right">Approved</th>
+            <th style="text-align:right">Co-pay</th><th>Status</th><th></th>
+          </tr></thead>
+          <tbody id="claims-body"></tbody>
+        </table>
+        <div class="empty" id="claims-empty" style="display:none">No insurance-linked bills yet.</div>
+      </div>
+    </div>
+
+    <!-- ===================== REPORTS ===================== -->
+    <div class="view" id="view-reports">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Insights</div>
+          <h1>Reports</h1>
+          <div class="desc">Aggregate revenue and collection performance across the dataset.</div>
+        </div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi rev"><div class="label">Total Billed</div><div class="value" id="rep-billed">₹0</div></div>
+        <div class="kpi paid"><div class="label">Total Collected</div><div class="value" id="rep-collected">₹0</div></div>
+        <div class="kpi pending"><div class="label">Total Outstanding</div><div class="value" id="rep-outstanding">₹0</div></div>
+        <div class="kpi claims"><div class="label">Avg. Bill Value</div><div class="value" id="rep-avg">₹0</div></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-head"><h2>Department-wise Revenue</h2></div>
+          <div class="donut-wrap" id="rep-dept-donut"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Payment Mode Split</h2></div>
+          <div class="donut-wrap" id="rep-mode-donut"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== TARIFF ===================== -->
+    <div class="view" id="view-tariff">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Configuration</div>
+          <h1>Tariff Settings</h1>
+          <div class="desc">Default rates used by the quick-add presets in Create Bill and by auto-tracked patient charges, set for this hospital.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Add Charge Head</h2></div>
+        <div class="field-row" style="grid-template-columns:1.6fr 1fr 1fr auto; align-items:end;">
+          <div class="field" style="margin-bottom:0;">
+            <label>Charge Head</label>
+            <input id="tf-head" placeholder="e.g. ECG">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Department</label>
+            <select id="tf-dept">
+              <option>OPD</option><option>IPD</option><option>Pathology</option>
+              <option>Radiology</option><option>Pharmacy</option><option>Emergency</option><option>Misc</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Default Rate (₹)</label>
+            <input id="tf-rate" type="number" min="0" value="0">
+          </div>
+          <button class="btn gold" style="padding:10px 18px;" id="tariff-add-btn">+ Add</button>
+        </div>
+        <p class="empty" id="tf-error" style="display:none;padding:0;color:var(--rust);text-align:left;font-size:12.5px;margin:10px 0 0;"></p>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead><tr><th>Charge Head</th><th>Department</th><th style="text-align:right">Default Rate (₹)</th><th></th></tr></thead>
+          <tbody id="tariff-body"></tbody>
+        </table>
+        <div class="empty" id="tariff-empty" style="display:none">No tariff items yet — add one above.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</template>
+
+<!-- ===================== PRINTABLE INVOICE ===================== -->
+<div class="invoice-wrap" id="invoice-wrap">
+  <div class="invoice-toolbar">
+    <button class="btn secondary" onclick="closeInvoice()">Close</button>
+    <button class="btn gold" onclick="window.print()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
+      Download / Print Bill
+    </button>
+  </div>
+  <div class="invoice-sheet">
+    <button class="close-x" onclick="closeInvoice()">&times;</button>
+    <div class="invoice-body" id="invoice-body"><!-- filled by JS --></div>
+  </div>
+</div>
+
+<!-- ===================== PATIENT LEDGER ===================== -->
+<div class="invoice-wrap" id="ledger-wrap">
+  <div class="invoice-toolbar">
+    <button class="btn secondary" onclick="closeLedger()">Close</button>
+  </div>
+  <div class="invoice-sheet" style="max-width:720px;">
+    <button class="close-x" onclick="closeLedger()">&times;</button>
+    <div class="invoice-body" id="ledger-body" style="padding:32px 34px 30px;"><!-- filled by JS --></div>
+  </div>
+</div>
+
+<script src="billing-desk.js"></script>
+</body>
+</html>
