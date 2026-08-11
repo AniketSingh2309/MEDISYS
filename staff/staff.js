@@ -85,7 +85,8 @@
         actionCard("ward-setup.html", "ward", "Ward &amp; Bed Setup", "Add wards and beds for this hospital") +
         actionCard("bed-allocation.html", "bed", "Bed Allocation", "Allocate a bed to a pending admission request") +
         actionCard("nurse-ipd.html", "admission", "IPD Patients", "Log medication administered for admitted patients") +
-        actionCard("nurse-patients.html", "queue", "My Patients", "Patients auto-assigned to you for this shift");
+        actionCard("nurse-patients.html", "queue", "My Patients", "Patients auto-assigned to you for this shift") +
+        actionCard("nurse-all-patients.html", "queue", "All Patients", "Every admitted patient hospital-wide, with a Discharge button");
     } else if (role === "doctor") {
       actionCards.innerHTML =
         actionCard("doctor-schedule.html", "clock", "My Schedule", "Set your weekly available time slots") +

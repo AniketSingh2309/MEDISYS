@@ -1,6 +1,6 @@
--- MySQL dump 10.13  Distrib 9.5.0, for Win64 (x86_64)
+-- MySQL dump 10.13  Distrib 8.0.46, for Win64 (x86_64)
 --
--- Host: 127.0.0.1    Database: medisys_h10_city_hospital_ghatkopar
+-- Host: localhost    Database: medisys_h10_city_hospital_ghatkopar
 -- ------------------------------------------------------
 -- Server version	8.0.46
 
@@ -14,14 +14,6 @@
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Current Database: `medisys_h10_city_hospital_ghatkopar`
---
-
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `medisys_h10_city_hospital_ghatkopar` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
-
-USE `medisys_h10_city_hospital_ghatkopar`;
 
 --
 -- Table structure for table `beds`
@@ -38,7 +30,7 @@ CREATE TABLE `beds` (
   `status` varchar(20) NOT NULL DEFAULT 'available',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=164 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -47,7 +39,7 @@ CREATE TABLE `beds` (
 
 LOCK TABLES `beds` WRITE;
 /*!40000 ALTER TABLE `beds` DISABLE KEYS */;
-INSERT INTO `beds` VALUES (1,10,1,'b-01','occupied','2026-07-30 08:33:05'),(2,10,2,'B-01','occupied','2026-07-30 09:07:36'),(3,10,3,'V-01','occupied','2026-07-30 09:44:45'),(4,10,1,'B-02','occupied','2026-07-30 10:34:15'),(5,10,2,'B022','available','2026-08-05 10:45:11');
+INSERT INTO `beds` VALUES (1,10,1,'b-01','occupied','2026-07-30 08:33:05'),(2,10,2,'B-01','occupied','2026-07-30 09:07:36'),(3,10,3,'V-01','occupied','2026-07-30 09:44:45'),(4,10,1,'B-02','available','2026-07-30 10:34:15'),(5,10,2,'B022','available','2026-08-05 10:45:11'),(6,10,1,'B-03','available','2026-08-10 11:11:08'),(7,10,2,'B-033','available','2026-08-10 11:11:22'),(14,10,2,'B-04','available','2026-08-10 12:09:01'),(15,10,2,'B-05','available','2026-08-10 12:09:01'),(16,10,2,'B-06','available','2026-08-10 12:09:01'),(17,10,2,'B-07','available','2026-08-10 12:09:01'),(18,10,2,'B-08','available','2026-08-10 12:09:01'),(19,10,2,'B-09','available','2026-08-10 12:09:01'),(20,10,2,'B-10','available','2026-08-10 12:09:01'),(21,10,2,'B-11','available','2026-08-10 12:09:01'),(22,10,2,'B-12','available','2026-08-10 12:09:01'),(23,10,2,'B-13','available','2026-08-10 12:09:01'),(24,10,2,'B-14','available','2026-08-10 12:09:01'),(25,10,2,'B-15','available','2026-08-10 12:09:01'),(26,10,2,'B-16','available','2026-08-10 12:09:01'),(27,10,2,'B-17','available','2026-08-10 12:09:01'),(28,10,2,'B-18','available','2026-08-10 12:09:01'),(29,10,2,'B-19','available','2026-08-10 12:09:01'),(30,10,2,'B-20','available','2026-08-10 12:09:01'),(31,10,2,'B-21','available','2026-08-10 12:09:01'),(32,10,2,'B-22','available','2026-08-10 12:09:01'),(33,10,2,'B-23','available','2026-08-10 12:09:01'),(34,10,2,'B-24','available','2026-08-10 12:09:01'),(35,10,2,'B-25','available','2026-08-10 12:09:01'),(36,10,2,'B-26','available','2026-08-10 12:09:01'),(37,10,2,'B-27','available','2026-08-10 12:09:01'),(38,10,2,'B-28','available','2026-08-10 12:09:01'),(39,10,2,'B-29','available','2026-08-10 12:09:01'),(40,10,2,'B-30','available','2026-08-10 12:09:01'),(41,10,2,'B-31','available','2026-08-10 12:09:01'),(42,10,2,'B-32','available','2026-08-10 12:09:01'),(43,10,2,'B-33','available','2026-08-10 12:09:01'),(44,10,2,'B-34','available','2026-08-10 12:09:01'),(45,10,2,'B-35','available','2026-08-10 12:09:01'),(46,10,2,'B-36','available','2026-08-10 12:09:01'),(47,10,2,'B-37','available','2026-08-10 12:09:01'),(48,10,2,'B-38','available','2026-08-10 12:09:01'),(49,10,2,'B-39','available','2026-08-10 12:09:01'),(50,10,2,'B-40','available','2026-08-10 12:09:01'),(51,10,2,'B-41','available','2026-08-10 12:09:01'),(52,10,2,'B-42','available','2026-08-10 12:09:01'),(53,10,2,'B-43','available','2026-08-10 12:09:01'),(54,10,2,'B-44','available','2026-08-10 12:09:01'),(55,10,2,'B-45','available','2026-08-10 12:09:01'),(56,10,2,'B-46','available','2026-08-10 12:09:01'),(57,10,2,'B-47','available','2026-08-10 12:09:01'),(58,10,2,'B-48','available','2026-08-10 12:09:01'),(59,10,2,'B-49','available','2026-08-10 12:09:01'),(60,10,2,'B-50','available','2026-08-10 12:09:01'),(61,10,2,'B-51','available','2026-08-10 12:09:01'),(62,10,2,'B-52','available','2026-08-10 12:09:01'),(63,10,2,'B-53','available','2026-08-10 12:09:01'),(64,10,2,'B-54','available','2026-08-10 12:09:01'),(65,10,2,'B-55','available','2026-08-10 12:09:01'),(66,10,2,'B-56','available','2026-08-10 12:09:01'),(67,10,2,'B-57','available','2026-08-10 12:09:01'),(68,10,2,'B-58','available','2026-08-10 12:09:01'),(69,10,2,'B-59','available','2026-08-10 12:09:01'),(70,10,2,'B-60','available','2026-08-10 12:09:01'),(71,10,2,'B-61','available','2026-08-10 12:09:01'),(72,10,2,'B-62','available','2026-08-10 12:09:01'),(73,10,2,'B-63','available','2026-08-10 12:09:01'),(74,10,2,'B-64','available','2026-08-10 12:09:01'),(75,10,2,'B-65','available','2026-08-10 12:09:01'),(76,10,2,'B-66','available','2026-08-10 12:09:01'),(77,10,2,'B-67','available','2026-08-10 12:09:01'),(78,10,2,'B-68','available','2026-08-10 12:09:01'),(79,10,2,'B-69','available','2026-08-10 12:09:01'),(80,10,2,'B-70','available','2026-08-10 12:09:01'),(81,10,2,'B-71','available','2026-08-10 12:09:01'),(82,10,2,'B-72','available','2026-08-10 12:09:01'),(83,10,2,'B-73','available','2026-08-10 12:09:01'),(84,10,2,'B-74','available','2026-08-10 12:09:01'),(85,10,2,'B-75','available','2026-08-10 12:09:01'),(86,10,2,'B-76','available','2026-08-10 12:09:01'),(87,10,2,'B-77','available','2026-08-10 12:09:01'),(88,10,2,'B-78','available','2026-08-10 12:09:01'),(89,10,2,'B-79','available','2026-08-10 12:09:01'),(90,10,2,'B-80','available','2026-08-10 12:09:01'),(91,10,2,'B-81','available','2026-08-10 12:09:01'),(92,10,2,'B-82','available','2026-08-10 12:09:01'),(93,10,2,'B-83','available','2026-08-10 12:09:01'),(94,10,2,'B-84','available','2026-08-10 12:09:01'),(95,10,2,'B-85','available','2026-08-10 12:09:01'),(96,10,2,'B-86','available','2026-08-10 12:09:01'),(97,10,2,'B-87','available','2026-08-10 12:09:01'),(98,10,2,'B-88','available','2026-08-10 12:09:01'),(99,10,2,'B-89','available','2026-08-10 12:09:01'),(100,10,2,'B-90','available','2026-08-10 12:09:01'),(101,10,2,'B-91','available','2026-08-10 12:09:01'),(102,10,2,'B-92','available','2026-08-10 12:09:01'),(103,10,2,'B-93','available','2026-08-10 12:09:01'),(104,10,2,'B-94','available','2026-08-10 12:09:01'),(105,10,2,'B-95','available','2026-08-10 12:09:01'),(106,10,2,'B-96','available','2026-08-10 12:09:01'),(107,10,2,'B-97','available','2026-08-10 12:09:01'),(108,10,2,'B-98','available','2026-08-10 12:09:01'),(109,10,2,'B-99','available','2026-08-10 12:09:01'),(110,10,2,'B-100','occupied','2026-08-10 12:09:01'),(111,10,2,'B-101','available','2026-08-10 12:09:01'),(112,10,2,'B-102','available','2026-08-10 12:09:01'),(113,10,2,'B-103','available','2026-08-10 12:09:01'),(114,10,1,'B-04','available','2026-08-10 12:32:06'),(115,10,1,'B-05','available','2026-08-10 12:32:06'),(116,10,1,'B-06','available','2026-08-10 12:32:06'),(117,10,1,'B-07','available','2026-08-10 12:32:06'),(118,10,1,'B-08','available','2026-08-10 12:32:06'),(119,10,1,'B-09','available','2026-08-10 12:32:06'),(120,10,1,'B-10','available','2026-08-10 12:32:06'),(121,10,1,'B-11','available','2026-08-10 12:32:06'),(122,10,1,'B-12','available','2026-08-10 12:32:06'),(123,10,1,'B-13','available','2026-08-10 12:32:06'),(124,10,1,'B-14','available','2026-08-10 12:32:06'),(125,10,1,'B-15','available','2026-08-10 12:32:06'),(126,10,1,'B-16','available','2026-08-10 12:32:06'),(127,10,1,'B-17','available','2026-08-10 12:32:06'),(128,10,1,'B-18','available','2026-08-10 12:32:06'),(129,10,1,'B-19','available','2026-08-10 12:32:06'),(130,10,1,'B-20','available','2026-08-10 12:32:06'),(131,10,1,'B-21','available','2026-08-10 12:32:06'),(132,10,1,'B-22','available','2026-08-10 12:32:06'),(133,10,1,'B-23','available','2026-08-10 12:32:06'),(134,10,1,'B-24','available','2026-08-10 12:32:06'),(135,10,1,'B-25','available','2026-08-10 12:32:06'),(136,10,1,'B-26','available','2026-08-10 12:32:06'),(137,10,1,'B-27','available','2026-08-10 12:32:06'),(138,10,1,'B-28','available','2026-08-10 12:32:06'),(139,10,1,'B-29','available','2026-08-10 12:32:06'),(140,10,1,'B-30','available','2026-08-10 12:32:06'),(141,10,1,'B-31','available','2026-08-10 12:32:06'),(142,10,1,'B-32','available','2026-08-10 12:32:06'),(143,10,1,'B-33','available','2026-08-10 12:32:06'),(144,10,1,'B-34','available','2026-08-10 12:32:06'),(145,10,1,'B-35','available','2026-08-10 12:32:06'),(146,10,1,'B-36','available','2026-08-10 12:32:06'),(147,10,1,'B-37','available','2026-08-10 12:32:06'),(148,10,1,'B-38','available','2026-08-10 12:32:06'),(149,10,1,'B-39','available','2026-08-10 12:32:06'),(150,10,1,'B-40','available','2026-08-10 12:32:06'),(151,10,1,'B-41','available','2026-08-10 12:32:06'),(152,10,1,'B-42','available','2026-08-10 12:32:06'),(153,10,1,'B-43','available','2026-08-10 12:32:06'),(154,10,1,'B-44','available','2026-08-10 12:32:06'),(155,10,1,'B-45','available','2026-08-10 12:32:06'),(156,10,1,'B-46','available','2026-08-10 12:32:06'),(157,10,1,'B-47','available','2026-08-10 12:32:06'),(158,10,1,'B-48','available','2026-08-10 12:32:06'),(159,10,1,'B-49','available','2026-08-10 12:32:06'),(160,10,1,'B-50','available','2026-08-10 12:32:06'),(161,10,1,'B-51','available','2026-08-10 12:32:06'),(162,10,1,'B-52','available','2026-08-10 12:32:06'),(163,10,1,'B-53','available','2026-08-10 12:32:06');
 /*!40000 ALTER TABLE `beds` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -68,7 +60,7 @@ CREATE TABLE `bill_items` (
   `rate` decimal(10,2) NOT NULL DEFAULT '0.00',
   `amount` decimal(10,2) NOT NULL DEFAULT '0.00',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -77,7 +69,7 @@ CREATE TABLE `bill_items` (
 
 LOCK TABLES `bill_items` WRITE;
 /*!40000 ALTER TABLE `bill_items` DISABLE KEYS */;
-INSERT INTO `bill_items` VALUES (1,10,1,'Consultation Fee','OPD',1.00,600.00,600.00),(2,10,1,'Pathology � Test Panel','Pathology',1.00,450.00,450.00),(3,10,2,'Registration Fee','OPD',1.00,100.00,100.00),(4,10,3,'Registration Fee','OPD',1.00,100.00,100.00),(5,10,3,'Consultation Fee','OPD',1.00,600.00,600.00),(6,10,3,'CBC (Complete Blood Count)','Pathology',1.00,300.00,300.00),(7,10,4,'Registration Fee','OPD',1.00,100.00,100.00),(8,10,4,'Consultation Fee','OPD',1.00,600.00,600.00),(9,10,4,'Chest X-Ray','Radiology',1.00,400.00,400.00);
+INSERT INTO `bill_items` VALUES (1,10,1,'Consultation Fee','OPD',1.00,600.00,600.00),(2,10,1,'Pathology � Test Panel','Pathology',1.00,450.00,450.00),(3,10,2,'Registration Fee','OPD',1.00,100.00,100.00),(4,10,3,'Registration Fee','OPD',1.00,100.00,100.00),(5,10,3,'Consultation Fee','OPD',1.00,600.00,600.00),(6,10,3,'CBC (Complete Blood Count)','Pathology',1.00,300.00,300.00),(7,10,4,'Registration Fee','OPD',1.00,100.00,100.00),(8,10,4,'Consultation Fee','OPD',1.00,600.00,600.00),(9,10,4,'Chest X-Ray','Radiology',1.00,400.00,400.00),(10,10,5,'Registration Fee','OPD',1.00,100.00,100.00),(11,10,5,'Consultation Fee','OPD',1.00,600.00,600.00),(12,10,5,'Chest X-Ray','Radiology',1.00,400.00,400.00),(13,10,5,'CBC (Complete Blood Count)','Pathology',1.00,300.00,300.00),(14,10,5,'Dengue NS1/IgM/IgG','Pathology',1.00,600.00,600.00);
 /*!40000 ALTER TABLE `bill_items` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -98,7 +90,7 @@ CREATE TABLE `bill_payments` (
   `paid_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -107,7 +99,7 @@ CREATE TABLE `bill_payments` (
 
 LOCK TABLES `bill_payments` WRITE;
 /*!40000 ALTER TABLE `bill_payments` DISABLE KEYS */;
-INSERT INTO `bill_payments` VALUES (1,10,1,500.00,'UPI','RCPT-6621','2026-08-10 04:45:54','BS-CHG-24966'),(2,10,1,602.50,'Cash','RCPT-TEST','2026-08-10 04:46:07','BS-CHG-24966'),(3,10,2,100.00,'Cash','RCPT-9448','2026-08-10 05:58:17','BS-CHG-24966'),(4,10,3,1000.00,'UPI','RCPT-5080','2026-08-10 06:02:47','BS-CHG-24966'),(5,10,4,1100.00,'Cash','RCPT-8781','2026-08-10 06:21:24','BS-CHG-46457');
+INSERT INTO `bill_payments` VALUES (1,10,1,500.00,'UPI','RCPT-6621','2026-08-10 04:45:54','BS-CHG-24966'),(2,10,1,602.50,'Cash','RCPT-TEST','2026-08-10 04:46:07','BS-CHG-24966'),(3,10,2,100.00,'Cash','RCPT-9448','2026-08-10 05:58:17','BS-CHG-24966'),(4,10,3,1000.00,'UPI','RCPT-5080','2026-08-10 06:02:47','BS-CHG-24966'),(5,10,4,1100.00,'Cash','RCPT-8781','2026-08-10 06:21:24','BS-CHG-46457'),(6,10,5,2000.00,'Cash','RCPT-4103','2026-08-10 07:03:25','BS-CHG-46457');
 /*!40000 ALTER TABLE `bill_payments` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -173,7 +165,7 @@ CREATE TABLE `bills` (
   `created_by` varchar(50) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -182,7 +174,7 @@ CREATE TABLE `bills` (
 
 LOCK TABLES `bills` WRITE;
 /*!40000 ALTER TABLE `bills` DISABLE KEYS */;
-INSERT INTO `bills` VALUES (1,10,'CN/2026/7665','PAT-CHG-0002','ASHISH',NULL,'OPD','DR-CHG-49545','2026-08-06',1050.00,0.00,0.00,5.00,52.50,1102.50,1102.50,0.00,'Paid',1,'Star Health','SH-88213340','Approved',1102.50,'BS-CHG-24966','2026-08-10 04:45:54'),(2,10,'CN/2026/9679','PAT-CHG-0002','ASHISH',NULL,'OPD',NULL,'2026-08-10',100.00,0.00,0.00,0.00,0.00,100.00,100.00,0.00,'Paid',0,NULL,NULL,NULL,NULL,'BS-CHG-24966','2026-08-10 05:58:17'),(3,10,'CN/2026/9673','PAT-CHG-000008','Sachin',NULL,'OPD',NULL,'2026-08-10',1000.00,0.00,0.00,0.00,0.00,1000.00,1000.00,0.00,'Paid',0,NULL,NULL,NULL,NULL,'BS-CHG-24966','2026-08-10 06:02:47'),(4,10,'CN/2026/8743','PAT-CHG-0005','rosemary',NULL,'OPD',NULL,'2026-08-10',1100.00,0.00,0.00,0.00,0.00,1100.00,1100.00,0.00,'Paid',0,NULL,NULL,NULL,NULL,'BS-CHG-46457','2026-08-10 06:21:24');
+INSERT INTO `bills` VALUES (1,10,'CN/2026/7665','PAT-CHG-0002','ASHISH',NULL,'OPD','DR-CHG-49545','2026-08-06',1050.00,0.00,0.00,5.00,52.50,1102.50,1102.50,0.00,'Paid',1,'Star Health','SH-88213340','Approved',1102.50,'BS-CHG-24966','2026-08-10 04:45:54'),(2,10,'CN/2026/9679','PAT-CHG-0002','ASHISH',NULL,'OPD',NULL,'2026-08-10',100.00,0.00,0.00,0.00,0.00,100.00,100.00,0.00,'Paid',0,NULL,NULL,NULL,NULL,'BS-CHG-24966','2026-08-10 05:58:17'),(3,10,'CN/2026/9673','PAT-CHG-000008','Sachin',NULL,'OPD',NULL,'2026-08-10',1000.00,0.00,0.00,0.00,0.00,1000.00,1000.00,0.00,'Paid',0,NULL,NULL,NULL,NULL,'BS-CHG-24966','2026-08-10 06:02:47'),(4,10,'CN/2026/8743','PAT-CHG-0005','rosemary',NULL,'OPD',NULL,'2026-08-10',1100.00,0.00,0.00,0.00,0.00,1100.00,1100.00,0.00,'Paid',0,NULL,NULL,NULL,NULL,'BS-CHG-46457','2026-08-10 06:21:24'),(5,10,'CN/2026/2897','PAT-CHG-1002','SAKSHI',NULL,'OPD',NULL,'2026-08-10',2000.00,0.00,0.00,0.00,0.00,2000.00,2000.00,0.00,'Paid',0,NULL,NULL,NULL,NULL,'BS-CHG-46457','2026-08-10 07:03:25');
 /*!40000 ALTER TABLE `bills` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -240,7 +232,7 @@ CREATE TABLE `blood_donors` (
   `created_by` varchar(50) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -249,7 +241,7 @@ CREATE TABLE `blood_donors` (
 
 LOCK TABLES `blood_donors` WRITE;
 /*!40000 ALTER TABLE `blood_donors` DISABLE KEYS */;
-INSERT INTO `blood_donors` VALUES (1,10,'Rahul Trivedi',NULL,'O+','9820011223','2026-08-06',3,'BB-CHG-92247','2026-08-06 08:23:44');
+INSERT INTO `blood_donors` VALUES (1,10,'Rahul Trivedi',NULL,'O+','9820011223','2026-08-06',3,'BB-CHG-92247','2026-08-06 08:23:44'),(2,10,'PRANAY',NULL,'O+',NULL,'2026-08-04',0,'BB-CHG-14153','2026-08-10 11:24:40');
 /*!40000 ALTER TABLE `blood_donors` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -389,7 +381,7 @@ CREATE TABLE `consultations` (
   `decision` varchar(60) NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -398,7 +390,7 @@ CREATE TABLE `consultations` (
 
 LOCK TABLES `consultations` WRITE;
 /*!40000 ALTER TABLE `consultations` DISABLE KEYS */;
-INSERT INTO `consultations` VALUES (1,10,1,'UH-CHG-000001','DR-CHG-49545',NULL,NULL,'order_tests','2026-07-30 08:42:57'),(2,10,4,'PAT-CHG-0003','DR-CHG-49545','bawasir','normal','admit','2026-07-30 09:41:53'),(3,10,5,'PAT-CHG-0004','DR-CHG-49545','NO PAIN NO GAIN',NULL,'admit','2026-07-30 10:33:15'),(4,10,6,'PAT-CHG-1001','DR-CHG-49545','HIGH FEVERR','NEED TO REST FOR 15 DAYS','order_tests','2026-08-05 09:29:31'),(6,10,13,'PAT-CHG-1002','DR-CHG-49545','HIGH FEVER','NEED TO TAKE REST FOR 3 DAYS','prescribe,order_tests','2026-08-05 10:32:34'),(7,10,16,'PAT-CHG-000008','DR-CHG-49545','Fatigue',NULL,'order_tests','2026-08-10 06:02:27'),(8,10,17,'PAT-CHG-0005','DR-CHG-49545',NULL,NULL,'order_tests','2026-08-10 06:16:03');
+INSERT INTO `consultations` VALUES (1,10,1,'UH-CHG-000001','DR-CHG-49545',NULL,NULL,'order_tests','2026-07-30 08:42:57'),(2,10,4,'PAT-CHG-0003','DR-CHG-49545','bawasir','normal','admit','2026-07-30 09:41:53'),(3,10,5,'PAT-CHG-0004','DR-CHG-49545','NO PAIN NO GAIN',NULL,'admit','2026-07-30 10:33:15'),(4,10,6,'PAT-CHG-1001','DR-CHG-49545','HIGH FEVERR','NEED TO REST FOR 15 DAYS','order_tests','2026-08-05 09:29:31'),(6,10,13,'PAT-CHG-1002','DR-CHG-49545','HIGH FEVER','NEED TO TAKE REST FOR 3 DAYS','prescribe,order_tests','2026-08-05 10:32:34'),(7,10,16,'PAT-CHG-000008','DR-CHG-49545','Fatigue',NULL,'order_tests','2026-08-10 06:02:27'),(8,10,17,'PAT-CHG-0005','DR-CHG-49545',NULL,NULL,'order_tests','2026-08-10 06:16:03'),(9,10,18,'PAT-CHG-1003','DR-CHG-49545','HIGH FEVER','TAKE A REST','prescribe,order_tests,admit','2026-08-10 11:10:09');
 /*!40000 ALTER TABLE `consultations` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -613,8 +605,10 @@ CREATE TABLE `ipd_admissions` (
   `created_by` varchar(50) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `admitted_at` timestamp NULL DEFAULT NULL,
+  `discharged_at` timestamp NULL DEFAULT NULL,
+  `discharged_by` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -623,7 +617,7 @@ CREATE TABLE `ipd_admissions` (
 
 LOCK TABLES `ipd_admissions` WRITE;
 /*!40000 ALTER TABLE `ipd_admissions` DISABLE KEYS */;
-INSERT INTO `ipd_admissions` VALUES (2,10,'UH-CHG-000001','DR-CHG-49545',1,1,1,NULL,NULL,'admitted',NULL,NULL,'OPD-CHG-70518','2026-07-30 08:53:05','2026-07-30 08:56:58'),(3,10,'PAT-CHG-0002','DR-CHG-49545',2,2,0,NULL,NULL,'admitted',NULL,NULL,'OPD-CHG-70518','2026-07-30 09:06:37','2026-07-30 09:07:49'),(6,10,'PAT-CHG-0003','DR-CHG-49545',3,3,1,NULL,NULL,'admitted',NULL,NULL,'OPD-CHG-70518','2026-07-30 09:42:49','2026-07-30 09:44:57'),(7,10,'PAT-CHG-0004','DR-CHG-49545',1,4,0,NULL,NULL,'admitted',5,NULL,'DR-CHG-49545','2026-07-30 10:33:15','2026-07-30 10:34:28');
+INSERT INTO `ipd_admissions` VALUES (2,10,'UH-CHG-000001','DR-CHG-49545',1,1,1,NULL,NULL,'admitted',NULL,NULL,'OPD-CHG-70518','2026-07-30 08:53:05','2026-07-30 08:56:58',NULL,NULL),(3,10,'PAT-CHG-0002','DR-CHG-49545',2,2,0,NULL,NULL,'admitted',NULL,NULL,'OPD-CHG-70518','2026-07-30 09:06:37','2026-07-30 09:07:49',NULL,NULL),(6,10,'PAT-CHG-0003','DR-CHG-49545',3,3,1,NULL,NULL,'admitted',NULL,NULL,'OPD-CHG-70518','2026-07-30 09:42:49','2026-07-30 09:44:57',NULL,NULL),(7,10,'PAT-CHG-0004','DR-CHG-49545',1,4,0,NULL,NULL,'discharged',5,NULL,'DR-CHG-49545','2026-07-30 10:33:15','2026-07-30 10:34:28','2026-08-10 12:28:42','NR-CHG-88859'),(8,10,'PAT-CHG-1003','DR-CHG-49545',2,110,0,NULL,NULL,'admitted',18,'NR-CHG-88859','DR-CHG-49545','2026-08-10 11:10:09','2026-08-10 12:09:29',NULL,NULL);
 /*!40000 ALTER TABLE `ipd_admissions` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -672,7 +666,7 @@ CREATE TABLE `lab_order_images` (
   `uploaded_by` varchar(50) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -681,7 +675,7 @@ CREATE TABLE `lab_order_images` (
 
 LOCK TABLES `lab_order_images` WRITE;
 /*!40000 ALTER TABLE `lab_order_images` DISABLE KEYS */;
-INSERT INTO `lab_order_images` VALUES (2,10,2,'1785922266199-799324468.png','PRANAY KHUSPE.png','PATHOLOGY-CHG-0001','2026-08-05 09:31:06'),(3,10,3,'1785922544600-575023253.jpg','Normal_posteroanterior_(PA)_chest_radiograph_(X-ray).jpg','RADIO-CHG-0001','2026-08-05 09:35:44'),(4,10,12,'1785926052711-667057918.jpg','Normal_posteroanterior_(PA)_chest_radiograph_(X-ray).jpg','RADIO-CHG-0001','2026-08-05 10:34:12'),(5,10,13,'1785926209635-870127507.png','Architecture.drawio.png','PATHOLAB-CHG-0001','2026-08-05 10:36:49'),(6,10,14,'1785926271555-62151013.png','high_resolution_image (1).png','PATHOLAB-CHG-0001','2026-08-05 10:37:51');
+INSERT INTO `lab_order_images` VALUES (2,10,2,'1785922266199-799324468.png','PRANAY KHUSPE.png','PATHOLOGY-CHG-0001','2026-08-05 09:31:06'),(3,10,3,'1785922544600-575023253.jpg','Normal_posteroanterior_(PA)_chest_radiograph_(X-ray).jpg','RADIO-CHG-0001','2026-08-05 09:35:44'),(4,10,12,'1785926052711-667057918.jpg','Normal_posteroanterior_(PA)_chest_radiograph_(X-ray).jpg','RADIO-CHG-0001','2026-08-05 10:34:12'),(5,10,13,'1785926209635-870127507.png','Architecture.drawio.png','PATHOLAB-CHG-0001','2026-08-05 10:36:49'),(6,10,14,'1785926271555-62151013.png','high_resolution_image (1).png','PATHOLAB-CHG-0001','2026-08-05 10:37:51'),(7,10,17,'1786360407396-955956025.jpg','CBC.jpg','PATHOLOGY-CHG-0001','2026-08-10 11:13:27'),(8,10,18,'1786360471282-597760391.jpg','Normal_posteroanterior_(PA)_chest_radiograph_(X-ray).jpg','RADIO-CHG-0001','2026-08-10 11:14:31');
 /*!40000 ALTER TABLE `lab_order_images` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -712,7 +706,7 @@ CREATE TABLE `lab_orders` (
   `verified_by` varchar(50) DEFAULT NULL,
   `verified_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -721,7 +715,7 @@ CREATE TABLE `lab_orders` (
 
 LOCK TABLES `lab_orders` WRITE;
 /*!40000 ALTER TABLE `lab_orders` DISABLE KEYS */;
-INSERT INTO `lab_orders` VALUES (2,10,6,NULL,'PAT-CHG-1001',1,'DR-CHG-49545','verified','PATHOLAB-CHG-0001',NULL,NULL,NULL,'PATHOLAB-CHG-0001','2026-08-05 09:33:20','2026-08-05 09:29:31','urgent','PATHOLAB-CHG-0001','2026-08-05 09:33:20'),(3,10,6,NULL,'PAT-CHG-1001',24,'DR-CHG-49545','verified','RADIO-CHG-0001','TECHNIQUE: Plain radiograph, single view.\n\nFINDINGS:\nLung fields: \nCardiac silhouette: \nBony thorax: \n\nIMPRESSION:\n',NULL,NULL,'RADIO-CHG-0001','2026-08-05 09:36:00','2026-08-05 09:29:31','routine','RADIO-CHG-0001','2026-08-05 09:36:00'),(4,10,6,NULL,'PAT-CHG-1001',3,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(5,10,6,NULL,'PAT-CHG-1001',8,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(6,10,6,NULL,'PAT-CHG-1001',6,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(7,10,6,NULL,'PAT-CHG-1001',26,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(8,10,6,NULL,'PAT-CHG-1001',27,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(9,10,6,NULL,'PAT-CHG-1001',22,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(10,10,6,NULL,'PAT-CHG-1001',28,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(12,10,13,NULL,'PAT-CHG-1002',24,'DR-CHG-49545','verified','RA-CHG-33409','TECHNIQUE: Plain CT, axial sections.\n\nFINDINGS:\nLung parenchyma: \nMediastinum: \nPleura: \nBones: \n\nIMPRESSION:\n',NULL,NULL,'RADIO-CHG-0001','2026-08-05 10:34:32','2026-08-05 10:32:35','urgent','RADIO-CHG-0001','2026-08-05 10:34:32'),(13,10,13,NULL,'PAT-CHG-1002',1,'DR-CHG-49545','verified','PATHOLAB-CHG-0001',NULL,NULL,NULL,'PATHOLAB-CHG-0001','2026-08-05 10:36:55','2026-08-05 10:32:35','routine','PATHOLAB-CHG-0001','2026-08-05 10:36:55'),(14,10,13,NULL,'PAT-CHG-1002',22,'DR-CHG-49545','verified','PATHOLAB-CHG-0001',NULL,NULL,NULL,'PATHOLAB-CHG-0001','2026-08-05 10:37:57','2026-08-05 10:32:35','routine','PATHOLAB-CHG-0001','2026-08-05 10:37:57'),(15,10,16,NULL,'PAT-CHG-000008',1,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-10 06:02:27','routine',NULL,NULL),(16,10,17,NULL,'PAT-CHG-0005',24,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-10 06:16:03','routine',NULL,NULL);
+INSERT INTO `lab_orders` VALUES (2,10,6,NULL,'PAT-CHG-1001',1,'DR-CHG-49545','verified','PATHOLAB-CHG-0001',NULL,NULL,NULL,'PATHOLAB-CHG-0001','2026-08-05 09:33:20','2026-08-05 09:29:31','urgent','PATHOLAB-CHG-0001','2026-08-05 09:33:20'),(3,10,6,NULL,'PAT-CHG-1001',24,'DR-CHG-49545','verified','RADIO-CHG-0001','TECHNIQUE: Plain radiograph, single view.\n\nFINDINGS:\nLung fields: \nCardiac silhouette: \nBony thorax: \n\nIMPRESSION:\n',NULL,NULL,'RADIO-CHG-0001','2026-08-05 09:36:00','2026-08-05 09:29:31','routine','RADIO-CHG-0001','2026-08-05 09:36:00'),(4,10,6,NULL,'PAT-CHG-1001',3,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(5,10,6,NULL,'PAT-CHG-1001',8,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(6,10,6,NULL,'PAT-CHG-1001',6,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(7,10,6,NULL,'PAT-CHG-1001',26,'DR-CHG-49545','in_progress','RA-CHG-33409',NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(8,10,6,NULL,'PAT-CHG-1001',27,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(9,10,6,NULL,'PAT-CHG-1001',22,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(10,10,6,NULL,'PAT-CHG-1001',28,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-05 09:29:31','routine',NULL,NULL),(12,10,13,NULL,'PAT-CHG-1002',24,'DR-CHG-49545','verified','RA-CHG-33409','TECHNIQUE: Plain CT, axial sections.\n\nFINDINGS:\nLung parenchyma: \nMediastinum: \nPleura: \nBones: \n\nIMPRESSION:\n',NULL,NULL,'RADIO-CHG-0001','2026-08-05 10:34:32','2026-08-05 10:32:35','urgent','RADIO-CHG-0001','2026-08-05 10:34:32'),(13,10,13,NULL,'PAT-CHG-1002',1,'DR-CHG-49545','verified','PATHOLAB-CHG-0001',NULL,NULL,NULL,'PATHOLAB-CHG-0001','2026-08-05 10:36:55','2026-08-05 10:32:35','routine','PATHOLAB-CHG-0001','2026-08-05 10:36:55'),(14,10,13,NULL,'PAT-CHG-1002',22,'DR-CHG-49545','verified','PATHOLAB-CHG-0001',NULL,NULL,NULL,'PATHOLAB-CHG-0001','2026-08-05 10:37:57','2026-08-05 10:32:35','routine','PATHOLAB-CHG-0001','2026-08-05 10:37:57'),(15,10,16,NULL,'PAT-CHG-000008',1,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-10 06:02:27','routine',NULL,NULL),(16,10,17,NULL,'PAT-CHG-0005',24,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-10 06:16:03','routine',NULL,NULL),(17,10,18,NULL,'PAT-CHG-1003',1,'DR-CHG-49545','verified','PATHOLOGY-CHG-0001',NULL,NULL,NULL,'PATHOLOGY-CHG-0001','2026-08-10 11:13:39','2026-08-10 11:10:09','routine','PATHOLOGY-CHG-0001','2026-08-10 11:13:39'),(18,10,18,NULL,'PAT-CHG-1003',24,'DR-CHG-49545','verified','RADIO-CHG-0001',NULL,NULL,NULL,'RADIO-CHG-0001','2026-08-10 11:14:35','2026-08-10 11:10:09','routine','RADIO-CHG-0001','2026-08-10 11:14:35'),(19,10,18,NULL,'PAT-CHG-1003',22,'DR-CHG-49545','pending',NULL,NULL,NULL,NULL,NULL,NULL,'2026-08-10 11:10:09','routine',NULL,NULL);
 /*!40000 ALTER TABLE `lab_orders` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -805,7 +799,7 @@ CREATE TABLE `opd_visits` (
   `created_by` varchar(50) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -814,7 +808,7 @@ CREATE TABLE `opd_visits` (
 
 LOCK TABLES `opd_visits` WRITE;
 /*!40000 ALTER TABLE `opd_visits` DISABLE KEYS */;
-INSERT INTO `opd_visits` VALUES (1,10,1,'UH-CHG-000001','DR-CHG-49545','2026-07-30',NULL,'walk-in','completed','OPD-CHG-70518','2026-07-30 08:40:17'),(2,10,1,'PAT-CHG-0002','DR-CHG-49545','2026-08-01',NULL,'walk-in','waiting','OPD-CHG-70518','2026-07-30 09:05:51'),(3,10,2,'PAT-CHG-0002','DR-CHG-49545','2026-08-01',NULL,'walk-in','waiting','OPD-CHG-70518','2026-07-30 09:06:01'),(4,10,2,'PAT-CHG-0003','DR-CHG-49545','2026-07-30','09:45:00','appointment','completed','OPD-CHG-70518','2026-07-30 09:40:29'),(5,10,3,'PAT-CHG-0004','DR-CHG-49545','2026-07-30','12:15:00','appointment','completed','OPD-CHG-70518','2026-07-30 10:31:58'),(6,10,1,'PAT-CHG-1001','DR-CHG-49545','2026-08-05','15:00:00','appointment','completed','OPD-CHG-70518','2026-08-05 09:24:04'),(13,10,2,'PAT-CHG-1002','DR-CHG-49545','2026-08-05','17:15:00','appointment','completed','OPD-CHG-70518','2026-08-05 10:30:08'),(16,10,1,'PAT-CHG-000008','DR-CHG-49545','2026-08-10',NULL,'walk-in','completed','OPD-CHG-70518','2026-08-10 06:02:16'),(17,10,2,'PAT-CHG-0005','DR-CHG-49545','2026-08-10','10:00:00','appointment','completed','OPD-CHG-70518','2026-08-10 06:14:40');
+INSERT INTO `opd_visits` VALUES (1,10,1,'UH-CHG-000001','DR-CHG-49545','2026-07-30',NULL,'walk-in','completed','OPD-CHG-70518','2026-07-30 08:40:17'),(2,10,1,'PAT-CHG-0002','DR-CHG-49545','2026-08-01',NULL,'walk-in','waiting','OPD-CHG-70518','2026-07-30 09:05:51'),(3,10,2,'PAT-CHG-0002','DR-CHG-49545','2026-08-01',NULL,'walk-in','waiting','OPD-CHG-70518','2026-07-30 09:06:01'),(4,10,2,'PAT-CHG-0003','DR-CHG-49545','2026-07-30','09:45:00','appointment','completed','OPD-CHG-70518','2026-07-30 09:40:29'),(5,10,3,'PAT-CHG-0004','DR-CHG-49545','2026-07-30','12:15:00','appointment','completed','OPD-CHG-70518','2026-07-30 10:31:58'),(6,10,1,'PAT-CHG-1001','DR-CHG-49545','2026-08-05','15:00:00','appointment','completed','OPD-CHG-70518','2026-08-05 09:24:04'),(13,10,2,'PAT-CHG-1002','DR-CHG-49545','2026-08-05','17:15:00','appointment','completed','OPD-CHG-70518','2026-08-05 10:30:08'),(16,10,1,'PAT-CHG-000008','DR-CHG-49545','2026-08-10',NULL,'walk-in','completed','OPD-CHG-70518','2026-08-10 06:02:16'),(17,10,2,'PAT-CHG-0005','DR-CHG-49545','2026-08-10','10:00:00','appointment','completed','OPD-CHG-70518','2026-08-10 06:14:40'),(18,10,3,'PAT-CHG-1003','DR-CHG-49545','2026-08-10','19:00:00','appointment','completed','OPD-CHG-70518','2026-08-10 11:06:52');
 /*!40000 ALTER TABLE `opd_visits` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -838,7 +832,7 @@ CREATE TABLE `patient_charges` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_patient_charge_source` (`hospital_id`,`source_type`,`source_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=393 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=677 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -847,7 +841,7 @@ CREATE TABLE `patient_charges` (
 
 LOCK TABLES `patient_charges` WRITE;
 /*!40000 ALTER TABLE `patient_charges` DISABLE KEYS */;
-INSERT INTO `patient_charges` VALUES (1,10,'PAT-CHG-0002','registration',3,'Registration Fee','OPD',100.00,2,'2026-08-10 05:57:45'),(2,10,'PAT-CHG-0003','registration',4,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(3,10,'PAT-CHG-0004','registration',5,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(4,10,'PAT-CHG-1001','registration',6,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(5,10,'PAT-CHG-1002','registration',7,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(6,10,'PAT-CHG-1111','registration',2,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(7,10,'UH-CHG-000001','registration',1,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(8,10,'UH-CHG-000001','opd_visit',1,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(9,10,'PAT-CHG-0002','opd_visit',2,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(10,10,'PAT-CHG-0002','opd_visit',3,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(11,10,'PAT-CHG-0003','opd_visit',4,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(12,10,'PAT-CHG-0004','opd_visit',5,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(13,10,'PAT-CHG-1001','opd_visit',6,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(14,10,'PAT-CHG-1002','opd_visit',13,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(15,10,'PAT-CHG-1001','lab_order',2,'CBC (Complete Blood Count)','Pathology',300.00,NULL,'2026-08-10 05:57:45'),(16,10,'PAT-CHG-1001','lab_order',3,'Chest X-Ray','Radiology',400.00,NULL,'2026-08-10 05:57:45'),(17,10,'PAT-CHG-1001','lab_order',4,'Hemoglobin (Hb)','Pathology',100.00,NULL,'2026-08-10 05:57:45'),(18,10,'PAT-CHG-1001','lab_order',5,'Blood Sugar (PP)','Pathology',100.00,NULL,'2026-08-10 05:57:45'),(19,10,'PAT-CHG-1001','lab_order',6,'KFT (Kidney Function Test)','Pathology',600.00,NULL,'2026-08-10 05:57:45'),(20,10,'PAT-CHG-1001','lab_order',7,'CT Scan (Plain)','Radiology',3500.00,NULL,'2026-08-10 05:57:45'),(21,10,'PAT-CHG-1001','lab_order',8,'MRI (Plain)','Radiology',6000.00,NULL,'2026-08-10 05:57:45'),(22,10,'PAT-CHG-1001','lab_order',9,'Dengue NS1/IgM/IgG','Pathology',600.00,NULL,'2026-08-10 05:57:45'),(23,10,'PAT-CHG-1001','lab_order',10,'ECG','Radiology',250.00,NULL,'2026-08-10 05:57:45'),(24,10,'PAT-CHG-1002','lab_order',12,'Chest X-Ray','Radiology',400.00,NULL,'2026-08-10 05:57:45'),(25,10,'PAT-CHG-1002','lab_order',13,'CBC (Complete Blood Count)','Pathology',300.00,NULL,'2026-08-10 05:57:45'),(26,10,'PAT-CHG-1002','lab_order',14,'Dengue NS1/IgM/IgG','Pathology',600.00,NULL,'2026-08-10 05:57:45'),(30,10,'UH-CHG-000001','ipd_admission',2,'Bed Charges — ICU (Bed b-01)','IPD',6500.00,NULL,'2026-08-10 05:57:45'),(31,10,'PAT-CHG-0002','ipd_admission',3,'Bed Charges — GENRAL (Bed B-01)','IPD',1800.00,NULL,'2026-08-10 05:57:45'),(32,10,'PAT-CHG-0003','ipd_admission',6,'Bed Charges — VENTILATOR (Bed V-01)','IPD',1800.00,NULL,'2026-08-10 05:57:45'),(33,10,'PAT-CHG-0004','ipd_admission',7,'Bed Charges — ICU (Bed B-02)','IPD',6500.00,NULL,'2026-08-10 05:57:45'),(55,10,'PAT-CHG-000008','registration',8,'Registration Fee','OPD',100.00,3,'2026-08-10 06:02:05'),(65,10,'PAT-CHG-000008','opd_visit',16,'Consultation Fee','OPD',600.00,3,'2026-08-10 06:02:16'),(73,10,'PAT-CHG-000008','lab_order',15,'CBC (Complete Blood Count)','Pathology',300.00,3,'2026-08-10 06:02:27'),(92,10,'PAT-CHG-0005','registration',9,'Registration Fee','OPD',100.00,4,'2026-08-10 06:06:34'),(233,10,'PAT-CHG-0005','opd_visit',17,'Consultation Fee','OPD',600.00,4,'2026-08-10 06:15:14'),(248,10,'PAT-CHG-0005','lab_order',16,'Chest X-Ray','Radiology',400.00,4,'2026-08-10 06:16:26');
+INSERT INTO `patient_charges` VALUES (1,10,'PAT-CHG-0002','registration',3,'Registration Fee','OPD',100.00,2,'2026-08-10 05:57:45'),(2,10,'PAT-CHG-0003','registration',4,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(3,10,'PAT-CHG-0004','registration',5,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(4,10,'PAT-CHG-1001','registration',6,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(5,10,'PAT-CHG-1002','registration',7,'Registration Fee','OPD',100.00,5,'2026-08-10 05:57:45'),(6,10,'PAT-CHG-1111','registration',2,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(7,10,'UH-CHG-000001','registration',1,'Registration Fee','OPD',100.00,NULL,'2026-08-10 05:57:45'),(8,10,'UH-CHG-000001','opd_visit',1,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(9,10,'PAT-CHG-0002','opd_visit',2,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(10,10,'PAT-CHG-0002','opd_visit',3,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(11,10,'PAT-CHG-0003','opd_visit',4,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(12,10,'PAT-CHG-0004','opd_visit',5,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(13,10,'PAT-CHG-1001','opd_visit',6,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 05:57:45'),(14,10,'PAT-CHG-1002','opd_visit',13,'Consultation Fee','OPD',600.00,5,'2026-08-10 05:57:45'),(15,10,'PAT-CHG-1001','lab_order',2,'CBC (Complete Blood Count)','Pathology',300.00,NULL,'2026-08-10 05:57:45'),(16,10,'PAT-CHG-1001','lab_order',3,'Chest X-Ray','Radiology',400.00,NULL,'2026-08-10 05:57:45'),(17,10,'PAT-CHG-1001','lab_order',4,'Hemoglobin (Hb)','Pathology',100.00,NULL,'2026-08-10 05:57:45'),(18,10,'PAT-CHG-1001','lab_order',5,'Blood Sugar (PP)','Pathology',100.00,NULL,'2026-08-10 05:57:45'),(19,10,'PAT-CHG-1001','lab_order',6,'KFT (Kidney Function Test)','Pathology',600.00,NULL,'2026-08-10 05:57:45'),(20,10,'PAT-CHG-1001','lab_order',7,'CT Scan (Plain)','Radiology',3500.00,NULL,'2026-08-10 05:57:45'),(21,10,'PAT-CHG-1001','lab_order',8,'MRI (Plain)','Radiology',6000.00,NULL,'2026-08-10 05:57:45'),(22,10,'PAT-CHG-1001','lab_order',9,'Dengue NS1/IgM/IgG','Pathology',600.00,NULL,'2026-08-10 05:57:45'),(23,10,'PAT-CHG-1001','lab_order',10,'ECG','Radiology',250.00,NULL,'2026-08-10 05:57:45'),(24,10,'PAT-CHG-1002','lab_order',12,'Chest X-Ray','Radiology',400.00,5,'2026-08-10 05:57:45'),(25,10,'PAT-CHG-1002','lab_order',13,'CBC (Complete Blood Count)','Pathology',300.00,5,'2026-08-10 05:57:45'),(26,10,'PAT-CHG-1002','lab_order',14,'Dengue NS1/IgM/IgG','Pathology',600.00,5,'2026-08-10 05:57:45'),(30,10,'UH-CHG-000001','ipd_admission',2,'Bed Charges — ICU (Bed b-01)','IPD',6500.00,NULL,'2026-08-10 05:57:45'),(31,10,'PAT-CHG-0002','ipd_admission',3,'Bed Charges — GENRAL (Bed B-01)','IPD',1800.00,NULL,'2026-08-10 05:57:45'),(32,10,'PAT-CHG-0003','ipd_admission',6,'Bed Charges — VENTILATOR (Bed V-01)','IPD',1800.00,NULL,'2026-08-10 05:57:45'),(33,10,'PAT-CHG-0004','ipd_admission',7,'Bed Charges — ICU (Bed B-02)','IPD',6500.00,NULL,'2026-08-10 05:57:45'),(55,10,'PAT-CHG-000008','registration',8,'Registration Fee','OPD',100.00,3,'2026-08-10 06:02:05'),(65,10,'PAT-CHG-000008','opd_visit',16,'Consultation Fee','OPD',600.00,3,'2026-08-10 06:02:16'),(73,10,'PAT-CHG-000008','lab_order',15,'CBC (Complete Blood Count)','Pathology',300.00,3,'2026-08-10 06:02:27'),(92,10,'PAT-CHG-0005','registration',9,'Registration Fee','OPD',100.00,4,'2026-08-10 06:06:34'),(233,10,'PAT-CHG-0005','opd_visit',17,'Consultation Fee','OPD',600.00,4,'2026-08-10 06:15:14'),(248,10,'PAT-CHG-0005','lab_order',16,'Chest X-Ray','Radiology',400.00,4,'2026-08-10 06:16:26'),(568,10,'PAT-CHG-1003','registration',10,'Registration Fee','OPD',100.00,NULL,'2026-08-10 11:20:05'),(569,10,'PAT-CHG-1003','opd_visit',18,'Consultation Fee','OPD',600.00,NULL,'2026-08-10 11:20:05'),(570,10,'PAT-CHG-1003','lab_order',17,'CBC (Complete Blood Count)','Pathology',300.00,NULL,'2026-08-10 11:20:05'),(571,10,'PAT-CHG-1003','lab_order',18,'Chest X-Ray','Radiology',400.00,NULL,'2026-08-10 11:20:05'),(572,10,'PAT-CHG-1003','lab_order',19,'Dengue NS1/IgM/IgG','Pathology',600.00,NULL,'2026-08-10 11:20:05'),(612,10,'PAT-CHG-1003','ipd_admission',8,'Bed Charges — GENRAL (Bed B-100)','IPD',1800.00,NULL,'2026-08-11 04:31:59'),(670,10,'PAT-CHG-000008','opd_visit',19,'Consultation Fee','OPD',600.00,NULL,'2026-08-11 06:46:13');
 /*!40000 ALTER TABLE `patient_charges` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -877,7 +871,7 @@ CREATE TABLE `patients` (
   `blood_group` varchar(4) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uhid` (`uhid`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -886,7 +880,7 @@ CREATE TABLE `patients` (
 
 LOCK TABLES `patients` WRITE;
 /*!40000 ALTER TABLE `patients` DISABLE KEYS */;
-INSERT INTO `patients` VALUES (1,10,'UH-CHG-000001',NULL,'abhi','2002-09-17','Male',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 06:44:10',NULL),(2,10,'PAT-CHG-1111','$2b$12$dGXobHUILjyO1n9whtYIKeapXfsBOeDOHHsb9AfP9lUFS08daJm0O','pranay','2026-07-30','Male',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 06:49:25',NULL),(3,10,'PAT-CHG-0002','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','ASHISH',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'referral','OPD-CHG-70518','2026-07-30 09:02:52',NULL),(4,10,'PAT-CHG-0003','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','VIKRAM',NULL,NULL,'9137731642','A-704, Regnecy Garden Purnima Kalyan west',NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 09:25:11','B+'),(5,10,'PAT-CHG-0004','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','NITISH',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 10:31:18',NULL),(6,10,'PAT-CHG-1001','$2b$12$la785cUg4SmKGYY3lSWcMerwhV.M92hDeOICq.kJUGin7wpDkbtF6','RASHMI SHETTY',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-05 09:23:01',NULL),(7,10,'PAT-CHG-1002','$2b$12$hysfLzNQUFaCqYQsCFz5GeQrfKZW8GQgbMAXNAN/93qKwmhWZKT.K','SAKSHI',NULL,'Female',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-05 10:22:37',NULL),(8,10,'PAT-CHG-000008','$2b$12$9eXDoUS0e2nWOOyh2EOtRu1ou1wXXygchMr1VWoq2D8eLYYIDj/jq','Sachin',NULL,'Male','9900011122',NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-10 06:01:52',NULL),(9,10,'PAT-CHG-0005','$2b$12$5MZ4DksGNTZ4PmtfF/NgvewP6ZFkoErKeRonY0rVCYiUsuWo9jUD2','rosemary',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-10 06:06:01',NULL);
+INSERT INTO `patients` VALUES (1,10,'UH-CHG-000001',NULL,'abhi','2002-09-17','Male',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 06:44:10',NULL),(2,10,'PAT-CHG-1111','$2b$12$dGXobHUILjyO1n9whtYIKeapXfsBOeDOHHsb9AfP9lUFS08daJm0O','pranay','2026-07-30','Male',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 06:49:25',NULL),(3,10,'PAT-CHG-0002','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','ASHISH',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'referral','OPD-CHG-70518','2026-07-30 09:02:52',NULL),(4,10,'PAT-CHG-0003','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','VIKRAM',NULL,NULL,'9137731642','A-704, Regnecy Garden Purnima Kalyan west',NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 09:25:11','B+'),(5,10,'PAT-CHG-0004','$2b$10$EtdK7ZCti96Zb.s5HzLA3O.rkSRdnc8lRadei9kZtWQdhpRRdrgOS','NITISH',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-07-30 10:31:18',NULL),(6,10,'PAT-CHG-1001','$2b$12$la785cUg4SmKGYY3lSWcMerwhV.M92hDeOICq.kJUGin7wpDkbtF6','RASHMI SHETTY',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-05 09:23:01',NULL),(7,10,'PAT-CHG-1002','$2b$12$hysfLzNQUFaCqYQsCFz5GeQrfKZW8GQgbMAXNAN/93qKwmhWZKT.K','SAKSHI',NULL,'Female',NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-05 10:22:37',NULL),(8,10,'PAT-CHG-000008','$2b$12$9eXDoUS0e2nWOOyh2EOtRu1ou1wXXygchMr1VWoq2D8eLYYIDj/jq','Sachin',NULL,'Male','9900011122',NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-10 06:01:52',NULL),(9,10,'PAT-CHG-0005','$2b$12$5MZ4DksGNTZ4PmtfF/NgvewP6ZFkoErKeRonY0rVCYiUsuWo9jUD2','rosemary',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-10 06:06:01',NULL),(10,10,'PAT-CHG-1003','$2b$12$2Kvoq50Cl74WldYx9fCBd.E/oKHZManSCf58efGIumWs6Ayf1QWNy','SURAJ',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'walk-in','OPD-CHG-70518','2026-08-10 11:06:13',NULL);
 /*!40000 ALTER TABLE `patients` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1080,7 +1074,7 @@ CREATE TABLE `user_directory` (
 
 LOCK TABLES `user_directory` WRITE;
 /*!40000 ALTER TABLE `user_directory` DISABLE KEYS */;
-INSERT INTO `user_directory` VALUES ('AD-CHG-64701',10,'2026-07-29 12:15:45','staff'),('BB-CHG-14153',10,'2026-08-06 08:34:24','staff'),('BB-CHG-92247',10,'2026-08-06 08:23:27','staff'),('BS-CHG-24966',10,'2026-08-10 04:45:45','staff'),('BS-CHG-46457',10,'2026-08-10 04:56:18','staff'),('DR-CHG-1616',10,'2026-08-05 10:16:56','staff'),('DR-CHG-49545',10,'2026-07-30 08:35:18','staff'),('NR-CHG-88859',10,'2026-07-30 08:31:37','staff'),('OPD-CHG-70518',10,'2026-07-30 04:36:36','staff'),('PAT-CHG-000008',10,'2026-08-10 06:01:52','patient'),('PAT-CHG-0002',10,'2026-07-30 09:02:52','patient'),('PAT-CHG-0003',10,'2026-07-30 09:25:11','patient'),('PAT-CHG-0004',10,'2026-07-30 10:31:18','patient'),('PAT-CHG-0005',10,'2026-08-10 06:06:01','patient'),('PAT-CHG-1001',10,'2026-08-05 09:23:01','patient'),('PAT-CHG-1002',10,'2026-08-05 10:22:37','patient'),('PAT-CHG-1111',10,'2026-08-03 05:45:42','patient'),('PATHOLAB-CHG-0001',10,'2026-08-03 05:04:48','staff'),('PATHOLOGY-CHG-0001',10,'2026-08-03 05:04:48','staff'),('PHARMA-CHG-0001',10,'2026-08-05 10:07:34','staff'),('RA-CHG-33409',10,'2026-07-31 06:07:25','staff'),('RADIO-CHG-0001',10,'2026-08-03 05:04:48','staff');
+INSERT INTO `user_directory` VALUES ('AD-CHG-64701',10,'2026-07-29 12:15:45','staff'),('BB-CHG-14153',10,'2026-08-06 08:34:24','staff'),('BB-CHG-92247',10,'2026-08-06 08:23:27','staff'),('BS-CHG-24966',10,'2026-08-10 04:45:45','staff'),('BS-CHG-46457',10,'2026-08-10 04:56:18','staff'),('DR-CHG-1616',10,'2026-08-05 10:16:56','staff'),('DR-CHG-49545',10,'2026-07-30 08:35:18','staff'),('NR-CHG-88859',10,'2026-07-30 08:31:37','staff'),('OPD-CHG-70518',10,'2026-07-30 04:36:36','staff'),('PAT-CHG-000008',10,'2026-08-10 06:01:52','patient'),('PAT-CHG-0002',10,'2026-07-30 09:02:52','patient'),('PAT-CHG-0003',10,'2026-07-30 09:25:11','patient'),('PAT-CHG-0004',10,'2026-07-30 10:31:18','patient'),('PAT-CHG-0005',10,'2026-08-10 06:06:01','patient'),('PAT-CHG-1001',10,'2026-08-05 09:23:01','patient'),('PAT-CHG-1002',10,'2026-08-05 10:22:37','patient'),('PAT-CHG-1003',10,'2026-08-10 11:06:13','patient'),('PAT-CHG-1111',10,'2026-08-03 05:45:42','patient'),('PATHOLAB-CHG-0001',10,'2026-08-03 05:04:48','staff'),('PATHOLOGY-CHG-0001',10,'2026-08-03 05:04:48','staff'),('PHARMA-CHG-0001',10,'2026-08-05 10:07:34','staff'),('RA-CHG-33409',10,'2026-07-31 06:07:25','staff'),('RADIO-CHG-0001',10,'2026-08-03 05:04:48','staff');
 /*!40000 ALTER TABLE `user_directory` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1138,7 +1132,7 @@ CREATE TABLE `vitals` (
   `recorded_by` varchar(50) DEFAULT NULL,
   `recorded_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1147,7 +1141,7 @@ CREATE TABLE `vitals` (
 
 LOCK TABLES `vitals` WRITE;
 /*!40000 ALTER TABLE `vitals` DISABLE KEYS */;
-INSERT INTO `vitals` VALUES (1,10,'UH-CHG-000001',NULL,2,'100','102','64',NULL,'NR-CHG-88859','2026-07-30 08:58:24'),(2,10,'UH-CHG-000001',1,NULL,'100','102','64','80','NR-CHG-88859','2026-07-30 09:15:19'),(3,10,'PAT-CHG-1001',6,NULL,'120','100','70','99','NR-CHG-88859','2026-08-05 10:44:22');
+INSERT INTO `vitals` VALUES (1,10,'UH-CHG-000001',NULL,2,'100','102','64',NULL,'NR-CHG-88859','2026-07-30 08:58:24'),(2,10,'UH-CHG-000001',1,NULL,'100','102','64','80','NR-CHG-88859','2026-07-30 09:15:19'),(3,10,'PAT-CHG-1001',6,NULL,'120','100','70','99','NR-CHG-88859','2026-08-05 10:44:22'),(4,10,'PAT-CHG-1003',18,NULL,'120','98.6','78','100','NR-CHG-88859','2026-08-10 11:12:15'),(5,10,'PAT-CHG-1003',18,NULL,NULL,NULL,NULL,NULL,'NR-CHG-88859','2026-08-10 11:48:04');
 /*!40000 ALTER TABLE `vitals` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1166,7 +1160,7 @@ CREATE TABLE `wards` (
   `created_by` varchar(50) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1178,13 +1172,6 @@ LOCK TABLES `wards` WRITE;
 INSERT INTO `wards` VALUES (1,10,'ICU',NULL,'NR-CHG-88859','2026-07-30 08:32:50'),(2,10,'GENRAL',NULL,'NR-CHG-88859','2026-07-30 09:07:29'),(3,10,'VENTILATOR',NULL,'NR-CHG-88859','2026-07-30 09:44:37');
 /*!40000 ALTER TABLE `wards` ENABLE KEYS */;
 UNLOCK TABLES;
-
---
--- Dumping routines for database 'medisys_h10_city_hospital_ghatkopar'
---
---
--- WARNING: can't read the INFORMATION_SCHEMA.libraries table. It's most probably an old server 8.0.46.
---
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -1195,4 +1182,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-08-10 11:54:33
+-- Dump completed on 2026-08-11 13:51:54

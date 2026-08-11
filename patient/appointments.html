@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>MEDISYS - Patient Portal</title>
+<title>MEDISYS - My Appointments</title>
 <link rel="stylesheet" href="../style.css" />
 <link rel="stylesheet" href="../admin/admin.css" />
 </head>
@@ -20,10 +20,17 @@
   </header>
 
   <main class="portal-main">
-    <h1 id="welcomeHeading">Welcome</h1>
-    <p class="portal-subtitle" id="patientSubtitle"></p>
+    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
+    <h1>Appointments</h1>
+    <p class="portal-subtitle">Every OPD visit you've booked, past and upcoming.</p>
 
-    <div class="portal-toolbar-cards" id="patientActionCards"></div>
+    <div class="portal-card">
+      <table class="portal-table" id="appointmentsTable">
+        <thead><tr><th>Date</th><th>Time</th><th>Doctor</th><th>Type</th><th>Status</th></tr></thead>
+        <tbody id="appointmentsTableBody"></tbody>
+      </table>
+      <p class="portal-empty" id="appointmentsEmptyState" hidden>No appointments on file yet.</p>
+    </div>
   </main>
 
   <footer class="site-footer">
@@ -37,6 +44,6 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="../realtime-client.js"></script>
   <script src="../portal-ui.js"></script>
-<script src="patient.js"></script>
+<script src="appointments.js"></script>
 </body>
 </html>

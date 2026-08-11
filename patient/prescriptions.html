@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>MEDISYS - Patient Portal</title>
+<title>MEDISYS - My Prescriptions</title>
 <link rel="stylesheet" href="../style.css" />
 <link rel="stylesheet" href="../admin/admin.css" />
 </head>
@@ -20,10 +20,17 @@
   </header>
 
   <main class="portal-main">
-    <h1 id="welcomeHeading">Welcome</h1>
-    <p class="portal-subtitle" id="patientSubtitle"></p>
+    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
+    <h1>Prescriptions</h1>
+    <p class="portal-subtitle">Medicines your doctor has prescribed and their dispense status at the pharmacy.</p>
 
-    <div class="portal-toolbar-cards" id="patientActionCards"></div>
+    <div class="portal-card">
+      <table class="portal-table" id="prescriptionsTable">
+        <thead><tr><th>Medicine</th><th>Dosage</th><th>Duration</th><th>Food Instruction</th><th>Urgency</th><th>Status</th><th>Prescribed</th></tr></thead>
+        <tbody id="prescriptionsTableBody"></tbody>
+      </table>
+      <p class="portal-empty" id="prescriptionsEmptyState" hidden>No prescriptions on file yet.</p>
+    </div>
   </main>
 
   <footer class="site-footer">
@@ -37,6 +44,6 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="../realtime-client.js"></script>
   <script src="../portal-ui.js"></script>
-<script src="patient.js"></script>
+<script src="prescriptions.js"></script>
 </body>
 </html>

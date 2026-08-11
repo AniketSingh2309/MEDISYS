@@ -19,6 +19,21 @@
     });
   }
 
+  function actionCard(href, iconSvg, label, hint) {
+    return `<a href="${href}" class="staff-action-card">
+      <span class="staff-action-icon">${iconSvg}</span>
+      <span class="staff-action-label">${label}</span>
+      <span class="staff-action-hint">${hint}</span>
+    </a>`;
+  }
+
+  const ICONS = {
+    records: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M8 13h2l1.5-3 2 6 1.5-3H16"/></svg>`,
+    calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>`,
+    prescription: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(45 12 12)"><rect x="4" y="9" width="16" height="6" rx="3"/><line x1="12" y1="9" x2="12" y2="15"/></g></svg>`,
+    bill: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17H6V2z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>`,
+  };
+
   async function loadProfile() {
     const res = await fetch("/api/me", { credentials: "same-origin" });
     const data = await res.json();
@@ -27,6 +42,12 @@
     const { fullName, hospitalName } = data.profile;
     document.getElementById("welcomeHeading").textContent = `Welcome, ${fullName}`;
     document.getElementById("patientSubtitle").textContent = `Patient at ${hospitalName}`;
+
+    document.getElementById("patientActionCards").innerHTML =
+      actionCard("records.html", ICONS.records, "Your Medical Records", "Consultations, admissions, vitals, and lab/radiology results") +
+      actionCard("appointments.html", ICONS.calendar, "Appointments", "Every OPD visit you've booked, past and upcoming") +
+      actionCard("prescriptions.html", ICONS.prescription, "Prescriptions", "Medicines your doctor has prescribed and their dispense status") +
+      actionCard("bills.html", ICONS.bill, "Bills &amp; Invoices", "Outstanding charges, past bills, and pharmacy invoices");
   }
 
   document.addEventListener("DOMContentLoaded", async () => {

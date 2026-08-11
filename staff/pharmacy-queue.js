@@ -177,7 +177,7 @@
             <div class="med-row">
               <div>
                 <div class="med-item">${escapeHtml(order.medicine_name)}${order.urgency === 'urgent' ? ' <span class="pill urgent">Urgent</span>' : ''}</div>
-                <div class="med-dose">Dose: ${escapeHtml(order.dosage)} &nbsp;|&nbsp; For: ${escapeHtml(order.duration)}</div>
+                <div class="med-dose">Dose: ${escapeHtml(order.dosage)} &nbsp;|&nbsp; For: ${escapeHtml(order.duration)}${order.food_instruction ? ` &nbsp;|&nbsp; ${escapeHtml(order.food_instruction)}` : ''}</div>
               </div>
               <div>${actionHtml}</div>
             </div>`;

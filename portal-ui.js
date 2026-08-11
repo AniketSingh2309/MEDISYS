@@ -90,6 +90,9 @@
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
     queue: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="9" r="2.6"/><path d="M2.5 20c0-3.3 2.6-5.6 5.5-5.6s5.5 2.3 5.5 5.6M14.5 14.9c2.4.2 4.5 2.3 4.5 5.1"/></svg>',
     bloodbank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-4 5-6 8.5-6 11a6 6 0 0 0 12 0c0-2.5-2-6-6-11z"/></svg>',
+    records: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M8 13h2l1.5-3 2 6 1.5-3H16"/></svg>',
+    prescription: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(45 12 12)"><rect x="4" y="9" width="16" height="6" rx="3"/><line x1="12" y1="9" x2="12" y2="15"/></g></svg>',
+    bill: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17H6V2z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
   };
 
   var ROLE_NAV_ITEMS = {
@@ -104,6 +107,7 @@
       { href: '/staff/bed-allocation.html', icon: 'bed', label: 'Bed Allocation' },
       { href: '/staff/nurse-ipd.html', icon: 'admission', label: 'IPD Patients' },
       { href: '/staff/nurse-patients.html', icon: 'queue', label: 'My Patients' },
+      { href: '/staff/nurse-all-patients.html', icon: 'queue', label: 'All Patients' },
     ],
     doctor: [
       { href: '/staff/doctor-schedule.html', icon: 'clock', label: 'My Schedule' },
@@ -113,10 +117,18 @@
     ],
     pharmacist: [{ href: '/staff/pharmacy-queue.html', icon: 'queue', label: 'Pharmacy Queue' }],
     blood_bank_staff: [{ href: '/staff/blood-bank-queue.html', icon: 'bloodbank', label: 'Blood Bank' }],
+    patient: [
+      { href: '/patient/records.html', icon: 'records', label: 'Medical Records' },
+      { href: '/patient/appointments.html', icon: 'calendar', label: 'Appointments' },
+      { href: '/patient/prescriptions.html', icon: 'prescription', label: 'Prescriptions' },
+      { href: '/patient/bills.html', icon: 'bill', label: 'Bills & Invoices' },
+    ],
   };
 
+  var ROLE_DASHBOARD = { patient: '/patient/dashboard.html' };
+
   function navItemsForRole(role, details) {
-    var dash = { href: '/staff/dashboard.html', icon: 'dashboard', label: 'Dashboard' };
+    var dash = { href: ROLE_DASHBOARD[role] || '/staff/dashboard.html', icon: 'dashboard', label: 'Dashboard' };
     var items;
     if (role === 'pathology_staff') {
       items =
@@ -135,7 +147,7 @@
     // queue pages already have their own bespoke sidebar) or if already injected.
     if (!main || document.querySelector('.app-sidebar')) return;
 
-    var KNOWN_ROLES = ['receptionist', 'nurse', 'doctor', 'pathology_staff', 'pharmacist', 'blood_bank_staff'];
+    var KNOWN_ROLES = ['receptionist', 'nurse', 'doctor', 'pathology_staff', 'pharmacist', 'blood_bank_staff', 'patient'];
     fetch('/api/session', { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (sessionData) {

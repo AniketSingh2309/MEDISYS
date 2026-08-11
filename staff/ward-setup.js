@@ -44,15 +44,18 @@
       .map(
         (w) => `
         <div class="ward-card">
-          <div class="ward-card-title">${escapeHtml(w.name)}</div>
+          <div class="ward-card-title-row">
+            <div class="ward-card-title">${escapeHtml(w.name)} <span class="wizard-hint" style="display:inline;">(${w.beds.length} bed${w.beds.length === 1 ? "" : "s"})</span></div>
+            <button type="button" class="icon-btn-delete delete-ward-btn" data-ward-id="${w.id}" data-ward-name="${escapeHtml(w.name)}" aria-label="Delete ward">&times; Delete Ward</button>
+          </div>
           <div class="bed-chip-grid">
             ${w.beds
               .map((b) => `<span class="bed-chip ${escapeHtml(b.status)}">${escapeHtml(b.bed_number)}</span>`)
               .join("") || `<span class="wizard-hint">No beds yet.</span>`}
           </div>
           <div class="wizard-suggest-row" style="margin-top: 14px;">
-            <input type="text" placeholder="Bed number (e.g. B-01)" data-ward-id="${w.id}" class="add-bed-input" />
-            <button type="button" class="wizard-suggest-btn add-bed-btn" data-ward-id="${w.id}">Add Bed</button>
+            <input type="number" min="1" max="200" value="5" data-ward-id="${w.id}" class="add-bed-input" style="max-width: 90px;" />
+            <button type="button" class="wizard-suggest-btn add-bed-btn" data-ward-id="${w.id}">+ Add Beds</button>
           </div>
         </div>`
       )
@@ -61,17 +64,40 @@
     list.querySelectorAll(".add-bed-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const input = list.querySelector(`.add-bed-input[data-ward-id="${btn.dataset.wardId}"]`);
-        const bedNumber = input.value.trim();
-        if (!bedNumber) return;
+        const count = Number(input.value);
+        if (!count || count < 1) return;
 
         const res = await fetch(`/api/wards/${btn.dataset.wardId}/beds`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify({ bedNumber }),
+          body: JSON.stringify({ count }),
         });
         const data = await res.json();
-        if (data.success) loadWards();
+        if (data.success) {
+          if (window.showToast) showToast(`${count} bed(s) added.`, "success");
+          loadWards();
+        } else if (window.showToast) {
+          showToast(data.message || "Could not add beds.", "error");
+        }
+      });
+    });
+
+    list.querySelectorAll(".delete-ward-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm(`Delete ${btn.dataset.wardName}? This removes all its (empty) beds too.`)) return;
+        const res = await fetch(`/api/wards/${btn.dataset.wardId}`, {
+          method: "DELETE",
+          credentials: "same-origin",
+        });
+        const data = await res.json();
+        if (data.success) {
+          if (window.showToast) showToast(`${btn.dataset.wardName} deleted.`, "success");
+          loadWards();
+        } else {
+          if (window.showToast) showToast(data.message || "Could not delete ward.", "error");
+          else alert(data.message || "Could not delete ward.");
+        }
       });
     });
   }
@@ -79,11 +105,17 @@
   function wireAddWard() {
     document.getElementById("addWardBtn").addEventListener("click", async () => {
       const input = document.getElementById("wardName");
+      const bedCountInput = document.getElementById("wardBedCount");
       const errorEl = document.getElementById("wardFormError");
       errorEl.textContent = "";
       const name = input.value.trim();
+      const bedCount = Number(bedCountInput.value);
       if (!name) {
         errorEl.textContent = "Ward name is required.";
+        return;
+      }
+      if (!bedCount || bedCount < 1) {
+        errorEl.textContent = "Enter how many beds this ward should have.";
         return;
       }
 
@@ -91,7 +123,7 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, bedCount }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -99,6 +131,8 @@
         return;
       }
       input.value = "";
+      bedCountInput.value = "10";
+      if (window.showToast) showToast(`${name} created with ${data.bedsCreated} bed(s).`, "success");
       loadWards();
     });
   }

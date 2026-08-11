@@ -446,6 +446,11 @@ app.get("/api/patients/search", requireTenantUser, async (req, res) => {
 });
 
 app.get("/api/patients/:uhid", requireTenantUser, async (req, res) => {
+  // A patient may only ever look up their own record — without this, any logged-in
+  // patient could read another patient's full profile by guessing/enumerating UHIDs.
+  if (req.session.user.role === "patient" && req.session.user.userId !== req.params.uhid) {
+    return res.status(403).json({ success: false, message: "You can only view your own record." });
+  }
   try {
     const [rows] = await pool.query(
       `SELECT uhid, full_name, dob, gender, phone, address, emergency_contact_name,
@@ -974,6 +979,10 @@ app.patch("/api/opd/visits/:id/status", requireRole("doctor", "hospital_admin"),
 // ---------- Patient EMR history ----------
 
 app.get("/api/patients/:uhid/history", requireTenantUser, async (req, res) => {
+  // Same reasoning as GET /api/patients/:uhid — a patient must be pinned to their own UHID.
+  if (req.session.user.role === "patient" && req.session.user.userId !== req.params.uhid) {
+    return res.status(403).json({ success: false, message: "You can only view your own record." });
+  }
   try {
     const { hospitalId } = req.session.user;
     const [consultations] = await pool.query(
@@ -1005,6 +1014,139 @@ app.get("/api/patients/:uhid/history", requireTenantUser, async (req, res) => {
     res.json({ success: true, history: { consultations, admissions, labOrders } });
   } catch (err) {
     console.error("Get patient history error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Patient's own portal — every endpoint below derives the patient from the
+// session (req.session.user.userId), never from a URL/body param, so there is no way
+// for a patient to request another patient's data by passing a different UHID. ----------
+
+app.get("/api/patients/me/records", requireRole("patient"), async (req, res) => {
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const [consultations] = await pool.query(
+      `SELECT c.id, c.symptoms, c.notes, c.decision, c.created_at, u.full_name AS doctor_name
+       FROM consultations c
+       LEFT JOIN users u ON u.user_id = c.doctor_user_id
+       WHERE c.hospital_id = ? AND c.patient_uhid = ? ORDER BY c.created_at DESC`,
+      [hospitalId, userId]
+    );
+    const [admissions] = await pool.query(
+      `SELECT a.id, a.status, a.admission_notes, a.created_at, a.admitted_at, a.discharged_at,
+              w.name AS ward_name, b.bed_number, u.full_name AS doctor_name
+       FROM ipd_admissions a
+       LEFT JOIN wards w ON w.id = a.ward_id
+       LEFT JOIN beds b ON b.id = a.bed_id
+       LEFT JOIN users u ON u.user_id = a.admitting_doctor_user_id
+       WHERE a.hospital_id = ? AND a.patient_uhid = ? ORDER BY a.created_at DESC`,
+      [hospitalId, userId]
+    );
+    const [labOrderRows] = await pool.query(
+      `SELECT lo.id, tc.name AS test_name, tc.category, tc.department, lo.status,
+              lo.result_notes, lo.result_file_name, lo.completed_at, lo.created_at,
+              lo.doctor_user_id, u.full_name AS doctor_name,
+              lo.verified_by, v.full_name AS verified_by_name, lo.verified_at,
+              (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', li.id, 'fileName', li.file_name))
+                 FROM lab_order_images li WHERE li.lab_order_id = lo.id) AS images
+       FROM lab_orders lo
+       LEFT JOIN test_catalog tc ON tc.id = lo.test_id
+       LEFT JOIN users u ON u.user_id = lo.doctor_user_id
+       LEFT JOIN users v ON v.user_id = lo.verified_by
+       WHERE lo.hospital_id = ? AND lo.patient_uhid = ? ORDER BY lo.created_at DESC`,
+      [hospitalId, userId]
+    );
+    const labOrders = labOrderRows.map((r) => ({
+      ...r,
+      images: typeof r.images === "string" ? JSON.parse(r.images) : r.images || [],
+    }));
+    const [vitals] = await pool.query(
+      `SELECT id, bp, temperature, weight, spo2, recorded_at
+       FROM vitals WHERE hospital_id = ? AND patient_uhid = ? ORDER BY recorded_at DESC LIMIT 20`,
+      [hospitalId, userId]
+    );
+    res.json({ success: true, records: { consultations, admissions, labOrders, vitals } });
+  } catch (err) {
+    console.error("Get my records error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.get("/api/patients/me/appointments", requireRole("patient"), async (req, res) => {
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT v.id, v.token_number, v.doctor_user_id, u.full_name AS doctor_name, v.visit_date,
+              v.slot_time, v.source, v.status, v.created_at
+       FROM opd_visits v
+       LEFT JOIN users u ON u.user_id = v.doctor_user_id
+       WHERE v.hospital_id = ? AND v.patient_uhid = ?
+       ORDER BY v.visit_date DESC, v.slot_time DESC, v.created_at DESC`,
+      [hospitalId, userId]
+    );
+    res.json({ success: true, appointments: rows });
+  } catch (err) {
+    console.error("Get my appointments error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.get("/api/patients/me/prescriptions", requireRole("patient"), async (req, res) => {
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT po.id, po.medicine_name, po.dosage, po.duration, po.urgency, po.food_instruction, po.status,
+              po.created_at, po.dispensed_at, pi.invoice_number, pi.payment_status
+       FROM medisys_pharmacy.pharmacy_orders po
+       LEFT JOIN medisys_pharmacy.pharmacy_invoices pi ON pi.id = po.invoice_id
+       WHERE po.hospital_id = ? AND po.patient_uhid = ? ORDER BY po.created_at DESC`,
+      [hospitalId, userId]
+    );
+    res.json({ success: true, prescriptions: rows });
+  } catch (err) {
+    console.error("Get my prescriptions error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.get("/api/patients/me/bills", requireRole("patient"), async (req, res) => {
+  try {
+    const { hospitalId, userId } = req.session.user;
+    await reconcilePatientCharges(hospitalId);
+
+    const [outstandingCharges] = await pool.query(
+      `SELECT id, description, department, rate, created_at
+       FROM patient_charges WHERE hospital_id = ? AND patient_uhid = ? AND bill_id IS NULL
+       ORDER BY created_at ASC`,
+      [hospitalId, userId]
+    );
+    const [billRows] = await pool.query(
+      `SELECT b.id, b.bill_no, b.department, b.bill_date, b.subtotal, b.discount_amount, b.tax_amount,
+              b.total_amount, b.paid_amount, b.balance_amount, b.status, b.is_insurance, b.payer_name, b.created_at,
+              (SELECT JSON_ARRAYAGG(JSON_OBJECT('description', bi.description, 'qty', bi.qty, 'rate', bi.rate, 'amount', bi.amount))
+                 FROM bill_items bi WHERE bi.bill_id = b.id) AS items
+       FROM bills b WHERE b.hospital_id = ? AND b.patient_uhid = ? ORDER BY b.bill_date DESC, b.id DESC`,
+      [hospitalId, userId]
+    );
+    const bills = billRows.map((r) => ({ ...r, items: typeof r.items === "string" ? JSON.parse(r.items) : r.items || [] }));
+
+    const [pharmacyInvoiceRows] = await pool.query(
+      `SELECT pi.id, pi.invoice_number, pi.item_count, pi.total_amount, pi.payment_status, pi.created_at, pi.paid_at,
+              (SELECT JSON_ARRAYAGG(JSON_OBJECT('medicineName', po.medicine_name, 'dosage', po.dosage, 'duration', po.duration, 'foodInstruction', po.food_instruction))
+                 FROM medisys_pharmacy.pharmacy_orders po WHERE po.invoice_id = pi.id) AS medicines
+       FROM medisys_pharmacy.pharmacy_invoices pi WHERE pi.hospital_id = ? AND pi.patient_uhid = ?
+       ORDER BY pi.created_at DESC`,
+      [hospitalId, userId]
+    );
+    const pharmacyInvoices = pharmacyInvoiceRows.map((r) => ({
+      ...r,
+      medicines: typeof r.medicines === "string" ? JSON.parse(r.medicines) : r.medicines || [],
+    }));
+
+    const outstandingTotal = outstandingCharges.reduce((sum, c) => sum + parseFloat(c.rate), 0);
+    res.json({ success: true, outstandingCharges, outstandingTotal, bills, pharmacyInvoices });
+  } catch (err) {
+    console.error("Get my bills error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
@@ -1077,6 +1219,7 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
     ]);
 
     if (prescriptions.length > 0) {
+      const FOOD_INSTRUCTIONS = ["Before Meal", "After Meal", "With Meal", "Empty Stomach"];
       const values = prescriptions.map((p) => [
         hospitalId,
         req.params.id,
@@ -1086,10 +1229,11 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
         p.dosage,
         p.duration,
         p.urgency === "urgent" ? "urgent" : "routine",
+        FOOD_INSTRUCTIONS.includes(p.foodInstruction) ? p.foodInstruction : null,
       ]);
       await pool.query(
         `INSERT INTO medisys_pharmacy.pharmacy_orders
-           (hospital_id, opd_visit_id, patient_uhid, doctor_user_id, medicine_name, dosage, duration, urgency)
+           (hospital_id, opd_visit_id, patient_uhid, doctor_user_id, medicine_name, dosage, duration, urgency, food_instruction)
          VALUES ?`,
         [values]
       );
@@ -1487,17 +1631,29 @@ app.get("/api/lab-orders/:id/images/:imageId", requireTenantUser, async (req, re
 // ---------- Pharmacy Orders ----------
 
 app.post("/api/pharmacy-orders", requireRole("doctor"), async (req, res) => {
-  const { opdVisitId, ipdAdmissionId, patientUhid, medicineName, dosage, duration, urgency } = req.body;
+  const { opdVisitId, ipdAdmissionId, patientUhid, medicineName, dosage, duration, urgency, foodInstruction } = req.body;
   if (!patientUhid || !medicineName || !dosage || !duration) {
     return res.status(400).json({ success: false, message: "Missing required fields." });
   }
+  const FOOD_INSTRUCTIONS = ["Before Meal", "After Meal", "With Meal", "Empty Stomach"];
   try {
     const { userId, hospitalId } = req.session.user;
     await pool.query(
-      `INSERT INTO medisys_pharmacy.pharmacy_orders 
-       (hospital_id, opd_visit_id, ipd_admission_id, patient_uhid, doctor_user_id, medicine_name, dosage, duration, urgency) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [hospitalId || 1, opdVisitId || null, ipdAdmissionId || null, patientUhid, userId, medicineName, dosage, duration, urgency || 'routine']
+      `INSERT INTO medisys_pharmacy.pharmacy_orders
+       (hospital_id, opd_visit_id, ipd_admission_id, patient_uhid, doctor_user_id, medicine_name, dosage, duration, urgency, food_instruction)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        hospitalId || 1,
+        opdVisitId || null,
+        ipdAdmissionId || null,
+        patientUhid,
+        userId,
+        medicineName,
+        dosage,
+        duration,
+        urgency || 'routine',
+        FOOD_INSTRUCTIONS.includes(foodInstruction) ? foodInstruction : null,
+      ]
     );
     broadcast(req, "pharmacy_orders");
     res.json({ success: true, message: "Prescription sent to pharmacy." });
@@ -1985,37 +2141,92 @@ app.get("/api/wards", requireTenantUser, async (req, res) => {
 });
 
 app.post("/api/wards", requireRole("nurse", "hospital_admin"), async (req, res) => {
-  const { name } = req.body || {};
-  if (!name) {
+  const { name, bedCount } = req.body || {};
+  if (!name || !name.trim()) {
     return res.status(400).json({ success: false, message: "Ward name is required." });
   }
+  const count = Number(bedCount);
+  if (!Number.isInteger(count) || count < 1 || count > 200) {
+    return res.status(400).json({ success: false, message: "Enter a valid number of beds (1-200)." });
+  }
   try {
+    const { hospitalId, userId } = req.session.user;
     const [result] = await pool.query(
       `INSERT INTO wards (hospital_id, name, created_by) VALUES (?, ?, ?)`,
-      [req.session.user.hospitalId, name, req.session.user.userId]
+      [hospitalId, name.trim(), userId]
     );
+    const wardId = result.insertId;
+    const bedValues = [];
+    for (let i = 1; i <= count; i++) {
+      bedValues.push([hospitalId, wardId, `B-${String(i).padStart(2, "0")}`]);
+    }
+    await pool.query(`INSERT INTO beds (hospital_id, ward_id, bed_number) VALUES ?`, [bedValues]);
     broadcast(req, "wards_beds");
-    res.json({ success: true, id: result.insertId });
+    res.json({ success: true, id: wardId, bedsCreated: count });
   } catch (err) {
     console.error("Create ward error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
 
+// Add more auto-numbered beds to an existing ward — continues the sequence from
+// however many beds it already has, no manual bed-number entry.
 app.post("/api/wards/:wardId/beds", requireRole("nurse", "hospital_admin"), async (req, res) => {
-  const { bedNumber } = req.body || {};
-  if (!bedNumber) {
-    return res.status(400).json({ success: false, message: "Bed number is required." });
+  const count = Number(req.body && req.body.count);
+  if (!Number.isInteger(count) || count < 1 || count > 200) {
+    return res.status(400).json({ success: false, message: "Enter a valid number of beds (1-200)." });
   }
   try {
-    const [result] = await pool.query(
-      `INSERT INTO beds (hospital_id, ward_id, bed_number) VALUES (?, ?, ?)`,
-      [req.session.user.hospitalId, req.params.wardId, bedNumber]
-    );
+    const { hospitalId } = req.session.user;
+    const [wardRows] = await pool.query(`SELECT id FROM wards WHERE id = ? AND hospital_id = ? LIMIT 1`, [
+      req.params.wardId,
+      hospitalId,
+    ]);
+    if (wardRows.length === 0) {
+      return res.status(404).json({ success: false, message: "Ward not found." });
+    }
+    const [[{ existing }]] = await pool.query(`SELECT COUNT(*) AS existing FROM beds WHERE ward_id = ?`, [
+      req.params.wardId,
+    ]);
+    const bedValues = [];
+    for (let i = 1; i <= count; i++) {
+      bedValues.push([hospitalId, req.params.wardId, `B-${String(existing + i).padStart(2, "0")}`]);
+    }
+    await pool.query(`INSERT INTO beds (hospital_id, ward_id, bed_number) VALUES ?`, [bedValues]);
     broadcast(req, "wards_beds");
-    res.json({ success: true, id: result.insertId });
+    res.json({ success: true, bedsCreated: count });
   } catch (err) {
     console.error("Create bed error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.delete("/api/wards/:wardId", requireRole("nurse", "hospital_admin"), async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const [wardRows] = await pool.query(`SELECT id, name FROM wards WHERE id = ? AND hospital_id = ? LIMIT 1`, [
+      req.params.wardId,
+      hospitalId,
+    ]);
+    if (wardRows.length === 0) {
+      return res.status(404).json({ success: false, message: "Ward not found." });
+    }
+    const [[{ occupied }]] = await pool.query(
+      `SELECT COUNT(*) AS occupied FROM beds WHERE ward_id = ? AND status != 'available'`,
+      [req.params.wardId]
+    );
+    if (occupied > 0) {
+      return res.status(409).json({
+        success: false,
+        message: `${wardRows[0].name} has ${occupied} occupied bed(s) — discharge or reassign those patients before deleting the ward.`,
+      });
+    }
+    await pool.query(`DELETE FROM beds WHERE ward_id = ? AND hospital_id = ?`, [req.params.wardId, hospitalId]);
+    await pool.query(`DELETE FROM wards WHERE id = ? AND hospital_id = ?`, [req.params.wardId, hospitalId]);
+    broadcast(req, "wards_beds");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete ward error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
@@ -2190,13 +2401,20 @@ app.post("/api/ipd/admissions", requireReceptionistOrAdmin, async (req, res) => 
 
 app.get("/api/ipd/admissions", requireTenantUser, async (req, res) => {
   const { status } = req.query;
-  // Nurses can only ever list their own patients; other roles may pass assignedNurseId for oversight.
+  // Nurses are scoped to their own admitted patients — but a "requested" admission has
+  // no nurse assigned yet by definition (that only happens once a bed is allocated), so
+  // that scoping must NOT apply there or Bed Allocation would show every nurse an empty
+  // list of pending requests. scope=all lets a nurse deliberately see every admitted
+  // patient in the hospital (e.g. an "All Patients" ward overview), not just their own.
+  // Other roles may pass assignedNurseId for oversight.
   const assignedNurseId =
-    req.session.user.role === "nurse" ? req.session.user.userId : req.query.assignedNurseId;
+    req.session.user.role === "nurse" && status !== "requested" && req.query.scope !== "all"
+      ? req.session.user.userId
+      : req.query.assignedNurseId;
   try {
     const { hospitalId } = req.session.user;
     let query = `SELECT a.id, a.patient_uhid, a.admitting_doctor_user_id, a.ward_id, a.bed_id, a.status,
-                        a.assigned_nurse_id, a.created_at, a.admitted_at, p.full_name AS patient_name,
+                        a.assigned_nurse_id, a.created_at, a.admitted_at, a.discharged_at, p.full_name AS patient_name,
                         u.full_name AS doctor_name, w.name AS ward_name, b.bed_number
                  FROM ipd_admissions a
                  LEFT JOIN patients p ON p.uhid = a.patient_uhid
@@ -2303,6 +2521,44 @@ app.post("/api/ipd/admissions/:id/allocate-bed", requireRole("nurse", "hospital_
     res.json({ success: true, nurseAssignment });
   } catch (err) {
     console.error("Allocate bed error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Discharge — reverses allocate-bed: frees the bed back to 'available' and marks
+// the admission done, so it drops off every ward/patient list and stops accruing
+// IPD bed charges (Billing Desk's reconciliation only counts status = 'admitted').
+app.post("/api/ipd/admissions/:id/discharge", requireRole("nurse", "hospital_admin"), async (req, res) => {
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT id, bed_id, status FROM ipd_admissions WHERE id = ? AND hospital_id = ? LIMIT 1`,
+      [req.params.id, hospitalId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Admission not found." });
+    }
+    if (rows[0].status !== "admitted") {
+      return res.status(409).json({ success: false, message: "Only currently admitted patients can be discharged." });
+    }
+
+    await pool.query(
+      `UPDATE ipd_admissions SET status = 'discharged', discharged_at = NOW(), discharged_by = ?
+       WHERE id = ? AND hospital_id = ?`,
+      [userId, req.params.id, hospitalId]
+    );
+    if (rows[0].bed_id) {
+      await pool.query(`UPDATE beds SET status = 'available' WHERE id = ? AND hospital_id = ?`, [
+        rows[0].bed_id,
+        hospitalId,
+      ]);
+    }
+
+    broadcast(req, "ipd_admissions");
+    broadcast(req, "wards_beds");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Discharge admission error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });

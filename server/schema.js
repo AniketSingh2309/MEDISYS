@@ -215,6 +215,8 @@ async function ensureSchema(connection) {
       admitted_at TIMESTAMP NULL
     )
   `);
+  await ensureColumn(connection, "ipd_admissions", "discharged_at", "TIMESTAMP NULL");
+  await ensureColumn(connection, "ipd_admissions", "discharged_by", "VARCHAR(50) NULL");
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS doctor_orders (
@@ -388,6 +390,9 @@ async function ensureSchema(connection) {
   // Links a dispensed medicine to the one combined invoice it was billed under —
   // lets an invoice cover every medicine from a visit instead of one invoice each.
   await ensureColumnInSchema(connection, "medisys_pharmacy", "pharmacy_orders", "invoice_id", "INT NULL");
+  // Before Meal / After Meal / With Meal / Empty Stomach — set by the prescribing
+  // doctor, shown to pharmacy staff dispensing it and to the patient in their portal.
+  await ensureColumnInSchema(connection, "medisys_pharmacy", "pharmacy_orders", "food_instruction", "VARCHAR(20) NULL");
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS nurse_shift_roster (

@@ -26,10 +26,19 @@
 
     <div class="portal-card wizard-step">
       <h2>Add Ward</h2>
-      <label for="wardName">Ward Name</label>
-      <div class="wizard-suggest-row">
-        <input type="text" id="wardName" placeholder="e.g. General Ward, ICU" />
-        <button type="button" class="wizard-suggest-btn" id="addWardBtn">Add Ward</button>
+      <div class="wizard-grid">
+        <div>
+          <label for="wardName">Ward Name</label>
+          <input type="text" id="wardName" placeholder="e.g. General Ward, ICU" />
+        </div>
+        <div>
+          <label for="wardBedCount">Number of Beds</label>
+          <input type="number" id="wardBedCount" min="1" max="200" value="10" />
+        </div>
+      </div>
+      <p class="wizard-hint">Beds are created automatically and numbered B-01, B-02, ... — no manual bed entry needed.</p>
+      <div class="wizard-nav">
+        <button type="button" class="login-btn wizard-next-btn" id="addWardBtn">Create Ward</button>
       </div>
       <p class="form-error" id="wardFormError" role="alert" aria-live="polite"></p>
     </div>

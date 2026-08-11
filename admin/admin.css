@@ -1148,6 +1148,10 @@
   flex: 1 1 70px;
 }
 
+.consult-med-row select#medFoodInstruction {
+  flex: 1 1 150px;
+}
+
 .consult-med-row select#medUrgency {
   flex: 1 1 100px;
 }
@@ -1231,6 +1235,19 @@
   color: var(--navy);
   font-size: 15px;
   margin-bottom: 10px;
+}
+
+.ward-card-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ward-card-title-row .delete-ward-btn {
+  font-size: 11.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .bed-chip-grid {

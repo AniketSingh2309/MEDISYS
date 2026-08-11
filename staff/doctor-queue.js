@@ -114,8 +114,8 @@
       .map(
         (m, i) =>
           `<span class="test-chip">${escapeHtml(m.medicineName)} — ${escapeHtml(m.dosage)}, ${escapeHtml(String(m.duration))}d${
-            m.urgency === "urgent" ? " (Urgent)" : ""
-          }<button type="button" class="test-chip-remove" data-idx="${i}">&times;</button></span>`
+            m.foodInstruction ? ", " + escapeHtml(m.foodInstruction) : ""
+          }${m.urgency === "urgent" ? " (Urgent)" : ""}<button type="button" class="test-chip-remove" data-idx="${i}">&times;</button></span>`
       )
       .join("");
     row.querySelectorAll(".test-chip-remove").forEach((btn) => {
@@ -133,16 +133,18 @@
       const medicineName = document.getElementById("medName").value.trim();
       const dosage = document.getElementById("medDosage").value;
       const duration = document.getElementById("medDuration").value;
+      const foodInstruction = document.getElementById("medFoodInstruction").value;
       const urgency = document.getElementById("medUrgency").value;
       if (!medicineName || !dosage || !duration) {
         errorEl.textContent = "Fill in medicine name, dosage, and duration before adding it.";
         return;
       }
-      selectedMeds.push({ medicineName, dosage, duration, urgency });
+      selectedMeds.push({ medicineName, dosage, duration, foodInstruction, urgency });
       renderSelectedMeds();
       document.getElementById("medName").value = "";
       document.getElementById("medDosage").value = "";
       document.getElementById("medDuration").value = "";
+      document.getElementById("medFoodInstruction").value = "";
       document.getElementById("medUrgency").value = "routine";
     });
   }
@@ -200,6 +202,7 @@
     document.getElementById("medName").value = "";
     document.getElementById("medDosage").value = "";
     document.getElementById("medDuration").value = "";
+    document.getElementById("medFoodInstruction").value = "";
     document.getElementById("medUrgency").value = "routine";
     document.getElementById("testSearchInput").value = "";
     document.getElementById("testSearchResults").innerHTML = "";
