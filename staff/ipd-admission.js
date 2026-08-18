@@ -29,6 +29,14 @@
     });
   }
 
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   function wireSearch() {
     const input = document.getElementById("patientSearch");
     const results = document.getElementById("searchResults");
@@ -60,13 +68,13 @@
           .join("");
 
         if (data.patients.length === 0) {
-          results.innerHTML = `<p class="portal-subtitle">No matching patients found.</p>`;
+          results.innerHTML = `<p class="portal-subtitle">${t('registration.no_matching_patients', 'No matching patients found.')}</p>`;
         }
 
         results.querySelectorAll(".portal-row").forEach((card) => {
           card.addEventListener("click", () => {
             selectedPatient = { uhid: card.dataset.uhid, fullName: card.dataset.name };
-            document.getElementById("selectedPatientHint").textContent = `Selected: ${selectedPatient.fullName} (${selectedPatient.uhid})`;
+            document.getElementById("selectedPatientHint").textContent = `${t('ipd.selected', 'Selected')}: ${selectedPatient.fullName} (${selectedPatient.uhid})`;
           });
         });
       }, 300);
@@ -92,7 +100,7 @@
       errorEl.textContent = "";
 
       if (!selectedPatient) {
-        errorEl.textContent = "Please search for and select a patient first.";
+        errorEl.textContent = t('ipd.select_patient_first', 'Please search for and select a patient first.');
         return;
       }
 
@@ -111,14 +119,14 @@
         const data = await res.json();
 
         if (!data.success) {
-          errorEl.textContent = data.message || "Could not create admission request.";
+          errorEl.textContent = data.message || t('ipd.could_not_create_admission', 'Could not create admission request.');
           return;
         }
 
         form.hidden = true;
         document.getElementById("admissionResult").hidden = false;
       } catch (err) {
-        errorEl.textContent = "Unable to reach the server. Please try again.";
+        errorEl.textContent = t('common.server_error', 'Unable to reach the server. Please try again.');
       }
     });
   }
@@ -130,5 +138,9 @@
     wireSearch();
     wireForm();
     loadDoctors();
+
+    window.addEventListener("i18n:languageChanged", () => {
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

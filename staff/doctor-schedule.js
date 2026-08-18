@@ -47,7 +47,7 @@
           <td>${formatDate(s.avail_date)}</td>
           <td>${s.start_time}</td>
           <td>${s.end_time}</td>
-          <td>${s.slot_minutes} min</td>
+          <td>${s.slot_minutes} ${t('doctor_schedule.min', 'min')}</td>
           <td><button type="button" class="icon-btn-delete delete-block-btn" data-id="${s.id}" aria-label="Remove">&times;</button></td>
         </tr>`
       )
@@ -77,21 +77,21 @@
 
       const date = document.getElementById("availDate").value;
       if (!date) {
-        errorEl.textContent = "Pick a date.";
+        errorEl.textContent = t('doctor_schedule.pick_date', 'Pick a date.');
         return;
       }
 
       const repeat = document.getElementById("repeatToggle").checked;
       const endDate = repeat ? document.getElementById("repeatEndDate").value : undefined;
       if (repeat && !endDate) {
-        errorEl.textContent = "Pick an end date for the range, or turn off the repeat option.";
+        errorEl.textContent = t('doctor_schedule.pick_end_date', 'Pick an end date for the range, or turn off the repeat option.');
         return;
       }
       const weekdays = repeat
         ? Array.from(document.querySelectorAll("#weekdayChecks input:checked")).map((el) => Number(el.value))
         : undefined;
       if (repeat && weekdays.length === 0) {
-        errorEl.textContent = "Select at least one day of the week to repeat on.";
+        errorEl.textContent = t('doctor_schedule.select_weekday', 'Select at least one day of the week to repeat on.');
         return;
       }
 
@@ -113,14 +113,14 @@
         });
         const data = await res.json();
         if (!data.success) {
-          errorEl.textContent = data.message || "Could not add availability.";
+          errorEl.textContent = data.message || t('doctor_schedule.could_not_add', 'Could not add availability.');
           return;
         }
         if (window.showToast) {
           const msg =
             data.datesRequested > 1
-              ? `Added availability for ${data.datesCreated} of ${data.datesRequested} date(s) (duplicates skipped).`
-              : "Availability added.";
+              ? `${t('doctor_schedule.added_avail_for', 'Added availability for')} ${data.datesCreated} ${t('doctor_schedule.of', 'of')} ${data.datesRequested} ${t('doctor_schedule.dates_dup_skipped', 'date(s) (duplicates skipped).')}`
+              : t('doctor_schedule.avail_added', 'Availability added.');
           showToast(msg, "success");
         }
         loadSchedule();
@@ -145,5 +145,9 @@
     if (window.MEDISYS_RT) {
       MEDISYS_RT.on("consultations", loadSchedule);
     }
+    window.addEventListener("i18n:languageChanged", () => {
+      loadSchedule();
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

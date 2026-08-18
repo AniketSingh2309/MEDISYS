@@ -20,41 +20,41 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>Bills &amp; Invoices</h1>
-    <p class="portal-subtitle">Outstanding charges, past hospital bills, and pharmacy invoices.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="bills.title">Bills &amp; Invoices</h1>
+    <p class="portal-subtitle" data-i18n="bills.subtitle">Outstanding charges, past hospital bills, and pharmacy invoices.</p>
 
     <div class="portal-card" id="outstandingCard">
       <div class="chart-section-header">
-        <h2 class="chart-section-title">Outstanding Charges</h2>
+        <h2 class="chart-section-title" data-i18n="bills.outstanding_charges">Outstanding Charges</h2>
         <div style="display: flex; align-items: center; gap: 14px;">
           <strong id="outstandingTotal"></strong>
-          <button type="button" class="wizard-suggest-btn" id="downloadStatementBtn" hidden>Download Statement</button>
+          <button type="button" class="wizard-suggest-btn" id="downloadStatementBtn" hidden data-i18n="bills.download_statement">Download Statement</button>
         </div>
       </div>
       <table class="portal-table" id="outstandingTable">
-        <thead><tr><th>Description</th><th>Department</th><th>Amount</th><th>Charged</th></tr></thead>
+        <thead><tr><th data-i18n="bills.description">Description</th><th data-i18n="common.department">Department</th><th data-i18n="bills.amount">Amount</th><th data-i18n="bills.charged">Charged</th></tr></thead>
         <tbody id="outstandingTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="outstandingEmptyState" hidden>Nothing outstanding right now.</p>
+      <p class="portal-empty" id="outstandingEmptyState" hidden data-i18n="bills.nothing_outstanding">Nothing outstanding right now.</p>
     </div>
 
-    <h2 class="portal-section-title">Bill History</h2>
+    <h2 class="portal-section-title" data-i18n="bills.bill_history">Bill History</h2>
     <div class="portal-card">
       <table class="portal-table" id="billsTable">
-        <thead><tr><th>Bill No.</th><th>Date</th><th>Department</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="bills.bill_no">Bill No.</th><th data-i18n="common.date">Date</th><th data-i18n="common.department">Department</th><th data-i18n="bills.total">Total</th><th data-i18n="bills.paid">Paid</th><th data-i18n="bills.balance">Balance</th><th data-i18n="common.status">Status</th><th></th></tr></thead>
         <tbody id="billsTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="billsEmptyState" hidden>No bills raised yet.</p>
+      <p class="portal-empty" id="billsEmptyState" hidden data-i18n="bills.no_bills_raised">No bills raised yet.</p>
     </div>
 
-    <h2 class="portal-section-title">Pharmacy Invoices</h2>
+    <h2 class="portal-section-title" data-i18n="bills.pharmacy_invoices">Pharmacy Invoices</h2>
     <div class="portal-card">
       <table class="portal-table" id="pharmacyInvoicesTable">
-        <thead><tr><th>Invoice No.</th><th>Items</th><th>Amount</th><th>Status</th><th>Date</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="bills.invoice_no">Invoice No.</th><th data-i18n="bills.items">Items</th><th data-i18n="bills.amount">Amount</th><th data-i18n="common.status">Status</th><th data-i18n="common.date">Date</th><th></th></tr></thead>
         <tbody id="pharmacyInvoicesTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="pharmacyInvoicesEmptyState" hidden>No pharmacy invoices yet.</p>
+      <p class="portal-empty" id="pharmacyInvoicesEmptyState" hidden data-i18n="bills.no_pharmacy_invoices">No pharmacy invoices yet.</p>
     </div>
   </main>
 

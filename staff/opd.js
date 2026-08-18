@@ -9,6 +9,30 @@
     }[c]));
   }
 
+  const STATUS_MAP = {
+    waiting: "opd.status_waiting",
+    in_consultation: "opd.status_in_consultation",
+    "in-consultation": "opd.status_in_consultation",
+    completed: "opd.status_completed",
+    cancelled: "opd.status_cancelled",
+  };
+
+  function getStatusDisplay(s) {
+    const key = STATUS_MAP[s] || `opd.status_${s}`;
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    const fallbacks = {
+      waiting: "Waiting",
+      in_consultation: "In Consultation",
+      "in-consultation": "In Consultation",
+      completed: "Completed",
+      cancelled: "Cancelled",
+    };
+    return fallbacks[s] || s;
+  }
+
   let selectedPatient = null;
   let selectedSlot = null;
 
@@ -61,13 +85,17 @@
           .join("");
 
         if (data.patients.length === 0) {
-          results.innerHTML = `<p class="portal-subtitle">No matching patients found.</p>`;
+          const noMatchMsg = window.i18n ? window.i18n.t("opd.no_matching_patients") : "No matching patients found.";
+          results.innerHTML = `<p class="portal-subtitle">${escapeHtml(noMatchMsg)}</p>`;
         }
 
         results.querySelectorAll(".portal-row").forEach((card) => {
           card.addEventListener("click", () => {
             selectedPatient = { uhid: card.dataset.uhid, fullName: card.dataset.name };
-            document.getElementById("selectedPatientHint").textContent = `Selected: ${selectedPatient.fullName} (${selectedPatient.uhid})`;
+            const hintText = window.i18n
+              ? window.i18n.t("opd.selected_patient_hint", { name: selectedPatient.fullName, uhid: selectedPatient.uhid })
+              : `Selected: ${selectedPatient.fullName} (${selectedPatient.uhid})`;
+            document.getElementById("selectedPatientHint").textContent = hintText;
             document.getElementById("bookingSection").hidden = false;
             loadSlots();
           });
@@ -81,8 +109,9 @@
     const data = await res.json();
     if (!data.success) return;
     const select = document.getElementById("departmentSelect");
+    const allDeptLabel = window.i18n ? window.i18n.t("opd.all_departments") : "All Departments";
     select.innerHTML =
-      `<option value="">All Departments</option>` +
+      `<option value="">${escapeHtml(allDeptLabel)}</option>` +
       data.departments.map((d) => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join("");
   }
 
@@ -95,11 +124,12 @@
     const data = await res.json();
     if (!data.success) return;
     const select = document.getElementById("doctorSelect");
+    const noDocLabel = window.i18n ? window.i18n.t("opd.no_doctors") : "No doctors in this department";
     select.innerHTML = data.doctors.length
       ? data.doctors
           .map((d) => `<option value="${escapeHtml(d.user_id)}">${escapeHtml(d.full_name)}</option>`)
           .join("")
-      : `<option value="">No doctors in this department</option>`;
+      : `<option value="">${escapeHtml(noDocLabel)}</option>`;
     loadSlots();
   }
 
@@ -123,11 +153,12 @@
     const data = await res.json();
     if (!data.success) return;
 
+    const noScheduleMsg = window.i18n ? window.i18n.t("opd.no_schedule") : "No schedule set for this doctor on this day.";
     slotGrid.innerHTML = data.slots.length
       ? data.slots
           .map((s) => `<button type="button" class="slot-btn" data-slot="${escapeHtml(s)}">${escapeHtml(s)}</button>`)
           .join("")
-      : `<p class="portal-subtitle">No schedule set for this doctor on this day.</p>`;
+      : `<p class="portal-subtitle">${escapeHtml(noScheduleMsg)}</p>`;
 
     slotGrid.querySelectorAll(".slot-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -187,10 +218,10 @@
             walkInBtn.disabled = false;
             return bookVisit(slotTime, true);
           }
-          errorEl.textContent = "Booking cancelled — patient already has a pending visit.";
+          errorEl.textContent = window.i18n ? window.i18n.t("opd.booking_cancelled") : "Booking cancelled — patient already has a pending visit.";
           return;
         }
-        errorEl.textContent = data.message || "Could not book visit. Please try again.";
+        errorEl.textContent = data.message || (window.i18n ? window.i18n.t("opd.booking_error") : "Could not book visit. Please try again.");
         return;
       }
 
@@ -199,7 +230,7 @@
       loadSlots();
       loadQueue();
     } catch (err) {
-      errorEl.textContent = "Unable to reach the server. Please try again.";
+      errorEl.textContent = window.i18n ? window.i18n.t("opd.network_error") : "Unable to reach the server. Please try again.";
     } finally {
       bookBtn.disabled = false;
       walkInBtn.disabled = false;
@@ -219,14 +250,15 @@
     }
     emptyState.hidden = true;
 
+    const walkInLabel = window.i18n ? window.i18n.t("registration.walk_in") : "Walk-in";
     tbody.innerHTML = data.queue
       .map(
         (v) => `<tr>
           <td>#${v.token_number}</td>
           <td>${escapeHtml(v.patient_name || v.patient_uhid)}</td>
           <td>${escapeHtml(v.doctor_name || v.doctor_user_id)}</td>
-          <td>${escapeHtml(v.slot_time || "Walk-in")}</td>
-          <td><span class="queue-status ${escapeHtml(v.status)}">${escapeHtml(v.status)}</span></td>
+          <td>${escapeHtml(v.slot_time || walkInLabel)}</td>
+          <td><span class="queue-status ${escapeHtml(v.status)}">${escapeHtml(getStatusDisplay(v.status))}</span></td>
         </tr>`
       )
       .join("");
@@ -245,13 +277,14 @@
     }
     emptyState.hidden = true;
 
+    const awaitingBedLabel = window.i18n ? window.i18n.t("opd.awaiting_bed") : "awaiting bed";
     tbody.innerHTML = data.admissions
       .map(
         (a) => `<tr>
           <td>${escapeHtml(a.patient_name || a.patient_uhid)}</td>
           <td>${escapeHtml(a.doctor_name || a.admitting_doctor_user_id || "—")}</td>
           <td>${escapeHtml(new Date(a.created_at).toLocaleString())}</td>
-          <td><span class="queue-status waiting">awaiting bed</span></td>
+          <td><span class="queue-status waiting">${escapeHtml(awaitingBedLabel)}</span></td>
         </tr>`
       )
       .join("");
@@ -314,5 +347,13 @@
       MEDISYS_RT.on("wards_beds", loadWardPatients);
       MEDISYS_RT.on("departments", loadDepartments);
     }
+
+    window.addEventListener("i18n:languageChanged", () => {
+      loadDepartments();
+      loadDoctors();
+      loadQueue();
+      loadNeedsAdmission();
+      loadWardPatients();
+    });
   });
 })();

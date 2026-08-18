@@ -20,103 +20,103 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>My Patients</h1>
-    <p class="portal-subtitle">Every patient you've seen (OPD or IPD), with prescriptions and lab/radiology reports as they come in.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="doctor.my_patients">My Patients</h1>
+    <p class="portal-subtitle" data-i18n="doctor_patients.subtitle">Every patient you've seen (OPD or IPD), with prescriptions and lab/radiology reports as they come in.</p>
 
     <div class="portal-card">
       <table class="portal-table" id="patientsTable">
-        <thead><tr><th>Patient</th><th>Phone</th><th>Reports</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="common.patient">Patient</th><th data-i18n="registration.phone">Phone</th><th data-i18n="doctor_patients.reports">Reports</th><th></th></tr></thead>
         <tbody id="patientsTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="patientsEmptyState" hidden>No patients seen yet.</p>
+      <p class="portal-empty" id="patientsEmptyState" data-i18n="doctor_patients.no_patients_seen" hidden>No patients seen yet.</p>
     </div>
 
     <div id="detailSection" hidden>
-      <h2 class="portal-section-title" id="detailHeading">Patient Chart</h2>
+      <h2 class="portal-section-title" id="detailHeading" data-i18n="doctor_patients.patient_chart">Patient Chart</h2>
 
       <div class="portal-card">
         <div class="chart-section-header">
-          <h2 class="chart-section-title">Patient Details</h2>
-          <button type="button" class="wizard-suggest-btn" id="editPatientBtn">✎ Edit</button>
+          <h2 class="chart-section-title" data-i18n="doctor_patients.patient_details">Patient Details</h2>
+          <button type="button" class="wizard-suggest-btn" id="editPatientBtn" data-i18n="doctor_patients.edit">✎ Edit</button>
         </div>
         <dl class="wizard-review" id="patientDetailsView"></dl>
 
         <form id="patientDetailsForm" class="wizard-step" hidden>
-          <label for="editFullName">Full Name *</label>
+          <label for="editFullName" data-i18n="registration.full_name">Full Name *</label>
           <input type="text" id="editFullName" required />
 
           <div class="wizard-grid">
             <div>
-              <label for="editDob">Date of Birth</label>
+              <label for="editDob" data-i18n="registration.dob">Date of Birth</label>
               <input type="date" id="editDob" />
             </div>
             <div>
-              <label for="editGender">Gender</label>
+              <label for="editGender" data-i18n="registration.gender">Gender</label>
               <select id="editGender">
-                <option value="">Select</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                <option value="" data-i18n="registration.select">Select</option>
+                <option value="Male" data-i18n="registration.male">Male</option>
+                <option value="Female" data-i18n="registration.female">Female</option>
+                <option value="Other" data-i18n="registration.other">Other</option>
               </select>
             </div>
             <div>
-              <label for="editPhone">Phone</label>
+              <label for="editPhone" data-i18n="registration.phone">Phone</label>
               <input type="text" id="editPhone" />
             </div>
           </div>
 
-          <label for="editAddress">Address</label>
+          <label for="editAddress" data-i18n="registration.address">Address</label>
           <input type="text" id="editAddress" />
 
           <div class="wizard-grid">
             <div>
-              <label for="editEmergencyContactName">Emergency Contact Name</label>
+              <label for="editEmergencyContactName" data-i18n="registration.emergency_contact_name">Emergency Contact Name</label>
               <input type="text" id="editEmergencyContactName" />
             </div>
             <div>
-              <label for="editEmergencyContactPhone">Emergency Contact Phone</label>
+              <label for="editEmergencyContactPhone" data-i18n="registration.emergency_contact_phone">Emergency Contact Phone</label>
               <input type="text" id="editEmergencyContactPhone" />
             </div>
           </div>
 
-          <label for="editAbhaId">ABHA ID</label>
-          <input type="text" id="editAbhaId" placeholder="Optional" />
+          <label for="editAbhaId" data-i18n="registration.abha_id">ABHA ID</label>
+          <input type="text" id="editAbhaId" data-i18n-placeholder="common.optional" placeholder="Optional" />
 
-          <label for="editCategory">Patient Category</label>
+          <label for="editCategory" data-i18n="registration.patient_category">Patient Category</label>
           <select id="editCategory">
-            <option value="walk-in">Walk-in</option>
-            <option value="referral">Referral</option>
-            <option value="insurance">Insurance</option>
-            <option value="corporate">Corporate</option>
+            <option value="walk-in" data-i18n="registration.walk_in">Walk-in</option>
+            <option value="referral" data-i18n="registration.referral">Referral</option>
+            <option value="insurance" data-i18n="registration.insurance">Insurance</option>
+            <option value="corporate" data-i18n="registration.corporate">Corporate</option>
           </select>
 
           <p class="form-error" id="patientEditError" role="alert" aria-live="polite"></p>
 
           <div class="wizard-nav">
-            <button type="button" class="wizard-back-btn" id="cancelEditPatientBtn">Cancel</button>
-            <button type="button" class="login-btn wizard-next-btn" id="savePatientBtn">Save Changes</button>
+            <button type="button" class="wizard-back-btn" id="cancelEditPatientBtn" data-i18n="doctor_patients.cancel">Cancel</button>
+            <button type="button" class="login-btn wizard-next-btn" id="savePatientBtn" data-i18n="doctor_patients.save_changes">Save Changes</button>
           </div>
         </form>
       </div>
 
       <div class="portal-card">
         <div class="chart-section">
-          <h2 class="chart-section-title">Consultations &amp; Prescriptions</h2>
+          <h2 class="chart-section-title" data-i18n="doctor_patients.consultations_prescriptions">Consultations &amp; Prescriptions</h2>
           <div id="consultationsFeed"></div>
         </div>
       </div>
 
       <div class="portal-card">
         <div class="chart-section">
-          <h2 class="chart-section-title">Lab &amp; Radiology Reports</h2>
+          <h2 class="chart-section-title" data-i18n="doctor_patients.lab_radiology_reports">Lab &amp; Radiology Reports</h2>
           <div id="reportsFeed"></div>
         </div>
       </div>
 
       <div class="portal-card">
         <div class="chart-section">
-          <h2 class="chart-section-title">Admissions</h2>
+          <h2 class="chart-section-title" data-i18n="doctor_patients.admissions">Admissions</h2>
           <div id="admissionsFeed"></div>
         </div>
       </div>

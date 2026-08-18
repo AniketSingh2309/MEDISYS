@@ -39,6 +39,14 @@ async function api(url, options) {
   return res.json();
 }
 
+function t(key, fallback) {
+  if (window.i18n && typeof window.i18n.t === 'function') {
+    const res = window.i18n.t(key);
+    if (res && res !== key) return res;
+  }
+  return fallback || key;
+}
+
 function toast(msg, isError) {
   const c = document.getElementById('toastContainer');
   const el = document.createElement('div');
@@ -178,7 +186,7 @@ function renderDashboard() {
 
   document.getElementById('kpi-collected').textContent = inrShort(collectedToday);
   document.getElementById('kpi-outstanding').textContent = inrShort(outstandingTotal);
-  document.getElementById('kpi-outstanding-count').textContent = `${outstanding.length} bill(s) pending`;
+  document.getElementById('kpi-outstanding-count').textContent = `${outstanding.length} ${t('billing.bills_pending', 'bill(s) pending')}`;
   document.getElementById('kpi-paidcount').textContent = paidCount;
   document.getElementById('kpi-claims').textContent = claimsInProcess;
 
@@ -189,7 +197,7 @@ function renderDashboard() {
 
   const recent = [...bills].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 6);
   document.getElementById('dash-recent-body').innerHTML = recent.length ? recent.map((b) => billRow(b, true)).join('') :
-    `<tr><td colspan="6"><div class="empty">No bills yet.</div></td></tr>`;
+    `<tr><td colspan="6"><div class="empty">${t('billing.no_bills_yet', 'No bills yet.')}</div></td></tr>`;
   wireRowActions(document.getElementById('dash-recent-body'));
 
   const deptTotals = {};
@@ -199,6 +207,7 @@ function renderDashboard() {
 
 function billRow(b, compact) {
   const status = displayStatus(b);
+  const statusTrans = t('billing.status_' + status.toLowerCase(), status);
   return `<tr data-id="${b.id}">
     <td class="mono-cell">${escapeHtml(b.bill_no)}</td>
     <td><div class="patient-cell"><div class="avatar" style="background:${colorFor(b.patient_name)}">${initials(b.patient_name)}</div>${escapeHtml(b.patient_name)}</div></td>
@@ -206,8 +215,8 @@ function billRow(b, compact) {
     <td>${fmtDate(b.bill_date)}</td>
     ${compact ? '' : `<td style="text-align:right" class="mono-cell">${inr(b.total_amount)}</td><td style="text-align:right" class="mono-cell">${inr(b.paid_amount)}</td>`}
     <td style="text-align:right" class="mono-cell">${compact ? inr(b.total_amount) : inr(b.balance_amount)}</td>
-    <td><span class="pill ${statusClass(status)}">${status}</span></td>
-    <td><div class="row-actions"><button class="icon-btn view-bill-btn" data-id="${b.id}">View</button></div></td>
+    <td><span class="pill ${statusClass(status)}">${statusTrans}</span></td>
+    <td><div class="row-actions"><button class="icon-btn view-bill-btn" data-id="${b.id}">${t('billing.view', 'View')}</button></div></td>
   </tr>`;
 }
 
@@ -222,11 +231,11 @@ function wireRowActions(container) {
    lab/pharmacy/bed-allocation data.
 ============================================================ */
 function patientStatusBadge(p) {
-  if (p.isAdmitted) return `<span class="pill" style="background:var(--blue-soft);color:var(--blue);">Admitted — ${escapeHtml(p.wardName || 'Ward')} · Bed ${escapeHtml(p.bedNumber || '—')}</span>`;
-  if (p.visitCount === 0) return `<span class="pill" style="background:var(--paper-dim);color:var(--slate);">Registered</span>`;
-  if (p.latestVisitStatus === 'waiting') return `<span class="pill" style="background:var(--gold-soft);color:var(--gold-deep);">Waiting (OPD)</span>`;
-  if (p.latestVisitStatus === 'in-consultation') return `<span class="pill" style="background:var(--violet-soft);color:var(--violet);">In Consultation</span>`;
-  return `<span class="pill" style="background:var(--paper-dim);color:var(--slate);">OPD · last visit ${p.latestVisitDate ? fmtDate(p.latestVisitDate) : '—'}</span>`;
+  if (p.isAdmitted) return `<span class="pill" style="background:var(--blue-soft);color:var(--blue);">${t('billing.admitted', 'Admitted')} — ${escapeHtml(p.wardName || t('billing.ward', 'Ward'))} · ${t('billing.bed', 'Bed')} ${escapeHtml(p.bedNumber || '—')}</span>`;
+  if (p.visitCount === 0) return `<span class="pill" style="background:var(--paper-dim);color:var(--slate);">${t('billing.status_registered', 'Registered')}</span>`;
+  if (p.latestVisitStatus === 'waiting') return `<span class="pill" style="background:var(--gold-soft);color:var(--gold-deep);">${t('billing.waiting_opd', 'Waiting (OPD)')}</span>`;
+  if (p.latestVisitStatus === 'in-consultation') return `<span class="pill" style="background:var(--violet-soft);color:var(--violet);">${t('billing.in_consultation', 'In Consultation')}</span>`;
+  return `<span class="pill" style="background:var(--paper-dim);color:var(--slate);">${t('billing.opd_last_visit', 'OPD · last visit ')}${p.latestVisitDate ? fmtDate(p.latestVisitDate) : '—'}</span>`;
 }
 
 function renderPatientsTable() {
@@ -245,10 +254,10 @@ function renderPatientsTable() {
       <div>${escapeHtml(p.fullName)}<div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--slate);">${escapeHtml(p.uhid)}</div></div></div></td>
     <td>${patientStatusBadge(p)}</td>
     <td>${p.visitCount}</td>
-    <td style="text-align:right" class="mono-cell">${p.billingDeskOutstanding > 0 ? inr(p.billingDeskOutstanding) : `<span style="color:var(--emerald)">Settled</span>`}</td>
-    <td style="text-align:right" class="mono-cell">${p.pharmacyOutstanding > 0 ? inr(p.pharmacyOutstanding) : `<span style="color:var(--emerald)">Settled</span>`}</td>
+    <td style="text-align:right" class="mono-cell">${p.billingDeskOutstanding > 0 ? inr(p.billingDeskOutstanding) : `<span style="color:var(--emerald)">${t('billing.settled', 'Settled')}</span>`}</td>
+    <td style="text-align:right" class="mono-cell">${p.pharmacyOutstanding > 0 ? inr(p.pharmacyOutstanding) : `<span style="color:var(--emerald)">${t('billing.settled', 'Settled')}</span>`}</td>
     <td style="text-align:right;font-weight:700;" class="mono-cell">${inr(p.totalOutstanding)}</td>
-    <td><button class="icon-btn view-ledger-btn" data-uhid="${escapeHtml(p.uhid)}">View Ledger</button></td>
+    <td><button class="icon-btn view-ledger-btn" data-uhid="${escapeHtml(p.uhid)}">${t('billing.view_ledger', 'View Ledger')}</button></td>
   </tr>`).join('');
 
   body.querySelectorAll('.view-ledger-btn').forEach((btn) => btn.addEventListener('click', (e) => { e.stopPropagation(); openLedger(btn.dataset.uhid); }));
@@ -792,36 +801,36 @@ async function openInvoice(billId) {
       </div>
     </div>` : `
     <div class="meta-block">
-      <div class="h">Payments</div>
+      <div class="h">${t('billing.payments', 'Payments')}</div>
       <div class="l">${paymentLines}</div>
     </div>`;
 
   document.getElementById('invoice-body').innerHTML = `
-    <div class="ribbon ${statusClass(status)}">${status}</div>
+    <div class="ribbon ${statusClass(status)}">${statusTrans}</div>
     <div class="invoice-head">
       <div class="invoice-brand">
         <img src="../logo.png" alt="Core5 MEDISYS">
         <div>
           <div class="hosp-name">${escapeHtml(sessionUser.hospitalName || 'MEDISYS Hospital')}</div>
-          <div class="hosp-meta">Billing Desk · Tax Invoice</div>
+          <div class="hosp-meta">${t('billing.tax_invoice', 'Billing Desk · Tax Invoice')}</div>
         </div>
       </div>
       <div class="invoice-tag">
-        <div class="taglabel">Bill No.</div>
+        <div class="taglabel">${t('billing.bill_no', 'Bill No.')}</div>
         <div class="bignum">${escapeHtml(bill.bill_no)}</div>
-        <div class="status-pill"><span class="pill ${statusClass(status)}">${status}</span></div>
+        <div class="status-pill"><span class="pill ${statusClass(status)}">${statusTrans}</span></div>
       </div>
     </div>
 
     <div class="invoice-meta-grid">
       <div class="meta-block">
-        <div class="h">Patient</div>
+        <div class="h">${t('billing.patient', 'Patient')}</div>
         <div class="l">
           <b>${escapeHtml(bill.patient_name)}</b><br>
           UHID: ${escapeHtml(bill.patient_uhid || 'Not registered')}<br>
           ${bill.abha_id ? `ABHA: ${escapeHtml(bill.abha_id)}<br>` : ''}
-          Department: ${escapeHtml(bill.department)}${bill.doctor_name ? ' · Dr. ' + escapeHtml(bill.doctor_name) : ''}<br>
-          Date: ${fmtDate(bill.bill_date)}
+          ${t('common.department', 'Department')}: ${escapeHtml(bill.department)}${bill.doctor_name ? ' · Dr. ' + escapeHtml(bill.doctor_name) : ''}<br>
+          ${t('common.date', 'Date')}: ${fmtDate(bill.bill_date)}
         </div>
       </div>
       ${insuranceBlock}
@@ -829,28 +838,28 @@ async function openInvoice(billId) {
 
     <div class="invoice-items">
       <table>
-        <thead><tr><th>Description</th><th>Dept</th><th style="text-align:center">Qty</th><th class="amt">Rate</th><th class="amt">Amount</th></tr></thead>
+        <thead><tr><th>${t('billing.item_description', 'Description')}</th><th>${t('billing.dept', 'Dept')}</th><th style="text-align:center">${t('billing.qty', 'Qty')}</th><th class="amt">${t('billing.rate', 'Rate')}</th><th class="amt">${t('billing.amount', 'Amount')}</th></tr></thead>
         <tbody>${itemRows}</tbody>
       </table>
     </div>
 
     <div class="invoice-totals">
       <div class="box">
-        <div class="ln"><span>Subtotal</span><span class="mono">${inr(bill.subtotal)}</span></div>
-        <div class="ln"><span>Discount (${Number(bill.discount_pct)}%)</span><span class="mono">− ${inr(bill.discount_amount)}</span></div>
-        <div class="ln"><span>GST (${Number(bill.tax_pct)}%)</span><span class="mono">+ ${inr(bill.tax_amount)}</span></div>
-        <div class="ln grand"><span>Total</span><span class="mono">${inr(bill.total_amount)}</span></div>
-        <div class="ln"><span>Paid</span><span class="mono">${inr(bill.paid_amount)}</span></div>
-        <div class="ln"><span>Balance Due</span><span class="mono">${inr(bill.balance_amount)}</span></div>
+        <div class="ln"><span>${t('billing.subtotal', 'Subtotal')}</span><span class="mono">${inr(bill.subtotal)}</span></div>
+        <div class="ln"><span>${t('billing.discount', 'Discount')} (${Number(bill.discount_pct)}%)</span><span class="mono">− ${inr(bill.discount_amount)}</span></div>
+        <div class="ln"><span>${t('billing.tax', 'GST')} (${Number(bill.tax_pct)}%)</span><span class="mono">+ ${inr(bill.tax_amount)}</span></div>
+        <div class="ln grand"><span>${t('billing.total', 'Total')}</span><span class="mono">${inr(bill.total_amount)}</span></div>
+        <div class="ln"><span>${t('billing.paid', 'Paid')}</span><span class="mono">${inr(bill.paid_amount)}</span></div>
+        <div class="ln"><span>${t('billing.balance_due', 'Balance Due')}</span><span class="mono">${inr(bill.balance_amount)}</span></div>
       </div>
     </div>
 
     <div class="invoice-foot">
-      <div class="sign-block"><div class="sign-line"></div>Patient / Attendant</div>
-      <div class="sign-block"><div class="sign-line"></div>Billing Desk — ${escapeHtml(sessionUser.fullName || sessionUser.userId)}</div>
+      <div class="sign-block"><div class="sign-line"></div>${t('billing.patient_signature', 'Patient / Attendant')}</div>
+      <div class="sign-block"><div class="sign-line"></div>${t('billing.billing_desk_signature', 'Billing Desk — ')}${escapeHtml(sessionUser.fullName || sessionUser.userId)}</div>
     </div>
 
-    ${bill.balance_amount > 0 ? `<div style="margin-top:20px;"><button class="btn gold" onclick="collectPayment(${bill.id})">Collect Remaining ${inr(bill.balance_amount)}</button></div>` : ''}
+    ${bill.balance_amount > 0 ? `<div style="margin-top:20px;"><button class="btn gold" onclick="collectPayment(${bill.id})">${t('billing.collect_remaining', 'Collect Remaining')} ${inr(bill.balance_amount)}</button></div>` : ''}
   `;
 
   document.getElementById('invoice-wrap').classList.add('open');
@@ -894,6 +903,10 @@ async function init() {
   const tpl = document.getElementById('appTemplate');
   root.replaceWith(tpl.content.cloneNode(true));
 
+  if (window.i18n && typeof window.i18n.applyTranslations === 'function') {
+    window.i18n.applyTranslations();
+  }
+
   // #sidebarHospital only exists once the template above has been inserted into the page.
   const sidebarHospitalEl = document.getElementById('sidebarHospital');
   if (sidebarHospitalEl) sidebarHospitalEl.textContent = user.hospitalName || '';
@@ -934,6 +947,12 @@ async function init() {
       (resource) => MEDISYS_RT.on(resource, refreshAndRerender)
     );
   }
+
+  window.addEventListener('i18n:languageChanged', () => {
+    const activeView = document.querySelector('.nav-item.active');
+    if (activeView) switchView(activeView.dataset.view);
+    if (window.i18n) window.i18n.applyTranslations();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -20,36 +20,36 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>OPD Vitals</h1>
-    <p class="portal-subtitle">Today's OPD visits &mdash; pick a patient to log or update their vitals.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="vitals.title">OPD Vitals</h1>
+    <p class="portal-subtitle" data-i18n="vitals.subtitle">Today's OPD visits &mdash; pick a patient to log or update their vitals.</p>
 
     <div id="queueList"></div>
-    <p class="portal-card portal-empty" id="queueEmptyState" hidden>No OPD visits yet today.</p>
+    <p class="portal-card portal-empty" id="queueEmptyState" hidden data-i18n="vitals.no_opd_visits">No OPD visits yet today.</p>
 
     <div class="portal-card wizard-step" id="vitalsFormSection" hidden>
-      <h2 id="vitalsFormTitle">Log Vitals</h2>
+      <h2 id="vitalsFormTitle" data-i18n="vitals.log_vitals">Log Vitals</h2>
       <div class="wizard-grid">
         <div>
-          <label for="bp">Blood Pressure</label>
-          <input type="text" id="bp" placeholder="e.g. 120/80" />
+          <label for="bp" data-i18n="vitals.blood_pressure">Blood Pressure</label>
+          <input type="text" id="bp" placeholder="e.g. 120/80" data-i18n-placeholder="vitals.bp_placeholder" />
         </div>
         <div>
-          <label for="temperature">Temperature</label>
-          <input type="text" id="temperature" placeholder="e.g. 98.6 F" />
+          <label for="temperature" data-i18n="vitals.temperature">Temperature</label>
+          <input type="text" id="temperature" placeholder="e.g. 98.6 F" data-i18n-placeholder="vitals.temp_placeholder" />
         </div>
         <div>
-          <label for="weight">Weight</label>
-          <input type="text" id="weight" placeholder="e.g. 65 kg" />
+          <label for="weight" data-i18n="vitals.weight">Weight</label>
+          <input type="text" id="weight" placeholder="e.g. 65 kg" data-i18n-placeholder="vitals.weight_placeholder" />
         </div>
         <div>
-          <label for="spo2">SpO2</label>
-          <input type="text" id="spo2" placeholder="e.g. 98%" />
+          <label for="spo2" data-i18n="vitals.spo2">SpO2</label>
+          <input type="text" id="spo2" placeholder="e.g. 98%" data-i18n-placeholder="vitals.spo2_placeholder" />
         </div>
       </div>
       <p class="form-error" id="vitalsFormError" role="alert" aria-live="polite"></p>
       <div class="wizard-nav">
-        <button type="button" class="login-btn wizard-next-btn" id="saveVitalsBtn">Save Vitals</button>
+        <button type="button" class="login-btn wizard-next-btn" id="saveVitalsBtn" data-i18n="vitals.save_vitals">Save Vitals</button>
       </div>
     </div>
   </main>

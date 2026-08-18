@@ -67,5 +67,9 @@
     if (window.MEDISYS_RT) {
       ["ipd_admissions", "patients", "vitals"].forEach((resource) => MEDISYS_RT.on(resource, loadMyPatients));
     }
+    window.addEventListener("i18n:languageChanged", () => {
+      loadMyPatients();
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

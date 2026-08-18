@@ -20,90 +20,90 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>Nurse Assignment</h1>
-    <p class="portal-subtitle">Control how a nurse gets auto-assigned the moment a bed is allocated to an admitted patient.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="hospital_page.nurse_assignment_title">Nurse Assignment</h1>
+    <p class="portal-subtitle" data-i18n="hospital_page.nurse_assignment_subtitle">Control how a nurse gets auto-assigned the moment a bed is allocated to an admitted patient.</p>
 
     <div class="portal-card wizard-step">
-      <label for="assignmentModeSelect">Assignment Mode</label>
+      <label for="assignmentModeSelect" data-i18n="hospital_page.assignment_mode">Assignment Mode</label>
       <select id="assignmentModeSelect">
-        <option value="ward_based">Ward-based — assign whichever nurse is on shift for the bed's ward</option>
-        <option value="doctor_team">Doctor-team — prefer the admitting doctor's team nurse, fall back to ward roster</option>
+        <option value="ward_based" data-i18n="hospital_page.ward_based_option">Ward-based — assign whichever nurse is on shift for the bed's ward</option>
+        <option value="doctor_team" data-i18n="hospital_page.doctor_team_option">Doctor-team — prefer the admitting doctor's team nurse, fall back to ward roster</option>
       </select>
       <p class="wizard-hint" id="modeSaveHint"></p>
     </div>
 
-    <h2 class="portal-section-title">Nurse Shift Roster</h2>
-    <p class="portal-subtitle">Which nurse covers each ward, on each shift and day. Used directly in ward-based mode, and as the fallback in doctor-team mode.</p>
+    <h2 class="portal-section-title" data-i18n="hospital_page.nurse_shift_roster">Nurse Shift Roster</h2>
+    <p class="portal-subtitle" data-i18n="hospital_page.roster_subtitle">Which nurse covers each ward, on each shift and day. Used directly in ward-based mode, and as the fallback in doctor-team mode.</p>
     <div class="portal-card wizard-step">
       <div class="wizard-grid">
         <div>
-          <label for="rosterNurseSelect">Nurse</label>
+          <label for="rosterNurseSelect" data-i18n="hospital_page.nurse">Nurse</label>
           <select id="rosterNurseSelect"></select>
         </div>
         <div>
-          <label for="rosterWardSelect">Ward</label>
+          <label for="rosterWardSelect" data-i18n="hospital_page.ward">Ward</label>
           <select id="rosterWardSelect"></select>
         </div>
         <div>
-          <label for="rosterShiftSelect">Shift</label>
+          <label for="rosterShiftSelect" data-i18n="hospital_page.shift">Shift</label>
           <select id="rosterShiftSelect">
-            <option value="Morning">Morning</option>
-            <option value="Evening">Evening</option>
-            <option value="Night">Night</option>
+            <option value="Morning" data-i18n="hospital_page.morning">Morning</option>
+            <option value="Evening" data-i18n="hospital_page.evening">Evening</option>
+            <option value="Night" data-i18n="hospital_page.night">Night</option>
           </select>
         </div>
         <div>
-          <label for="rosterDaySelect">Day</label>
+          <label for="rosterDaySelect" data-i18n="hospital_page.day">Day</label>
           <select id="rosterDaySelect">
-            <option value="0">Sunday</option>
-            <option value="1">Monday</option>
-            <option value="2">Tuesday</option>
-            <option value="3">Wednesday</option>
-            <option value="4">Thursday</option>
-            <option value="5">Friday</option>
-            <option value="6">Saturday</option>
+            <option value="0" data-i18n="hospital_page.sunday">Sunday</option>
+            <option value="1" data-i18n="hospital_page.monday">Monday</option>
+            <option value="2" data-i18n="hospital_page.tuesday">Tuesday</option>
+            <option value="3" data-i18n="hospital_page.wednesday">Wednesday</option>
+            <option value="4" data-i18n="hospital_page.thursday">Thursday</option>
+            <option value="5" data-i18n="hospital_page.friday">Friday</option>
+            <option value="6" data-i18n="hospital_page.saturday">Saturday</option>
           </select>
         </div>
       </div>
       <div class="wizard-nav">
-        <button type="button" class="login-btn wizard-next-btn" id="addRosterBtn">Add to Roster</button>
+        <button type="button" class="login-btn wizard-next-btn" id="addRosterBtn" data-i18n="hospital_page.add_to_roster">Add to Roster</button>
       </div>
       <p class="form-error" id="rosterFormError" role="alert" aria-live="polite"></p>
     </div>
     <div class="portal-card">
       <table class="portal-table" id="rosterTable">
-        <thead><tr><th>Nurse</th><th>Ward</th><th>Shift</th><th>Day</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="hospital_page.nurse">Nurse</th><th data-i18n="hospital_page.ward">Ward</th><th data-i18n="hospital_page.shift">Shift</th><th data-i18n="hospital_page.day">Day</th><th></th></tr></thead>
         <tbody id="rosterTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="rosterEmptyState" hidden>No roster entries yet.</p>
+      <p class="portal-empty" id="rosterEmptyState" data-i18n="hospital_page.no_roster_entries" hidden>No roster entries yet.</p>
     </div>
 
     <div id="teamsSection" hidden>
-      <h2 class="portal-section-title">Doctor–Nurse Teams</h2>
-      <p class="portal-subtitle">Pairs a doctor with their preferred nurse for doctor-team mode. If the paired nurse isn't on shift, the ward roster above is used instead.</p>
+      <h2 class="portal-section-title" data-i18n="hospital_page.doctor_nurse_teams">Doctor–Nurse Teams</h2>
+      <p class="portal-subtitle" data-i18n="hospital_page.teams_subtitle">Pairs a doctor with their preferred nurse for doctor-team mode. If the paired nurse isn't on shift, the ward roster above is used instead.</p>
       <div class="portal-card wizard-step">
         <div class="wizard-grid">
           <div>
-            <label for="teamDoctorSelect">Doctor</label>
+            <label for="teamDoctorSelect" data-i18n="common.doctor">Doctor</label>
             <select id="teamDoctorSelect"></select>
           </div>
           <div>
-            <label for="teamNurseSelect">Nurse</label>
+            <label for="teamNurseSelect" data-i18n="hospital_page.nurse">Nurse</label>
             <select id="teamNurseSelect"></select>
           </div>
         </div>
         <div class="wizard-nav">
-          <button type="button" class="login-btn wizard-next-btn" id="addTeamBtn">Add Team</button>
+          <button type="button" class="login-btn wizard-next-btn" id="addTeamBtn" data-i18n="hospital_page.add_team">Add Team</button>
         </div>
         <p class="form-error" id="teamFormError" role="alert" aria-live="polite"></p>
       </div>
       <div class="portal-card">
         <table class="portal-table" id="teamsTable">
-          <thead><tr><th>Doctor</th><th>Nurse</th><th></th></tr></thead>
+          <thead><tr><th data-i18n="common.doctor">Doctor</th><th data-i18n="hospital_page.nurse">Nurse</th><th></th></tr></thead>
           <tbody id="teamsTableBody"></tbody>
         </table>
-        <p class="portal-empty" id="teamsEmptyState" hidden>No doctor-nurse teams yet.</p>
+        <p class="portal-empty" id="teamsEmptyState" data-i18n="hospital_page.no_teams_yet" hidden>No doctor-nurse teams yet.</p>
       </div>
     </div>
   </main>

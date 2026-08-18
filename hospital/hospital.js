@@ -9,13 +9,34 @@
   };
 
   const MODULE_LABELS = {
-    opd: "OPD",
-    radiology: "Radiology",
-    billing: "Billing & Insurance",
-    pharmacy: "Pharmacy",
-    pathology: "Pathology",
-    laboratory: "Laboratory",
+    opd: "module.opd",
+    radiology: "module.radiology",
+    billing: "module.billing",
+    pharmacy: "module.pharmacy",
+    pathology: "module.pathology",
+    laboratory: "module.laboratory",
+    blood_bank: "module.blood_bank",
+    ipd: "module.ipd",
   };
+
+  function getModuleLabel(m) {
+    const key = MODULE_LABELS[m] || `module.${m}`;
+    const fallbacks = {
+      opd: "OPD",
+      radiology: "Radiology",
+      billing: "Billing & Insurance",
+      pharmacy: "Pharmacy",
+      pathology: "Pathology",
+      laboratory: "Laboratory",
+      blood_bank: "Blood Bank",
+      ipd: "IPD",
+    };
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallbacks[m] || m;
+  }
 
   const ROLE_ICONS = {
     doctor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5a3 3 0 0 0 6 0V3"/><path d="M9 3H7M15 3h2"/><path d="M12 11v4a5 5 0 0 0 10 0v-2"/><circle cx="21" cy="10" r="1.6"/></svg>`,
@@ -36,6 +57,34 @@
     billing_staff: "Billing Staff",
     blood_bank_staff: "Blood Bank Staff",
   };
+
+  const ROLE_KEYS = {
+    doctor: "role.doctor",
+    nurse: "role.nurse",
+    pharmacist: "role.pharmacist",
+    pathology_staff: "role.pathologist",
+    receptionist: "role.opd",
+    billing_staff: "role.billing_staff",
+    blood_bank_staff: "role.blood_bank_staff",
+  };
+
+  function getRoleLabel(role) {
+    const key = ROLE_KEYS[role] || `role.${role}`;
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return ROLE_LABELS[role] || role;
+  }
+
+  function getRoleLabelPlural(role) {
+    const key = `role.${role}_plural`;
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return getRoleLabel(role) + "s";
+  }
 
   const ROLE_FIELDS = {
     doctor: [
@@ -141,8 +190,8 @@
         (m) => `
         <div class="module-card readonly">
           <span class="module-card-icon">${MODULE_ICONS[m] || ""}</span>
-          <span class="module-card-label">${MODULE_LABELS[m] || m}</span>
-          <span class="module-card-soon">Coming soon</span>
+          <span class="module-card-label">${getModuleLabel(m)}</span>
+          <span class="module-card-soon">${window.i18n ? window.i18n.t("hospital_page.coming_soon") : "Coming soon"}</span>
         </div>`
       )
       .join("");
@@ -155,7 +204,13 @@
     const data = await res.json();
     if (!data.success) return;
     const count = data.staff.length;
-    hint.textContent = count === 0 ? "No staff registered yet" : `${count} staff member${count === 1 ? "" : "s"}`;
+    if (count === 0) {
+      hint.textContent = window.i18n ? window.i18n.t("hospital_page.staff_count_zero") : "No staff registered yet";
+    } else if (count === 1) {
+      hint.textContent = window.i18n ? window.i18n.t("hospital_page.staff_count_one", { count: 1 }) : "1 staff member";
+    } else {
+      hint.textContent = window.i18n ? window.i18n.t("hospital_page.staff_count_other", { count }) : `${count} staff members`;
+    }
   }
 
   function initRolePicker() {
@@ -168,7 +223,7 @@
         <label class="module-card" data-role="${role}">
           <input type="radio" name="roleChoice" value="${role}" />
           <span class="module-card-icon">${ROLE_ICONS[role]}</span>
-          <span class="module-card-label">${ROLE_LABELS[role]}</span>
+          <span class="module-card-label">${getRoleLabel(role)}</span>
         </label>`
       )
       .join("");
@@ -182,7 +237,7 @@
       input.addEventListener("change", async () => {
         grid.querySelectorAll(".module-card").forEach((c) => c.classList.toggle("selected", c === card));
         const role = card.dataset.role;
-        formTitle.textContent = `${ROLE_LABELS[role]} Details`;
+        formTitle.textContent = `${getRoleLabel(role)} Details`;
         fieldsContainer.innerHTML = (ROLE_FIELDS[role] || [])
           .map((field) => {
             if (field.type === "select") {
@@ -372,7 +427,7 @@
                 ${role === "doctor" && s.department_name ? `<div class="staff-entry-detail">${escapeHtml(s.department_name)}</div>` : ""}
                 ${summary ? `<div class="staff-entry-detail">${escapeHtml(summary)}</div>` : ""}
                 <div class="staff-entry-detail">${escapeHtml(s.email || "—")}${s.phone ? " · " + escapeHtml(s.phone) : ""}</div>
-                <div class="staff-entry-detail">Added ${escapeHtml(added)}</div>
+                <div class="staff-entry-detail">${window.i18n ? window.i18n.t("hospital_page.added_on") : "Added"} ${escapeHtml(added)}</div>
                 <span class="staff-entry-userid">${escapeHtml(s.user_id)}</span>
               </div>`;
           })
@@ -380,7 +435,7 @@
 
         return `
           <div class="staff-group-section">
-            <h2 class="staff-group-heading">${ROLE_LABELS_PLURAL[role] || ROLE_LABELS[role] + "s"} <span class="staff-group-count">${entries.length}</span></h2>
+            <h2 class="staff-group-heading">${getRoleLabelPlural(role)} <span class="staff-group-count">${entries.length}</span></h2>
             <div class="staff-roster-grid">${cards}</div>
           </div>`;
       })
@@ -641,5 +696,12 @@
       MEDISYS_RT.on("staff", loadStaffCount);
       MEDISYS_RT.on("hospitals", loadHospital);
     }
+
+    window.addEventListener("i18n:languageChanged", () => {
+      loadHospital();
+      loadStaffCount();
+      initRolePicker();
+      initStaffList();
+    });
   });
 })();

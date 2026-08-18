@@ -20,26 +20,26 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>Departments</h1>
-    <p class="portal-subtitle">Departments/specializations doctors can be assigned to. Receptionists filter doctors by department when booking OPD visits.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="hospital_page.departments_title">Departments</h1>
+    <p class="portal-subtitle" data-i18n="hospital_page.dept_subtitle">Departments/specializations doctors can be assigned to. Receptionists filter doctors by department when booking OPD visits.</p>
 
     <div class="portal-card wizard-step">
-      <label for="departmentName">Department Name</label>
+      <label for="departmentName" data-i18n="hospital_page.dept_name_label">Department Name</label>
       <div class="wizard-suggest-row">
-        <input type="text" id="departmentName" placeholder="e.g. Cardiology, Orthopedics, Pediatrics" />
-        <button type="button" class="wizard-suggest-btn" id="addDepartmentBtn">Add Department</button>
+        <input type="text" id="departmentName" data-i18n-placeholder="hospital_page.dept_placeholder" placeholder="e.g. Cardiology, Orthopedics, Pediatrics" />
+        <button type="button" class="wizard-suggest-btn" id="addDepartmentBtn" data-i18n="hospital_page.add_department">Add Department</button>
       </div>
       <p class="form-error" id="departmentFormError" role="alert" aria-live="polite"></p>
     </div>
 
-    <h2 class="portal-section-title">Existing Departments</h2>
+    <h2 class="portal-section-title" data-i18n="hospital_page.existing_departments">Existing Departments</h2>
     <div class="portal-card">
       <table class="portal-table" id="departmentsTable">
-        <thead><tr><th>Department</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="common.department">Department</th><th></th></tr></thead>
         <tbody id="departmentsTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="departmentsEmptyState" hidden>No departments added yet.</p>
+      <p class="portal-empty" id="departmentsEmptyState" data-i18n="hospital_page.no_departments_yet" hidden>No departments added yet.</p>
     </div>
   </main>
 

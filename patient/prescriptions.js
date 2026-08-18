@@ -29,6 +29,14 @@
     });
   }
 
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   async function loadPrescriptions() {
     const res = await fetch("/api/patients/me/prescriptions", { credentials: "same-origin" });
     const data = await res.json();
@@ -45,13 +53,14 @@
     tbody.innerHTML = data.prescriptions
       .map((p) => {
         const isDispensed = p.status === "dispensed";
-        const statusLabel = STATUS_LABEL[p.status] || p.status;
+        const statusLabel = isDispensed ? t('prescriptions.dispensed', 'Dispensed') : t('prescriptions.pending_pharmacy', 'Pending at Pharmacy');
+        const urgencyLabel = p.urgency === "urgent" ? t('common.urgent', 'Urgent') : t('common.routine', 'Routine');
         return `<tr>
           <td>${escapeHtml(p.medicine_name)}</td>
           <td>${escapeHtml(p.dosage)}</td>
           <td>${escapeHtml(p.duration)}</td>
           <td>${escapeHtml(p.food_instruction || "—")}</td>
-          <td>${escapeHtml(p.urgency === "urgent" ? "Urgent" : "Routine")}</td>
+          <td>${escapeHtml(urgencyLabel)}</td>
           <td><span class="queue-status ${isDispensed ? "completed" : "waiting"}">${escapeHtml(statusLabel)}</span></td>
           <td>${escapeHtml(new Date(p.created_at).toLocaleString())}</td>
         </tr>`;
@@ -67,5 +76,9 @@
     if (window.MEDISYS_RT) {
       ["pharmacy_orders", "pharmacy_invoices"].forEach((resource) => MEDISYS_RT.on(resource, loadPrescriptions));
     }
+    window.addEventListener("i18n:languageChanged", () => {
+      loadPrescriptions();
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

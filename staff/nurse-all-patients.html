@@ -20,16 +20,16 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>All Patients</h1>
-    <p class="portal-subtitle">Every currently admitted patient in the hospital, not just your own. Discharge frees their bed immediately.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="nurse_pages.all_patients_title">All Patients</h1>
+    <p class="portal-subtitle" data-i18n="nurse_pages.all_patients_subtitle">Every currently admitted patient in the hospital, not just your own. Discharge frees their bed immediately.</p>
 
     <div class="portal-card">
       <table class="portal-table" id="allPatientsTable">
-        <thead><tr><th>Patient</th><th>Ward</th><th>Bed</th><th>Admitting Doctor</th><th>Nurse</th><th>Admitted</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="common.patient">Patient</th><th data-i18n="hospital_page.ward">Ward</th><th data-i18n="admin.beds">Bed</th><th data-i18n="ipd_admission.admitting_doctor">Admitting Doctor</th><th data-i18n="hospital_page.nurse">Nurse</th><th data-i18n="nurse_pages.admitted">Admitted</th><th></th></tr></thead>
         <tbody id="allPatientsTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="allPatientsEmptyState" hidden>No patients currently admitted.</p>
+      <p class="portal-empty" id="allPatientsEmptyState" data-i18n="nurse_pages.no_patients_admitted" hidden>No patients currently admitted.</p>
     </div>
   </main>
 

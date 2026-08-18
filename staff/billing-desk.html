@@ -343,18 +343,19 @@ select, .txt-input{
     <img src="../logo.png" alt="Core5 MEDISYS" class="brand-logo" />
   </div>
   <div class="portal-header-right">
-    <a href="dashboard.html" class="portal-back-link" style="margin-right:4px;">&larr; Back to Dashboard</a>
+    <a href="dashboard.html" class="portal-back-link" style="margin-right:4px;" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
     <span class="portal-user" id="portalUser"></span>
-    <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+    <button type="button" class="portal-logout-btn" id="logoutBtn" data-i18n="common.logout">Logout</button>
   </div>
 </header>
+<script src="../portal-ui.js"></script>
 
 <div id="appRoot" class="empty" style="padding:60px;">
-  <div id="appLoadingLabel">Loading billing data…</div>
+  <div id="appLoadingLabel" data-i18n="billing_desk.loading">Loading billing data…</div>
   <div id="appLoadError" style="display:none;">
-    <p style="color:var(--rust);font-weight:600;margin-bottom:10px;">Couldn't reach the server.</p>
-    <p style="font-size:13px;color:var(--slate);margin-bottom:16px;">Check your connection, or the server may be temporarily down. This won't fix itself — refresh once it's back.</p>
-    <button class="btn gold" style="margin:0 auto;" onclick="location.reload()">Retry</button>
+    <p style="color:var(--rust);font-weight:600;margin-bottom:10px;" data-i18n="billing_desk.couldnt_reach">Couldn't reach the server.</p>
+    <p style="font-size:13px;color:var(--slate);margin-bottom:16px;" data-i18n="billing_desk.check_connection">Check your connection, or the server may be temporarily down. This won't fix itself — refresh once it's back.</p>
+    <button class="btn gold" style="margin:0 auto;" onclick="location.reload()" data-i18n="billing_desk.retry">Retry</button>
   </div>
 </div>
 
@@ -363,47 +364,47 @@ select, .txt-input{
   <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="nav-group">
-      <div class="nav-label">Overview</div>
+      <div class="nav-label" data-i18n="billing_desk.overview">Overview</div>
       <div class="nav-item active" data-view="dashboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-        Dashboard
+        <span data-i18n="navigation.dashboard">Dashboard</span>
       </div>
       <div class="nav-item" data-view="patients">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-        Patients <span class="pill-badge" id="patientsLiveCount" style="background:rgba(255,255,255,.12);color:#CFE0EF;font-size:10px;padding:2px 7px;border-radius:20px;margin-left:auto;">0</span>
+        <span data-i18n="navigation.patients">Patients</span> <span class="pill-badge" id="patientsLiveCount" style="background:rgba(255,255,255,.12);color:#CFE0EF;font-size:10px;padding:2px 7px;border-radius:20px;margin-left:auto;">0</span>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-label">Billing</div>
+      <div class="nav-label" data-i18n="billing_desk.billing">Billing</div>
       <div class="nav-item" data-view="bills">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v5h5"/><path d="M8 13h8M8 17h5"/></svg>
-        Patient Bills
+        <span data-i18n="billing_desk.patient_bills">Patient Bills</span>
       </div>
       <div class="nav-item" data-view="newbill">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        Create Bill
+        <span data-i18n="billing_desk.create_bill">Create Bill</span>
       </div>
       <div class="nav-item" data-view="payments">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
-        Payments
+        <span data-i18n="billing_desk.payments">Payments</span>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-label">Insurance</div>
+      <div class="nav-label" data-i18n="billing_desk.insurance_tpa">Insurance</div>
       <div class="nav-item" data-view="claims">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
-        TPA / Claims
+        <span data-i18n="billing_desk.tpa_claims">TPA / Claims</span>
       </div>
     </div>
     <div class="nav-group">
-      <div class="nav-label">Insights</div>
+      <div class="nav-label" data-i18n="billing_desk.insights">Insights</div>
       <div class="nav-item" data-view="reports">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
-        Reports
+        <span data-i18n="billing_desk.reports">Reports</span>
       </div>
       <div class="nav-item" data-view="tariff">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V8a2 2 0 0 1 2-2h5l2-3 2 3h3a2 2 0 0 1 2 2v13"/><path d="M4 21h16M9 21v-6h6v6"/></svg>
-        Tariff Settings
+        <span data-i18n="billing_desk.tariff_settings">Tariff Settings</span>
       </div>
     </div>
 
@@ -420,14 +421,14 @@ select, .txt-input{
     <div class="view active" id="view-dashboard">
       <div class="topbar">
         <div>
-          <div class="eyebrow">Today · <span id="date-today-label"></span></div>
-          <h1>Billing Dashboard</h1>
-          <div class="desc">Today's collections, outstanding balances, and claim status across every department.</div>
+          <div class="eyebrow"><span data-i18n="common.today">Today</span> · <span id="date-today-label"></span></div>
+          <h1 data-i18n="billing.dashboard_title">Billing Dashboard</h1>
+          <div class="desc" data-i18n="billing.dashboard_desc">Today's collections, outstanding balances, and claim status across every department.</div>
         </div>
         <div class="top-actions">
           <button class="btn gold" onclick="switchView('newbill')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            Create Bill
+            <span data-i18n="billing.create_bill">Create Bill</span>
           </button>
         </div>
       </div>
@@ -435,16 +436,16 @@ select, .txt-input{
       <div class="kpi-row">
         <div class="kpi rev">
           <div class="top-row">
-            <div class="label">Collected Today</div>
+            <div class="label" data-i18n="billing.collected_today">Collected Today</div>
             <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
           </div>
           <div class="value" id="kpi-collected">₹0</div>
-          <div class="delta">Across all payment modes</div>
+          <div class="delta" data-i18n="billing.across_all_payment_modes">Across all payment modes</div>
           <div class="spark" id="spark-collected"></div>
         </div>
         <div class="kpi pending">
           <div class="top-row">
-            <div class="label">Outstanding Balance</div>
+            <div class="label" data-i18n="billing.outstanding_balance">Outstanding Balance</div>
             <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
           </div>
           <div class="value" id="kpi-outstanding">₹0</div>
@@ -453,20 +454,20 @@ select, .txt-input{
         </div>
         <div class="kpi paid">
           <div class="top-row">
-            <div class="label">Bills Settled</div>
+            <div class="label" data-i18n="billing.bills_settled">Bills Settled</div>
             <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div>
           </div>
           <div class="value" id="kpi-paidcount">0</div>
-          <div class="delta">Fully paid, this dataset</div>
+          <div class="delta" data-i18n="billing.fully_paid_dataset">Fully paid, this dataset</div>
           <div class="spark" id="spark-paid"></div>
         </div>
         <div class="kpi claims">
           <div class="top-row">
-            <div class="label">Claims In Process</div>
+            <div class="label" data-i18n="billing.claims_in_process">Claims In Process</div>
             <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg></div>
           </div>
           <div class="value" id="kpi-claims">0</div>
-          <div class="delta" style="color:var(--slate)">Awaiting TPA approval</div>
+          <div class="delta" style="color:var(--slate)" data-i18n="billing.awaiting_tpa_approval">Awaiting TPA approval</div>
           <div class="spark" id="spark-claims"></div>
         </div>
       </div>
@@ -474,17 +475,24 @@ select, .txt-input{
       <div class="two-col">
         <div class="panel">
           <div class="panel-head">
-            <h2>Recent Bills</h2>
-            <button class="btn ghost" onclick="switchView('bills')">View all →</button>
+            <h2 data-i18n="billing.recent_bills">Recent Bills</h2>
+            <button class="btn ghost" onclick="switchView('bills')" data-i18n="billing.view_all">View all →</button>
           </div>
           <table>
-            <thead><tr><th>Bill No.</th><th>Patient</th><th>Date</th><th style="text-align:right">Amount</th><th>Status</th><th></th></tr></thead>
+            <thead><tr>
+              <th data-i18n="billing.bill_no">Bill No.</th>
+              <th data-i18n="common.patient">Patient</th>
+              <th data-i18n="common.date">Date</th>
+              <th style="text-align:right" data-i18n="billing.amount">Amount</th>
+              <th data-i18n="common.status">Status</th>
+              <th></th>
+            </tr></thead>
             <tbody id="dash-recent-body"></tbody>
           </table>
         </div>
 
         <div class="panel">
-          <div class="panel-head"><h2>Revenue by Department</h2></div>
+          <div class="panel-head"><h2 data-i18n="billing.revenue_by_department">Revenue by Department</h2></div>
           <div class="donut-wrap" id="dept-donut"></div>
         </div>
       </div>
@@ -494,14 +502,14 @@ select, .txt-input{
     <div class="view" id="view-patients">
       <div class="topbar">
         <div>
-          <div class="eyebrow">Live · updates automatically</div>
-          <h1>Patients</h1>
-          <div class="desc">Every patient in this hospital, new and existing, with real-time status and what they currently owe — pulled live from registration, OPD, lab orders, pharmacy, and bed allocation.</div>
+          <div class="eyebrow" data-i18n="billing.live_updates">Live · updates automatically</div>
+          <h1 data-i18n="billing.patients">Patients</h1>
+          <div class="desc" data-i18n="billing.patients_desc">Every patient in this hospital, new and existing, with real-time status and what they currently owe — pulled live from registration, OPD, lab orders, pharmacy, and bed allocation.</div>
         </div>
         <div class="top-actions">
           <div class="search-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
-            <input id="patients-search" placeholder="Search UHID or name…" oninput="renderPatientsTable()">
+            <input id="patients-search" placeholder="Search UHID or name…" data-i18n-placeholder="billing.search_uhid_name" oninput="renderPatientsTable()">
           </div>
         </div>
       </div>
@@ -509,13 +517,17 @@ select, .txt-input{
       <div class="panel">
         <table>
           <thead><tr>
-            <th>Patient</th><th>Status</th><th>Visits</th>
-            <th style="text-align:right">Billing Desk Owes</th><th style="text-align:right">Pharmacy Owes</th>
-            <th style="text-align:right">Total Outstanding</th><th></th>
+            <th data-i18n="common.patient">Patient</th>
+            <th data-i18n="common.status">Status</th>
+            <th data-i18n="billing.visits">Visits</th>
+            <th style="text-align:right" data-i18n="billing.billing_desk_owes">Billing Desk Owes</th>
+            <th style="text-align:right" data-i18n="billing.pharmacy_owes">Pharmacy Owes</th>
+            <th style="text-align:right" data-i18n="billing.total_outstanding">Total Outstanding</th>
+            <th></th>
           </tr></thead>
           <tbody id="patients-body"></tbody>
         </table>
-        <div class="empty" id="patients-empty" style="display:none">No patients registered yet.</div>
+        <div class="empty" id="patients-empty" style="display:none" data-i18n="billing.no_patients_registered">No patients registered yet.</div>
       </div>
     </div>
 
@@ -523,40 +535,46 @@ select, .txt-input{
     <div class="view" id="view-bills">
       <div class="topbar">
         <div>
-          <div class="eyebrow">Billing / All Records</div>
-          <h1>Patient Bills</h1>
-          <div class="desc">Search, filter, and manage every invoice raised across OPD, IPD, Lab, Radiology and Pharmacy.</div>
+          <div class="eyebrow" data-i18n="billing.billing_all_records">Billing / All Records</div>
+          <h1 data-i18n="billing_desk.patient_bills">Patient Bills</h1>
+          <div class="desc" data-i18n="billing.bills_desc">Search, filter, and manage every invoice raised across OPD, IPD, Lab, Radiology and Pharmacy.</div>
         </div>
         <div class="top-actions">
           <div class="search-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
-            <input id="bills-search" placeholder="Search UHID, patient, bill no…" oninput="renderBillsTable()">
+            <input id="bills-search" placeholder="Search UHID, patient, bill no…" data-i18n-placeholder="billing.search_bills_placeholder" oninput="renderBillsTable()">
           </div>
           <button class="btn gold" onclick="switchView('newbill')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            Create Bill
+            <span data-i18n="billing.create_bill">Create Bill</span>
           </button>
         </div>
       </div>
 
       <div class="filter-row" id="status-filters">
-        <span class="chip active" data-status="all">All</span>
-        <span class="chip" data-status="Paid">Paid</span>
-        <span class="chip" data-status="Partial">Partial</span>
-        <span class="chip" data-status="Pending">Pending</span>
-        <span class="chip" data-status="Overdue">Overdue</span>
+        <span class="chip active" data-status="all" data-i18n="common.all">All</span>
+        <span class="chip" data-status="Paid" data-i18n="billing.status_paid">Paid</span>
+        <span class="chip" data-status="Partial" data-i18n="billing.status_partial">Partial</span>
+        <span class="chip" data-status="Pending" data-i18n="billing.status_pending">Pending</span>
+        <span class="chip" data-status="Overdue" data-i18n="billing.status_overdue">Overdue</span>
       </div>
 
       <div class="panel">
         <table>
           <thead><tr>
-            <th>Bill No.</th><th>Patient</th><th>Department</th><th>Date</th>
-            <th style="text-align:right">Total</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th>
-            <th>Status</th><th></th>
+            <th data-i18n="billing.bill_no">Bill No.</th>
+            <th data-i18n="common.patient">Patient</th>
+            <th data-i18n="common.department">Department</th>
+            <th data-i18n="common.date">Date</th>
+            <th style="text-align:right" data-i18n="billing.total">Total</th>
+            <th style="text-align:right" data-i18n="billing.paid">Paid</th>
+            <th style="text-align:right" data-i18n="billing.balance">Balance</th>
+            <th data-i18n="common.status">Status</th>
+            <th></th>
           </tr></thead>
           <tbody id="bills-body"></tbody>
         </table>
-        <div class="empty" id="bills-empty" style="display:none">
+        <div class="empty" id="bills-empty" style="display:none" data-i18n="billing.no_bills_found">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/></svg><br>
           No bills match this filter.
         </div>
@@ -567,9 +585,9 @@ select, .txt-input{
     <div class="view" id="view-newbill">
       <div class="topbar">
         <div>
-          <div class="eyebrow">Billing / New Entry</div>
-          <h1 id="newbill-title">Create Bill</h1>
-          <div class="desc">Pull charges from OPD, Lab, Radiology, Pharmacy and Bed modules, or add custom line items, then collect payment.</div>
+          <div class="eyebrow" data-i18n="billing.billing_new_entry">Billing / New Entry</div>
+          <h1 id="newbill-title" data-i18n="billing.create_bill">Create Bill</h1>
+          <div class="desc" data-i18n="billing.create_bill_desc">Pull charges from OPD, Lab, Radiology, Pharmacy and Bed modules, or add custom line items, then collect payment.</div>
         </div>
       </div>
 
@@ -577,25 +595,25 @@ select, .txt-input{
         <!-- LEFT: patient + items -->
         <div>
           <div class="panel">
-            <div class="panel-head"><h2>Patient</h2></div>
+            <div class="panel-head"><h2 data-i18n="billing.patient">Patient</h2></div>
             <div class="field-row">
               <div class="field">
-                <label>Find patient (UHID or name)</label>
-                <input id="nb-search" placeholder="Search registered patients…" autocomplete="off">
+                <label data-i18n="billing.find_patient">Find patient (UHID or name)</label>
+                <input id="nb-search" placeholder="Search registered patients…" data-i18n-placeholder="billing.search_registered_patients" autocomplete="off">
                 <div class="search-results" id="nb-search-results" style="display:none"></div>
               </div>
               <div class="field">
-                <label>ABHA ID</label>
-                <input id="nb-abha" placeholder="14-digit ABHA (optional)">
+                <label data-i18n="registration.abha_id">ABHA ID</label>
+                <input id="nb-abha" placeholder="14-digit ABHA (optional)" data-i18n-placeholder="billing.abha_optional">
               </div>
             </div>
             <div class="field-row">
               <div class="field">
-                <label>Patient Name</label>
-                <input id="nb-name" placeholder="Full name">
+                <label data-i18n="registration.full_name">Patient Name</label>
+                <input id="nb-name" placeholder="Full name" data-i18n-placeholder="registration.full_name">
               </div>
               <div class="field">
-                <label>Department</label>
+                <label data-i18n="common.department">Department</label>
                 <select id="nb-dept">
                   <option>OPD</option><option>IPD</option><option>Pathology</option>
                   <option>Radiology</option><option>Pharmacy</option><option>Emergency</option>
@@ -604,21 +622,21 @@ select, .txt-input{
             </div>
             <div class="field-row">
               <div class="field">
-                <label>Consulting Doctor</label>
+                <label data-i18n="opd.consulting_doctor">Consulting Doctor</label>
                 <select id="nb-doctor"><option value="">— none —</option></select>
               </div>
               <div class="field">
-                <label>Bill Date</label>
+                <label data-i18n="billing.bill_date">Bill Date</label>
                 <input id="nb-date" type="date">
               </div>
             </div>
           </div>
 
           <div class="panel">
-            <div class="panel-head"><h2>Line Items</h2><span class="hint">Click a preset or add a custom row</span></div>
+            <div class="panel-head"><h2 data-i18n="billing.line_items">Line Items</h2><span class="hint" data-i18n="billing.line_items_hint">Click a preset or add a custom row</span></div>
             <div class="preset-row" id="preset-row"></div>
             <table class="items-table">
-              <thead><tr><th style="width:38%">Description</th><th>Dept</th><th style="width:60px">Qty</th><th style="width:100px">Rate (₹)</th><th style="width:110px" class="amt">Amount</th><th></th></tr></thead>
+              <thead><tr><th style="width:38%" data-i18n="billing.item_description">Description</th><th data-i18n="billing.dept">Dept</th><th style="width:60px" data-i18n="billing.qty">Qty</th><th style="width:100px" data-i18n="billing.rate">Rate (₹)</th><th style="width:110px" class="amt" data-i18n="billing.total_amount">Amount</th><th></th></tr></thead>
               <tbody id="items-body"></tbody>
             </table>
           </div>
@@ -627,55 +645,55 @@ select, .txt-input{
         <!-- RIGHT: summary + payment -->
         <div>
           <div class="panel">
-            <div class="panel-head"><h2>Insurance / TPA</h2></div>
+            <div class="panel-head"><h2 data-i18n="billing.insurance_tpa">Insurance / TPA</h2></div>
             <div class="toggle-row">
               <div class="switch" id="insurance-switch" onclick="toggleInsurance()"><div class="knob"></div></div>
-              <span style="font-size:13px;">Bill under insurance / TPA</span>
+              <span style="font-size:13px;" data-i18n="billing.bill_under_insurance">Bill under insurance / TPA</span>
             </div>
             <div id="insurance-fields" style="display:none">
-              <div class="field"><label>Payer / TPA Name</label><input id="nb-payer" placeholder="e.g. Star Health, CGHS"></div>
-              <div class="field"><label>Policy / Claim No.</label><input id="nb-policy" placeholder="Policy number"></div>
+              <div class="field"><label data-i18n="billing.payer_tpa_name">Payer / TPA Name</label><input id="nb-payer" placeholder="e.g. Star Health, CGHS" data-i18n-placeholder="billing.payer_placeholder"></div>
+              <div class="field"><label data-i18n="billing.policy_claim_no">Policy / Claim No.</label><input id="nb-policy" placeholder="Policy number" data-i18n-placeholder="billing.policy_placeholder"></div>
             </div>
           </div>
 
           <div class="panel">
-            <div class="panel-head"><h2>Summary</h2></div>
+            <div class="panel-head"><h2 data-i18n="billing.summary">Summary</h2></div>
             <div class="discount-row">
               <div class="field" style="margin-bottom:0">
-                <label>Discount %</label>
+                <label data-i18n="billing.discount_pct">Discount %</label>
                 <input id="nb-discpct" type="number" value="0" min="0" max="100" oninput="renderSummary()">
               </div>
               <div class="field" style="margin-bottom:0">
-                <label>GST %</label>
+                <label data-i18n="billing.tax_pct">GST %</label>
                 <input id="nb-taxpct" type="number" value="0" min="0" max="28" oninput="renderSummary()">
               </div>
             </div>
             <div class="summary-box">
-              <div class="summary-line"><span>Subtotal</span><span class="mono" id="sum-subtotal">₹0.00</span></div>
-              <div class="summary-line"><span>Discount</span><span class="mono" id="sum-discount">− ₹0.00</span></div>
-              <div class="summary-line"><span>GST</span><span class="mono" id="sum-tax">+ ₹0.00</span></div>
-              <div class="summary-line total"><span>Total Payable</span><span class="mono" id="sum-total">₹0.00</span></div>
+              <div class="summary-line"><span data-i18n="billing.subtotal">Subtotal</span><span class="mono" id="sum-subtotal">₹0.00</span></div>
+              <div class="summary-line"><span data-i18n="billing.discount">Discount</span><span class="mono" id="sum-discount">− ₹0.00</span></div>
+              <div class="summary-line"><span data-i18n="billing.tax">GST</span><span class="mono" id="sum-tax">+ ₹0.00</span></div>
+              <div class="summary-line total"><span data-i18n="billing.total_payable">Total Payable</span><span class="mono" id="sum-total">₹0.00</span></div>
             </div>
           </div>
 
           <div class="panel">
-            <div class="panel-head"><h2>Collect Payment</h2></div>
+            <div class="panel-head"><h2 data-i18n="billing.collect_payment">Collect Payment</h2></div>
             <div class="field">
-              <label>Amount Received Now (₹)</label>
+              <label data-i18n="billing.amount_received_now">Amount Received Now (₹)</label>
               <input id="nb-received" type="number" min="0" value="0" oninput="renderSummary()">
             </div>
             <div class="field">
-              <label>Payment Mode</label>
+              <label data-i18n="billing.payment_mode">Payment Mode</label>
               <select id="nb-mode">
                 <option>Cash</option><option>Card</option><option>UPI</option>
                 <option>Insurance / TPA</option><option>Cheque</option><option>Net Banking</option>
               </select>
             </div>
             <div class="summary-box" style="margin-bottom:15px">
-              <div class="summary-line"><span>Balance Due</span><span class="mono" id="sum-balance">₹0.00</span></div>
+              <div class="summary-line"><span data-i18n="billing.balance_due">Balance Due</span><span class="mono" id="sum-balance">₹0.00</span></div>
             </div>
             <p class="empty" id="nb-error" style="display:none;padding:0;color:var(--rust);text-align:left;font-size:12.5px;margin-bottom:10px;"></p>
-            <button class="btn gold" style="width:100%;justify-content:center;padding:13px;" id="save-bill-btn" onclick="saveBill()">Save &amp; Generate Bill</button>
+            <button class="btn gold" style="width:100%;justify-content:center;padding:13px;" id="save-bill-btn" onclick="saveBill()" data-i18n="billing.save_and_generate_bill">Save &amp; Generate Bill</button>
           </div>
         </div>
       </div>
@@ -685,24 +703,31 @@ select, .txt-input{
     <div class="view" id="view-payments">
       <div class="topbar">
         <div>
-          <div class="eyebrow">Billing / Collections</div>
-          <h1>Payments</h1>
-          <div class="desc">Every payment collected against patient bills, with mode-wise breakdown.</div>
+          <div class="eyebrow" data-i18n="billing.billing_collections">Billing / Collections</div>
+          <h1 data-i18n="billing.payments">Payments</h1>
+          <div class="desc" data-i18n="billing.payments_desc">Every payment collected against patient bills, with mode-wise breakdown.</div>
         </div>
       </div>
 
       <div class="panel">
-        <div class="panel-head"><h2>Collection by Mode</h2></div>
+        <div class="panel-head"><h2 data-i18n="billing.collection_by_mode">Collection by Mode</h2></div>
         <div class="donut-wrap" id="mode-donut"></div>
       </div>
 
       <div class="panel">
-        <div class="panel-head"><h2>Payment Log</h2></div>
+        <div class="panel-head"><h2 data-i18n="billing.payment_log">Payment Log</h2></div>
         <table>
-          <thead><tr><th>Date</th><th>Bill No.</th><th>Patient</th><th>Mode</th><th style="text-align:right">Amount</th><th>Reference</th></tr></thead>
+          <thead><tr>
+            <th data-i18n="common.date">Date</th>
+            <th data-i18n="billing.bill_no">Bill No.</th>
+            <th data-i18n="common.patient">Patient</th>
+            <th data-i18n="billing.payment_mode">Mode</th>
+            <th style="text-align:right" data-i18n="billing.amount">Amount</th>
+            <th data-i18n="billing.reference">Reference</th>
+          </tr></thead>
           <tbody id="payments-body"></tbody>
         </table>
-        <div class="empty" id="payments-empty" style="display:none">No payments recorded yet.</div>
+        <div class="empty" id="payments-empty" style="display:none" data-i18n="billing.no_payments_recorded">No payments recorded yet.</div>
       </div>
     </div>
 
@@ -710,22 +735,28 @@ select, .txt-input{
     <div class="view" id="view-claims">
       <div class="topbar">
         <div>
-          <div class="eyebrow">Insurance / TPA</div>
-          <h1>Insurance &amp; TPA Claims</h1>
-          <div class="desc">Track claim lifecycle from submission to settlement, and reconcile patient co-pay.</div>
+          <div class="eyebrow" data-i18n="billing.insurance_tpa">Insurance / TPA</div>
+          <h1 data-i18n="billing.insurance_tpa_claims">Insurance &amp; TPA Claims</h1>
+          <div class="desc" data-i18n="billing.claims_desc">Track claim lifecycle from submission to settlement, and reconcile patient co-pay.</div>
         </div>
       </div>
 
       <div class="panel">
         <table>
           <thead><tr>
-            <th>Bill No.</th><th>Patient</th><th>Payer / TPA</th><th>Policy No.</th>
-            <th style="text-align:right">Billed</th><th style="text-align:right">Approved</th>
-            <th style="text-align:right">Co-pay</th><th>Status</th><th></th>
+            <th data-i18n="billing.bill_no">Bill No.</th>
+            <th data-i18n="common.patient">Patient</th>
+            <th data-i18n="billing.payer_tpa_name">Payer / TPA</th>
+            <th data-i18n="billing.policy_claim_no">Policy No.</th>
+            <th style="text-align:right" data-i18n="billing.billed">Billed</th>
+            <th style="text-align:right" data-i18n="billing.approved">Approved</th>
+            <th style="text-align:right" data-i18n="billing.copay">Co-pay</th>
+            <th data-i18n="common.status">Status</th>
+            <th></th>
           </tr></thead>
           <tbody id="claims-body"></tbody>
         </table>
-        <div class="empty" id="claims-empty" style="display:none">No insurance-linked bills yet.</div>
+        <div class="empty" id="claims-empty" style="display:none" data-i18n="billing.no_claims_found">No insurance-linked bills yet.</div>
       </div>
     </div>
 
@@ -733,24 +764,24 @@ select, .txt-input{
     <div class="view" id="view-reports">
       <div class="topbar">
         <div>
-          <div class="eyebrow">Insights</div>
-          <h1>Reports</h1>
-          <div class="desc">Aggregate revenue and collection performance across the dataset.</div>
+          <div class="eyebrow" data-i18n="billing_desk.insights">Insights</div>
+          <h1 data-i18n="billing.reports">Reports</h1>
+          <div class="desc" data-i18n="billing.reports_desc">Aggregate revenue and collection performance across the dataset.</div>
         </div>
       </div>
       <div class="kpi-row">
-        <div class="kpi rev"><div class="label">Total Billed</div><div class="value" id="rep-billed">₹0</div></div>
-        <div class="kpi paid"><div class="label">Total Collected</div><div class="value" id="rep-collected">₹0</div></div>
-        <div class="kpi pending"><div class="label">Total Outstanding</div><div class="value" id="rep-outstanding">₹0</div></div>
-        <div class="kpi claims"><div class="label">Avg. Bill Value</div><div class="value" id="rep-avg">₹0</div></div>
+        <div class="kpi rev"><div class="label" data-i18n="billing.total_billed">Total Billed</div><div class="value" id="rep-billed">₹0</div></div>
+        <div class="kpi paid"><div class="label" data-i18n="billing.total_collected">Total Collected</div><div class="value" id="rep-collected">₹0</div></div>
+        <div class="kpi pending"><div class="label" data-i18n="billing.total_outstanding">Total Outstanding</div><div class="value" id="rep-outstanding">₹0</div></div>
+        <div class="kpi claims"><div class="label" data-i18n="billing.avg_bill_value">Avg. Bill Value</div><div class="value" id="rep-avg">₹0</div></div>
       </div>
       <div class="two-col">
         <div class="panel">
-          <div class="panel-head"><h2>Department-wise Revenue</h2></div>
+          <div class="panel-head"><h2 data-i18n="billing.dept_revenue">Department-wise Revenue</h2></div>
           <div class="donut-wrap" id="rep-dept-donut"></div>
         </div>
         <div class="panel">
-          <div class="panel-head"><h2>Payment Mode Split</h2></div>
+          <div class="panel-head"><h2 data-i18n="billing.mode_split">Payment Mode Split</h2></div>
           <div class="donut-wrap" id="rep-mode-donut"></div>
         </div>
       </div>
@@ -760,41 +791,46 @@ select, .txt-input{
     <div class="view" id="view-tariff">
       <div class="topbar">
         <div>
-          <div class="eyebrow">Configuration</div>
-          <h1>Tariff Settings</h1>
-          <div class="desc">Default rates used by the quick-add presets in Create Bill and by auto-tracked patient charges, set for this hospital.</div>
+          <div class="eyebrow" data-i18n="billing.configuration">Configuration</div>
+          <h1 data-i18n="billing_desk.tariff_settings">Tariff Settings</h1>
+          <div class="desc" data-i18n="billing.tariff_desc">Default rates used by the quick-add presets in Create Bill and by auto-tracked patient charges, set for this hospital.</div>
         </div>
       </div>
 
       <div class="panel">
-        <div class="panel-head"><h2>Add Charge Head</h2></div>
+        <div class="panel-head"><h2 data-i18n="billing.add_charge_head">Add Charge Head</h2></div>
         <div class="field-row" style="grid-template-columns:1.6fr 1fr 1fr auto; align-items:end;">
           <div class="field" style="margin-bottom:0;">
-            <label>Charge Head</label>
-            <input id="tf-head" placeholder="e.g. ECG">
+            <label data-i18n="billing.charge_head">Charge Head</label>
+            <input id="tf-head" placeholder="e.g. ECG" data-i18n-placeholder="billing.charge_head_placeholder">
           </div>
           <div class="field" style="margin-bottom:0;">
-            <label>Department</label>
+            <label data-i18n="common.department">Department</label>
             <select id="tf-dept">
               <option>OPD</option><option>IPD</option><option>Pathology</option>
               <option>Radiology</option><option>Pharmacy</option><option>Emergency</option><option>Misc</option>
             </select>
           </div>
           <div class="field" style="margin-bottom:0;">
-            <label>Default Rate (₹)</label>
+            <label data-i18n="billing.default_rate">Default Rate (₹)</label>
             <input id="tf-rate" type="number" min="0" value="0">
           </div>
-          <button class="btn gold" style="padding:10px 18px;" id="tariff-add-btn">+ Add</button>
+          <button class="btn gold" style="padding:10px 18px;" id="tariff-add-btn" data-i18n="billing.add_button">+ Add</button>
         </div>
         <p class="empty" id="tf-error" style="display:none;padding:0;color:var(--rust);text-align:left;font-size:12.5px;margin:10px 0 0;"></p>
       </div>
 
       <div class="panel">
         <table>
-          <thead><tr><th>Charge Head</th><th>Department</th><th style="text-align:right">Default Rate (₹)</th><th></th></tr></thead>
+          <thead><tr>
+            <th data-i18n="billing.charge_head">Charge Head</th>
+            <th data-i18n="common.department">Department</th>
+            <th style="text-align:right" data-i18n="billing.default_rate">Default Rate (₹)</th>
+            <th></th>
+          </tr></thead>
           <tbody id="tariff-body"></tbody>
         </table>
-        <div class="empty" id="tariff-empty" style="display:none">No tariff items yet — add one above.</div>
+        <div class="empty" id="tariff-empty" style="display:none" data-i18n="billing.no_tariff_items">No tariff items yet — add one above.</div>
       </div>
     </div>
 
@@ -805,10 +841,10 @@ select, .txt-input{
 <!-- ===================== PRINTABLE INVOICE ===================== -->
 <div class="invoice-wrap" id="invoice-wrap">
   <div class="invoice-toolbar">
-    <button class="btn secondary" onclick="closeInvoice()">Close</button>
+    <button class="btn secondary" onclick="closeInvoice()" data-i18n="common.close">Close</button>
     <button class="btn gold" onclick="window.print()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
-      Download / Print Bill
+      <span data-i18n="billing.download_print_bill">Download / Print Bill</span>
     </button>
   </div>
   <div class="invoice-sheet">
@@ -820,7 +856,7 @@ select, .txt-input{
 <!-- ===================== PATIENT LEDGER ===================== -->
 <div class="invoice-wrap" id="ledger-wrap">
   <div class="invoice-toolbar">
-    <button class="btn secondary" onclick="closeLedger()">Close</button>
+    <button class="btn secondary" onclick="closeLedger()" data-i18n="common.close">Close</button>
   </div>
   <div class="invoice-sheet" style="max-width:720px;">
     <button class="close-x" onclick="closeLedger()">&times;</button>

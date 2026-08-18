@@ -251,33 +251,33 @@
 <div class="topbar">
   <div class="brand">
     <div class="mark">P</div>
-    Pathology module
+    <span data-i18n="pathology_queue.module_label">Pathology module</span>
     <span class="sub" id="hospitalNameLabel">Core5 MEDISYS</span>
   </div>
   <div class="topbar-right">
-    <a href="dashboard.html" class="back-link">&larr; Back to Dashboard</a>
+    <a href="dashboard.html" class="back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
     <span id="portalUser"></span>
     <div class="avatar" id="portalAvatar"></div>
-    <button type="button" class="logout-btn" id="logoutBtn">Logout</button>
+    <button type="button" class="logout-btn" id="logoutBtn" data-i18n="common.logout">Logout</button>
   </div>
 </div>
 
 <div class="layout">
   <div class="sidebar">
-    <h4>Queue</h4>
-    <div class="side-item active" data-scope="all">All samples <span class="count" id="cntAll">0</span></div>
-    <div class="side-item" data-scope="mine">Assigned to me <span class="count" id="cntMine">0</span></div>
-    <div class="side-item" data-scope="unclaimed">Unassigned <span class="count" id="cntUnassigned">0</span></div>
+    <h4 data-i18n="pathology_queue.queue">Queue</h4>
+    <div class="side-item active" data-scope="all"><span data-i18n="pathology_queue.all_samples">All samples</span> <span class="count" id="cntAll">0</span></div>
+    <div class="side-item" data-scope="mine"><span data-i18n="pathology_queue.assigned_to_me">Assigned to me</span> <span class="count" id="cntMine">0</span></div>
+    <div class="side-item" data-scope="unclaimed"><span data-i18n="pathology_queue.unassigned">Unassigned</span> <span class="count" id="cntUnassigned">0</span></div>
 
-    <h4>Specimen type</h4>
+    <h4 data-i18n="pathology_queue.specimen_type">Specimen type</h4>
     <div id="specimenSideItems"></div>
 
-    <h4>Status</h4>
-    <div class="side-item active" data-status="all">All <span class="count" id="cntStatusAll">0</span></div>
-    <div class="side-item" data-status="pending">Collected <span class="count" id="cntPending">0</span></div>
-    <div class="side-item" data-status="in_progress">Processing <span class="count" id="cntInProgress">0</span></div>
-    <div class="side-item" data-status="reported">Result entry <span class="count" id="cntReported">0</span></div>
-    <div class="side-item" data-status="verified">Verified <span class="count" id="cntVerified">0</span></div>
+    <h4 data-i18n="common.status">Status</h4>
+    <div class="side-item active" data-status="all"><span data-i18n="opd.status_all">All</span> <span class="count" id="cntStatusAll">0</span></div>
+    <div class="side-item" data-status="pending"><span data-i18n="pathology_queue.collected">Collected</span> <span class="count" id="cntPending">0</span></div>
+    <div class="side-item" data-status="in_progress"><span data-i18n="pathology_queue.processing">Processing</span> <span class="count" id="cntInProgress">0</span></div>
+    <div class="side-item" data-status="reported"><span data-i18n="pathology_queue.result_entry">Result entry</span> <span class="count" id="cntReported">0</span></div>
+    <div class="side-item" data-status="verified"><span data-i18n="pathology_queue.verified">Verified</span> <span class="count" id="cntVerified">0</span></div>
   </div>
 
   <div class="main">
@@ -287,11 +287,11 @@
     <div class="metrics" id="metricsRow"></div>
 
     <div class="toolbar">
-      <input type="text" id="search" placeholder="Search patient, UHID or sample ID">
+      <input type="text" id="search" data-i18n-placeholder="pathology_queue.search_placeholder" placeholder="Search patient, UHID or sample ID">
       <select id="sortSelect">
-        <option value="time">Sort: collection time</option>
-        <option value="priority">Sort: priority</option>
-        <option value="name">Sort: patient name</option>
+        <option value="time" data-i18n="pathology_queue.sort_collection_time">Sort: collection time</option>
+        <option value="priority" data-i18n="pathology_queue.sort_priority">Sort: priority</option>
+        <option value="name" data-i18n="pathology_queue.sort_patient_name">Sort: patient name</option>
       </select>
       <span class="count-label" id="countLabel"></span>
     </div>
@@ -300,11 +300,11 @@
       <table>
         <thead>
           <tr>
-            <th>Patient</th>
-            <th>Test panel</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Pathologist</th>
+            <th data-i18n="common.patient">Patient</th>
+            <th data-i18n="pathology_queue.test_panel">Test panel</th>
+            <th data-i18n="opd.priority">Priority</th>
+            <th data-i18n="common.status">Status</th>
+            <th data-i18n="pathology_queue.pathologist">Pathologist</th>
           </tr>
         </thead>
         <tbody id="worklistBody"></tbody>

@@ -9,13 +9,46 @@
     }[c]));
   }
 
+  const DECISION_KEYS = { prescribe: "doctor_queue.prescription", order_tests: "doctor_queue.tests_ordered", admit: "doctor_queue.admission_requested" };
   const DECISION_LABELS = { prescribe: "Prescription", order_tests: "Tests Ordered", admit: "Admission Requested" };
+
   function formatDecisionLabel(decision) {
     return String(decision || "")
       .split(",")
-      .map((d) => DECISION_LABELS[d.trim()] || d.trim())
+      .map((d) => {
+        const key = DECISION_KEYS[d.trim()];
+        if (key && window.i18n && typeof window.i18n.t === "function") {
+          const res = window.i18n.t(key);
+          if (res && res !== key) return res;
+        }
+        return DECISION_LABELS[d.trim()] || d.trim();
+      })
       .filter(Boolean)
-      .join(" + ") || "Consultation";
+      .join(" + ") || (window.i18n ? window.i18n.t("doctor_queue.consultation") : "Consultation");
+  }
+
+  const STATUS_MAP = {
+    waiting: "opd.status_waiting",
+    in_consultation: "opd.status_in_consultation",
+    "in-consultation": "opd.status_in_consultation",
+    completed: "opd.status_completed",
+    cancelled: "opd.status_cancelled",
+  };
+
+  function getStatusDisplay(s) {
+    const key = STATUS_MAP[s] || `opd.status_${s}`;
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    const fallbacks = {
+      waiting: "Waiting",
+      in_consultation: "In Consultation",
+      "in-consultation": "In Consultation",
+      completed: "Completed",
+      cancelled: "Cancelled",
+    };
+    return fallbacks[s] || s;
   }
 
   let sessionUser = null;
@@ -58,19 +91,23 @@
     }
     emptyState.hidden = true;
 
+    const callLabel = window.i18n ? window.i18n.t("doctor_queue.call_patient") : "Call";
+    const consultLabel = window.i18n ? window.i18n.t("doctor_queue.consult") : "Consult";
+    const walkInLabel = window.i18n ? window.i18n.t("registration.walk_in") : "Walk-in";
+
     tbody.innerHTML = data.queue
       .map((v) => {
         let actionBtn = "";
         if (v.status === "waiting") {
-          actionBtn = `<button type="button" class="wizard-suggest-btn call-btn" data-id="${v.id}" data-uhid="${escapeHtml(v.patient_uhid)}" data-name="${escapeHtml(v.patient_name || v.patient_uhid)}">Call</button>`;
+          actionBtn = `<button type="button" class="wizard-suggest-btn call-btn" data-id="${v.id}" data-uhid="${escapeHtml(v.patient_uhid)}" data-name="${escapeHtml(v.patient_name || v.patient_uhid)}">${escapeHtml(callLabel)}</button>`;
         } else if (v.status === "in-consultation") {
-          actionBtn = `<button type="button" class="wizard-suggest-btn consult-btn" data-id="${v.id}" data-uhid="${escapeHtml(v.patient_uhid)}" data-name="${escapeHtml(v.patient_name || v.patient_uhid)}">Consult</button>`;
+          actionBtn = `<button type="button" class="wizard-suggest-btn consult-btn" data-id="${v.id}" data-uhid="${escapeHtml(v.patient_uhid)}" data-name="${escapeHtml(v.patient_name || v.patient_uhid)}">${escapeHtml(consultLabel)}</button>`;
         }
         return `<tr>
           <td>#${v.token_number}</td>
           <td>${escapeHtml(v.patient_name || v.patient_uhid)}</td>
-          <td>${escapeHtml(v.slot_time || "Walk-in")}</td>
-          <td><span class="queue-status ${escapeHtml(v.status)}">${escapeHtml(v.status)}</span></td>
+          <td>${escapeHtml(v.slot_time || walkInLabel)}</td>
+          <td><span class="queue-status ${escapeHtml(v.status)}">${escapeHtml(getStatusDisplay(v.status))}</span></td>
           <td>${actionBtn}</td>
         </tr>`;
       })
@@ -136,7 +173,9 @@
       const foodInstruction = document.getElementById("medFoodInstruction").value;
       const urgency = document.getElementById("medUrgency").value;
       if (!medicineName || !dosage || !duration) {
-        errorEl.textContent = "Fill in medicine name, dosage, and duration before adding it.";
+        errorEl.textContent = window.i18n
+          ? window.i18n.t("doctor_queue.fill_medicine_details")
+          : "Fill in medicine name, dosage, and duration before adding it.";
         return;
       }
       selectedMeds.push({ medicineName, dosage, duration, foodInstruction, urgency });
@@ -193,7 +232,8 @@
 
   async function openConsultation(visitId, patientUhid, patientName) {
     activeVisit = { id: visitId, patientUhid, patientName };
-    document.getElementById("consultTitle").textContent = `Consultation — ${patientName}`;
+    const titlePrefix = window.i18n ? window.i18n.t("doctor_queue.consultation") : "Consultation";
+    document.getElementById("consultTitle").textContent = `${titlePrefix} — ${patientName}`;
     document.getElementById("consultSection").hidden = false;
     document.getElementById("consultConfirmation").textContent = "";
     document.getElementById("consultError").textContent = "";
@@ -267,8 +307,9 @@
       })
       .join("");
 
+    const noHistoryMsg = window.i18n ? window.i18n.t("doctor_queue.no_prior_history") : "No prior history.";
     feed.innerHTML =
-      labOrderItems + consultationItems + admissionItems || `<p class="wizard-hint">No prior history.</p>`;
+      labOrderItems + consultationItems + admissionItems || `<p class="wizard-hint">${escapeHtml(noHistoryMsg)}</p>`;
   }
 
   function wireConsultForm() {
@@ -280,7 +321,9 @@
 
       const admit = document.getElementById("admitCheckbox").checked;
       if (selectedMeds.length === 0 && selectedTests.length === 0 && !admit) {
-        errorEl.textContent = "Add at least one action: prescribe a medicine, order a test, or admit the patient.";
+        errorEl.textContent = window.i18n
+          ? window.i18n.t("doctor_queue.add_one_action")
+          : "Add at least one action: prescribe a medicine, order a test, or admit the patient.";
         return;
       }
 
@@ -343,5 +386,9 @@
     if (window.MEDISYS_RT) {
       MEDISYS_RT.on("opd_queue", loadQueue);
     }
+
+    window.addEventListener("i18n:languageChanged", () => {
+      loadQueue();
+    });
   });
 })();

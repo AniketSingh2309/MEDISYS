@@ -20,64 +20,64 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>Register New Hospital</h1>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="admin.register_hospital_title">Register New Hospital</h1>
 
     <ol class="stepper" id="stepper">
-      <li class="stepper-item" data-step="1"><span class="stepper-num">1</span><span class="stepper-label">Legal &amp; facility details</span></li>
-      <li class="stepper-item" data-step="2"><span class="stepper-num">2</span><span class="stepper-label">Address &amp; operations</span></li>
-      <li class="stepper-item" data-step="3"><span class="stepper-num">3</span><span class="stepper-label">Client admin contact</span></li>
-      <li class="stepper-item" data-step="4"><span class="stepper-num">4</span><span class="stepper-label">Module &amp; access config</span></li>
-      <li class="stepper-item" data-step="5"><span class="stepper-num">5</span><span class="stepper-label">Compliance &amp; consent</span></li>
-      <li class="stepper-item" data-step="6"><span class="stepper-num">6</span><span class="stepper-label">Review &amp; activate</span></li>
+      <li class="stepper-item" data-step="1"><span class="stepper-num">1</span><span class="stepper-label" data-i18n="admin.legal_facility_details">Legal &amp; facility details</span></li>
+      <li class="stepper-item" data-step="2"><span class="stepper-num">2</span><span class="stepper-label" data-i18n="admin.address_operations">Address &amp; operations</span></li>
+      <li class="stepper-item" data-step="3"><span class="stepper-num">3</span><span class="stepper-label" data-i18n="admin.client_admin_contact">Client admin contact</span></li>
+      <li class="stepper-item" data-step="4"><span class="stepper-num">4</span><span class="stepper-label" data-i18n="admin.module_access_config">Module &amp; access config</span></li>
+      <li class="stepper-item" data-step="5"><span class="stepper-num">5</span><span class="stepper-label" data-i18n="admin.compliance_consent">Compliance &amp; consent</span></li>
+      <li class="stepper-item" data-step="6"><span class="stepper-num">6</span><span class="stepper-label" data-i18n="admin.review_activate">Review &amp; activate</span></li>
     </ol>
 
     <form class="portal-card wizard-card" id="wizardForm" novalidate>
 
       <!-- Step 1 -->
       <section class="wizard-step" data-step="1">
-        <h2>Legal &amp; facility details</h2>
-        <label for="name">Facility Name *</label>
-        <input type="text" id="name" name="name" placeholder="e.g. Sunrise Multispeciality Hospital" required />
+        <h2 data-i18n="admin.legal_facility_details">Legal &amp; facility details</h2>
+        <label for="name" data-i18n="admin.facility_name">Facility Name *</label>
+        <input type="text" id="name" name="name" data-i18n-placeholder="admin.facility_name_placeholder" placeholder="e.g. Sunrise Multispeciality Hospital" required />
 
-        <label for="licenseNumber">License Number</label>
-        <input type="text" id="licenseNumber" name="licenseNumber" placeholder="State health license no." />
+        <label for="licenseNumber" data-i18n="admin.license_number">License Number</label>
+        <input type="text" id="licenseNumber" name="licenseNumber" data-i18n-placeholder="admin.license_placeholder" placeholder="State health license no." />
 
-        <label for="pan">PAN</label>
+        <label for="pan" data-i18n="admin.pan">PAN</label>
         <input type="text" id="pan" name="pan" placeholder="ABCDE1234F" />
 
-        <label for="hfrId">HFR ID</label>
-        <input type="text" id="hfrId" name="hfrId" placeholder="Health Facility Registry ID" />
+        <label for="hfrId" data-i18n="admin.hfr_id">HFR ID</label>
+        <input type="text" id="hfrId" name="hfrId" data-i18n-placeholder="admin.hfr_placeholder" placeholder="Health Facility Registry ID" />
       </section>
 
       <!-- Step 2 -->
       <section class="wizard-step" data-step="2" hidden>
-        <h2>Address &amp; operations</h2>
-        <label for="address">Address</label>
-        <input type="text" id="address" name="address" placeholder="Street / area" />
+        <h2 data-i18n="admin.address_operations">Address &amp; operations</h2>
+        <label for="address" data-i18n="admin.address">Address</label>
+        <input type="text" id="address" name="address" data-i18n-placeholder="admin.address_placeholder" placeholder="Street / area" />
 
         <div class="wizard-grid">
           <div>
-            <label for="city">City</label>
+            <label for="city" data-i18n="admin.city">City</label>
             <input type="text" id="city" name="city" />
           </div>
           <div>
-            <label for="state">State</label>
+            <label for="state" data-i18n="admin.state">State</label>
             <input type="text" id="state" name="state" />
           </div>
           <div>
-            <label for="pincode">Pincode</label>
+            <label for="pincode" data-i18n="admin.pincode">Pincode</label>
             <input type="text" id="pincode" name="pincode" />
           </div>
         </div>
 
         <div class="wizard-grid">
           <div>
-            <label for="bedCount">Number of Beds</label>
+            <label for="bedCount" data-i18n="admin.number_of_beds">Number of Beds</label>
             <input type="number" id="bedCount" name="bedCount" min="0" />
           </div>
           <div>
-            <label for="opdVolume">Avg. OPD Volume / day</label>
+            <label for="opdVolume" data-i18n="admin.opd_volume">Avg. OPD Volume / day</label>
             <input type="number" id="opdVolume" name="opdVolume" min="0" />
           </div>
         </div>
@@ -85,32 +85,32 @@
 
       <!-- Step 3 -->
       <section class="wizard-step" data-step="3" hidden>
-        <h2>Client admin contact</h2>
-        <label for="adminName">Admin Name</label>
-        <input type="text" id="adminName" name="adminName" placeholder="Point of contact at the hospital" />
+        <h2 data-i18n="admin.client_admin_contact">Client admin contact</h2>
+        <label for="adminName" data-i18n="admin.admin_name">Admin Name</label>
+        <input type="text" id="adminName" name="adminName" data-i18n-placeholder="admin.admin_name_placeholder" placeholder="Point of contact at the hospital" />
 
-        <label for="adminEmail">Admin Email *</label>
+        <label for="adminEmail" data-i18n="admin.admin_email">Admin Email *</label>
         <input type="email" id="adminEmail" name="adminEmail" placeholder="admin@hospital.com" required />
-        <p class="wizard-hint">Google sign-in for this admin is coming in a later update &mdash; for now they log in with the User ID/password generated below.</p>
+        <p class="wizard-hint" data-i18n="admin.google_signin_hint">Google sign-in for this admin is coming in a later update &mdash; for now they log in with the User ID/password generated below.</p>
 
-        <label for="adminUserIdCustom">Admin User ID</label>
+        <label for="adminUserIdCustom" data-i18n="admin.admin_user_id">Admin User ID</label>
         <div class="wizard-suggest-row">
-          <input type="text" id="adminUserIdCustom" name="adminUserIdCustom" placeholder="Leave blank to auto-generate" />
-          <button type="button" class="wizard-suggest-btn" id="suggestUserIdBtn">Suggest</button>
+          <input type="text" id="adminUserIdCustom" name="adminUserIdCustom" data-i18n-placeholder="admin.leave_blank_placeholder" placeholder="Leave blank to auto-generate" />
+          <button type="button" class="wizard-suggest-btn" id="suggestUserIdBtn" data-i18n="hospital_page.suggest">Suggest</button>
         </div>
 
-        <label for="adminPasswordCustom">Admin Password</label>
+        <label for="adminPasswordCustom" data-i18n="admin.admin_password">Admin Password</label>
         <div class="wizard-suggest-row">
-          <input type="text" id="adminPasswordCustom" name="adminPasswordCustom" placeholder="Leave blank to auto-generate" />
-          <button type="button" class="wizard-suggest-btn" id="suggestPasswordBtn">Suggest</button>
+          <input type="text" id="adminPasswordCustom" name="adminPasswordCustom" data-i18n-placeholder="admin.leave_blank_placeholder" placeholder="Leave blank to auto-generate" />
+          <button type="button" class="wizard-suggest-btn" id="suggestPasswordBtn" data-i18n="hospital_page.suggest">Suggest</button>
         </div>
-        <p class="wizard-hint">Customize the admin's login credentials here, or leave both blank and MEDISYS will generate them for you.</p>
+        <p class="wizard-hint" data-i18n="admin.credentials_hint">Customize the admin's login credentials here, or leave both blank and MEDISYS will generate them for you.</p>
       </section>
 
       <!-- Step 4 -->
       <section class="wizard-step" data-step="4" hidden>
-        <h2>Module &amp; access config</h2>
-        <p class="wizard-hint">Select the modules this hospital should have access to.</p>
+        <h2 data-i18n="admin.module_access_config">Module &amp; access config</h2>
+        <p class="wizard-hint" data-i18n="admin.select_modules_hint">Select the modules this hospital should have access to.</p>
         <div class="module-card-grid" id="moduleGrid">
           <label class="module-card">
             <input type="checkbox" name="modules" value="opd" checked />
@@ -121,7 +121,7 @@
                 <path d="M9 13l2 2 4-4"/>
               </svg>
             </span>
-            <span class="module-card-label">OPD</span>
+            <span class="module-card-label" data-i18n="module.opd">OPD</span>
           </label>
 
           <label class="module-card">
@@ -133,7 +133,7 @@
                 <circle cx="15" cy="12" r="2.5"/>
               </svg>
             </span>
-            <span class="module-card-label">Radiology</span>
+            <span class="module-card-label" data-i18n="module.radiology">Radiology</span>
           </label>
 
           <label class="module-card">
@@ -144,7 +144,7 @@
                 <path d="M9 8h6M9 12h6M9 16h4"/>
               </svg>
             </span>
-            <span class="module-card-label">Billing &amp; Insurance</span>
+            <span class="module-card-label" data-i18n="module.billing">Billing &amp; Insurance</span>
           </label>
 
           <label class="module-card">
@@ -157,7 +157,7 @@
                 </g>
               </svg>
             </span>
-            <span class="module-card-label">Pharmacy</span>
+            <span class="module-card-label" data-i18n="module.pharmacy">Pharmacy</span>
           </label>
 
           <label class="module-card">
@@ -170,7 +170,7 @@
                 <circle cx="8.5" cy="8.5" r="1.5"/>
               </svg>
             </span>
-            <span class="module-card-label">Pathology</span>
+            <span class="module-card-label" data-i18n="module.pathology">Pathology</span>
           </label>
 
           <label class="module-card">
@@ -181,52 +181,52 @@
                 <path d="M7.5 15h9"/>
               </svg>
             </span>
-            <span class="module-card-label">Laboratory</span>
+            <span class="module-card-label" data-i18n="module.laboratory">Laboratory</span>
           </label>
         </div>
       </section>
 
       <!-- Step 5 -->
       <section class="wizard-step" data-step="5" hidden>
-        <h2>Compliance &amp; consent</h2>
+        <h2 data-i18n="admin.compliance_consent">Compliance &amp; consent</h2>
         <label class="module-check wizard-consent">
           <input type="checkbox" id="dpdpConsent" name="dpdpConsent" required />
-          I confirm this hospital has been informed of, and consents to, data handling under the Digital Personal Data Protection (DPDP) Act, and that MEDISYS will process patient data solely for the purposes of hospital administration and care delivery.
+          <span data-i18n="admin.dpdp_consent">I confirm this hospital has been informed of, and consents to, data handling under the Digital Personal Data Protection (DPDP) Act, and that MEDISYS will process patient data solely for the purposes of hospital administration and care delivery.</span>
         </label>
       </section>
 
       <!-- Step 6 -->
       <section class="wizard-step" data-step="6" hidden>
-        <h2>Review &amp; activate</h2>
+        <h2 data-i18n="admin.review_activate">Review &amp; activate</h2>
         <div class="wizard-review" id="wizardReview"></div>
       </section>
 
       <!-- Result panel (shown after successful activation) -->
       <section class="wizard-step wizard-result" data-step="result" hidden>
-        <h2>Hospital Registered</h2>
-        <p>An admin login has been created for this hospital. <strong>The password is shown only once</strong> &mdash; copy it now and share both values with the hospital&rsquo;s admin securely.</p>
+        <h2 data-i18n="admin.hospital_registered">Hospital Registered</h2>
+        <p data-i18n="admin.hospital_registered_hint">An admin login has been created for this hospital. <strong>The password is shown only once</strong> &mdash; copy it now and share both values with the hospital&rsquo;s admin securely.</p>
 
-        <label class="wizard-result-label" for="adminUserIdOutput">Admin User ID</label>
+        <label class="wizard-result-label" for="adminUserIdOutput" data-i18n="admin.admin_user_id">Admin User ID</label>
         <div class="invite-link-row">
           <input type="text" id="adminUserIdOutput" readonly />
-          <button type="button" class="captcha-refresh" id="copyUserIdBtn">Copy</button>
+          <button type="button" class="captcha-refresh" id="copyUserIdBtn" data-i18n="common.copy">Copy</button>
         </div>
 
-        <label class="wizard-result-label" for="adminPasswordOutput">Temporary Password</label>
+        <label class="wizard-result-label" for="adminPasswordOutput" data-i18n="admin.temp_password">Temporary Password</label>
         <div class="invite-link-row">
           <input type="text" id="adminPasswordOutput" readonly />
-          <button type="button" class="captcha-refresh" id="copyPasswordBtn">Copy</button>
+          <button type="button" class="captcha-refresh" id="copyPasswordBtn" data-i18n="common.copy">Copy</button>
         </div>
 
-        <a href="dashboard.html" class="login-btn portal-register-btn wizard-done-btn">Back to Dashboard</a>
+        <a href="dashboard.html" class="login-btn portal-register-btn wizard-done-btn" data-i18n="registration.back_to_dashboard">Back to Dashboard</a>
       </section>
 
       <p class="form-error" id="wizardError" role="alert" aria-live="polite"></p>
 
       <div class="wizard-nav">
-        <button type="button" class="wizard-back-btn" id="wizardBack" hidden>Back</button>
-        <button type="button" class="login-btn wizard-next-btn" id="wizardNext">Next</button>
-        <button type="submit" class="login-btn wizard-next-btn" id="wizardActivate" hidden>Activate</button>
+        <button type="button" class="wizard-back-btn" id="wizardBack" data-i18n="common.back" hidden>Back</button>
+        <button type="button" class="login-btn wizard-next-btn" id="wizardNext" data-i18n="admin.next">Next</button>
+        <button type="submit" class="login-btn wizard-next-btn" id="wizardActivate" data-i18n="admin.activate" hidden>Activate</button>
       </div>
     </form>
   </main>

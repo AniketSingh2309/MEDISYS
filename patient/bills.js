@@ -18,6 +18,14 @@
     return "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   async function guardSession() {
     const res = await fetch("/api/session", { credentials: "same-origin" });
     const data = await res.json();
@@ -305,7 +313,7 @@
     const outstandingEmpty = document.getElementById("outstandingEmptyState");
     const downloadStatementBtn = document.getElementById("downloadStatementBtn");
     document.getElementById("outstandingTotal").textContent =
-      data.outstandingCharges.length ? formatMoney(data.outstandingTotal) + " due" : "";
+      data.outstandingCharges.length ? formatMoney(data.outstandingTotal) + " " + t("bills.due", "due") : "";
     if (data.outstandingCharges.length === 0) {
       outstandingBody.innerHTML = "";
       outstandingEmpty.hidden = false;
@@ -336,6 +344,7 @@
       billsBody.innerHTML = data.bills
         .map((b) => {
           const isPaid = b.status === "Paid";
+          const statusText = isPaid ? t("billing.status_paid", "Paid") : t("billing.status_pending", b.status || "Pending");
           return `<tr>
             <td>${escapeHtml(b.bill_no)}</td>
             <td>${escapeHtml(new Date(b.bill_date).toLocaleDateString())}</td>
@@ -343,8 +352,8 @@
             <td>${formatMoney(b.total_amount)}</td>
             <td>${formatMoney(b.paid_amount)}</td>
             <td>${formatMoney(b.balance_amount)}</td>
-            <td><span class="queue-status ${isPaid ? "completed" : "waiting"}">${escapeHtml(b.status)}</span></td>
-            <td><button type="button" class="wizard-suggest-btn download-bill-btn" data-id="${b.id}">Download</button></td>
+            <td><span class="queue-status ${isPaid ? "completed" : "waiting"}">${escapeHtml(statusText)}</span></td>
+            <td><button type="button" class="wizard-suggest-btn download-bill-btn" data-id="${b.id}">${t("bills.download", "Download")}</button></td>
           </tr>`;
         })
         .join("");
@@ -366,13 +375,14 @@
       pharmBody.innerHTML = data.pharmacyInvoices
         .map((i) => {
           const isPaid = i.payment_status === "Paid";
+          const statusText = isPaid ? t("billing.status_paid", "Paid") : t("billing.status_pending", i.payment_status || "Pending");
           return `<tr>
             <td>${escapeHtml(i.invoice_number)}</td>
             <td>${escapeHtml(i.item_count)}</td>
             <td>${formatMoney(i.total_amount)}</td>
-            <td><span class="queue-status ${isPaid ? "completed" : "waiting"}">${escapeHtml(i.payment_status)}</span></td>
+            <td><span class="queue-status ${isPaid ? "completed" : "waiting"}">${escapeHtml(statusText)}</span></td>
             <td>${escapeHtml(new Date(i.created_at).toLocaleDateString())}</td>
-            <td><button type="button" class="wizard-suggest-btn download-invoice-btn" data-id="${i.id}">Download</button></td>
+            <td><button type="button" class="wizard-suggest-btn download-invoice-btn" data-id="${i.id}">${t("bills.download", "Download")}</button></td>
           </tr>`;
         })
         .join("");
@@ -396,5 +406,9 @@
         MEDISYS_RT.on(resource, loadBills)
       );
     }
+    window.addEventListener("i18n:languageChanged", () => {
+      loadBills();
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

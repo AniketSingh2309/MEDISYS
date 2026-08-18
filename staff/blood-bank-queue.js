@@ -51,7 +51,7 @@
   let patientDonations = [];
   let billing = [];
   let staffList = [];
-  let filters = { scope: "all", group: "all", status: "all", q: "", sort: "time" };
+  let filters = { scope: "all", group: "all", status: "all", priority: "all", component: "all", q: "", sort: "time" };
   let selectedId = null;
   let foundPatientForRequest = null;
   let foundPatientForDonation = null;
@@ -121,6 +121,9 @@
     renderCompatTab();
     renderBillingTab();
     renderReportsTab();
+    if (window.i18n && typeof window.i18n.applyTranslations === 'function') {
+      window.i18n.applyTranslations();
+    }
   }
 
   // ---------- Sidebar ----------
@@ -157,14 +160,97 @@
     });
   }
 
+  function normalizePriority(p) {
+    if (!p) return "Routine";
+    const s = String(p).trim().toLowerCase();
+    if (s === "emergency" || s === "stat") return "Emergency";
+    if (s === "observation" || s === "urgent") return "Observation";
+    return "Routine";
+  }
+
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   // ---------- Triage & metrics ----------
   function renderTriage() {
-    const c = { STAT: 0, Urgent: 0, Routine: 0 };
-    requests.forEach((r) => { c[r.priority] = (c[r.priority] || 0) + 1; });
-    document.getElementById("triageStrip").innerHTML = `
-      <div class="triage-seg stat" style="flex:${c.STAT || 0.01}"><span class="n">${c.STAT}</span> STAT</div>
-      <div class="triage-seg urgent" style="flex:${c.Urgent || 0.01}"><span class="n">${c.Urgent}</span> Urgent</div>
-      <div class="triage-seg routine" style="flex:${c.Routine || 0.01}"><span class="n">${c.Routine}</span> Routine</div>`;
+    const c = { Emergency: 0, Observation: 0, Routine: 0 };
+    requests.forEach((r) => {
+      const np = normalizePriority(r.priority);
+      c[np] = (c[np] || 0) + 1;
+    });
+    const total = requests.length || 1;
+    const emergencyPct = Math.round((c.Emergency / total) * 100);
+    const observationPct = Math.round((c.Observation / total) * 100);
+    const routinePct = Math.round((c.Routine / total) * 100);
+
+    const strip = document.getElementById("triageStrip");
+    if (!strip) return;
+
+    strip.innerHTML = `
+      <div class="triage-container">
+        <div class="triage-header">
+          <div class="triage-title">
+            <span class="live-pulse"></span>
+            ${t('blood_bank.triage_overview', 'Triage & Urgency Overview')}
+          </div>
+          <div style="font-size: 12px; color: var(--ink-mute); font-family: var(--mono);">
+            ${requests.length} ${t('blood_bank.total_open_requests', 'Total Open Request(s)')}
+          </div>
+        </div>
+
+        <div class="triage-grid">
+          <div class="triage-card emergency-card" data-priority="Emergency" title="Filter queue by Emergency priority">
+            <div class="left-info">
+              <div class="badge-icon">🚨</div>
+              <div>
+                <div class="priority-label">${t('blood_bank.emergency', 'Emergency')}</div>
+                <div class="priority-sub">${t('blood_bank.critical_immediate', 'Critical / Immediate')}</div>
+              </div>
+            </div>
+            <div class="priority-count">${c.Emergency}</div>
+          </div>
+
+          <div class="triage-card observation-card" data-priority="Observation" title="Filter queue by Observation priority">
+            <div class="left-info">
+              <div class="badge-icon">👁️</div>
+              <div>
+                <div class="priority-label">${t('blood_bank.observation', 'Observation')}</div>
+                <div class="priority-sub">${t('blood_bank.monitored_high_priority', 'Monitored / High Priority')}</div>
+              </div>
+            </div>
+            <div class="priority-count">${c.Observation}</div>
+          </div>
+
+          <div class="triage-card routine-card" data-priority="Routine" title="Filter queue by Routine priority">
+            <div class="left-info">
+              <div class="badge-icon">📋</div>
+              <div>
+                <div class="priority-label">${t('blood_bank.routine', 'Routine')}</div>
+                <div class="priority-sub">${t('blood_bank.standard_delivery', 'Standard Delivery')}</div>
+              </div>
+            </div>
+            <div class="priority-count">${c.Routine}</div>
+          </div>
+        </div>
+
+        <div class="triage-track">
+          <div class="triage-track-seg emergency" style="width: ${c.Emergency ? (c.Emergency/total)*100 : 0}%;" title="Emergency: ${emergencyPct}%"></div>
+          <div class="triage-track-seg observation" style="width: ${c.Observation ? (c.Observation/total)*100 : 0}%;" title="Observation: ${observationPct}%"></div>
+          <div class="triage-track-seg routine" style="width: ${c.Routine ? (c.Routine/total)*100 : 0}%;" title="Routine: ${routinePct}%"></div>
+        </div>
+      </div>`;
+
+    strip.querySelectorAll(".triage-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        setSortMode("priority");
+        renderWorklist();
+      });
+    });
   }
 
   function renderMetrics() {
@@ -173,17 +259,28 @@
     const weekMs = 7 * 86400000;
     const expiringSoon = inventoryUnits.filter((u) => new Date(u.expiry_at) - Date.now() < weekMs && new Date(u.expiry_at) - Date.now() > 0).length;
     const pending = requests.filter((r) => r.status === "requested" || r.status === "crossmatch").length;
+    const emergencyOpen = requests.filter((r) => normalizePriority(r.priority) === "Emergency" && r.status !== "issued").length;
     document.getElementById("metricsRow").innerHTML = `
-      <div class="metric"><div class="label">Total units in stock</div><div class="value">${totalUnits}</div><div class="delta">Across ${GROUPS.length} groups</div></div>
-      <div class="metric"><div class="label">Low-stock groups</div><div class="value">${lowGroups}</div><div class="delta down">${lowGroups} group(s) &le;1 unit in a component</div></div>
-      <div class="metric"><div class="label">Expiring within 7 days</div><div class="value">${expiringSoon}</div><div class="delta down">Prioritise for issue</div></div>
-      <div class="metric"><div class="label">Pending requests</div><div class="value">${pending}</div><div class="delta">${requests.filter((r) => r.priority === "STAT" && r.status !== "issued").length} STAT open</div></div>`;
+      <div class="metric"><div class="label">${t('blood_bank.units_in_stock', 'Total units in stock')}</div><div class="value">${totalUnits}</div><div class="delta">${t('blood_bank.across_groups', 'Across 8 groups')}</div></div>
+      <div class="metric"><div class="label">${t('blood_bank.low_stock_groups', 'Low-stock groups')}</div><div class="value">${lowGroups}</div><div class="delta down">${lowGroups} ${t('blood_bank.groups_low', 'group(s) ≤1 unit in a component')}</div></div>
+      <div class="metric"><div class="label">${t('blood_bank.expiring_7_days', 'Expiring within 7 days')}</div><div class="value">${expiringSoon}</div><div class="delta down">${t('blood_bank.prioritise_issue', 'Prioritise for issue')}</div></div>
+      <div class="metric"><div class="label">${t('blood_bank.pending_requests', 'Pending requests')}</div><div class="value">${pending}</div><div class="delta ${emergencyOpen ? "down" : ""}">${emergencyOpen} ${t('blood_bank.emergency_open', 'Emergency open')}</div></div>`;
   }
 
   // ---------- Requests worklist ----------
   function statusMeta(s) {
-    return { requested: { label: "Requested", cls: "requested" }, crossmatch: { label: "Crossmatch", cls: "crossmatch" },
-      issued: { label: "Issued", cls: "issued" }, rejected: { label: "Rejected", cls: "rejected" } }[s];
+    const labels = {
+      requested: t('blood_bank.requested', 'Requested'),
+      crossmatch: t('blood_bank.crossmatch', 'Crossmatch'),
+      issued: t('blood_bank.issued', 'Issued'),
+      rejected: t('blood_bank.rejected', 'Rejected'),
+    };
+    return {
+      requested: { label: labels.requested, cls: "requested" },
+      crossmatch: { label: labels.crossmatch, cls: "crossmatch" },
+      issued: { label: labels.issued, cls: "issued" },
+      rejected: { label: labels.rejected, cls: "rejected" },
+    }[s] || { label: s, cls: s };
   }
 
   function filteredRequests() {
@@ -193,11 +290,16 @@
       const matchScope = filters.scope === "all" ||
         (filters.scope === "mine" && r.assigned_staff_id === sessionUser.userId) ||
         (filters.scope === "unassigned" && !r.assigned_staff_id);
+      const matchPriority = filters.priority === "all" || normalizePriority(r.priority) === filters.priority;
+      const matchComponent = filters.component === "all" || r.component === filters.component;
       const q = filters.q.toLowerCase();
       const matchQ = !q || r.patient_name.toLowerCase().includes(q) || (r.patient_uhid || "").toLowerCase().includes(q) || r.request_code.toLowerCase().includes(q);
-      return matchGroup && matchStatus && matchScope && matchQ;
+      return matchGroup && matchStatus && matchScope && matchPriority && matchComponent && matchQ;
     });
-    if (filters.sort === "priority") { const rank = { STAT: 0, Urgent: 1, Routine: 2 }; list.sort((a, b) => rank[a.priority] - rank[b.priority]); }
+    if (filters.sort === "priority") {
+      const rank = { Emergency: 0, Observation: 1, Routine: 2 };
+      list.sort((a, b) => rank[normalizePriority(a.priority)] - rank[normalizePriority(b.priority)]);
+    }
     else if (filters.sort === "name") { list.sort((a, b) => a.patient_name.localeCompare(b.patient_name)); }
     else { list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); }
     return list;
@@ -205,15 +307,28 @@
 
   function renderWorklist() {
     const list = filteredRequests();
+    
+    // Auto-select first request if none selected or current selection is not in list
+    if (list.length > 0) {
+      if (!selectedId || !list.some((x) => x.id === selectedId)) {
+        selectedId = list[0].id;
+      }
+    } else {
+      selectedId = null;
+    }
+
     document.getElementById("countLabel").textContent = list.length + " requests";
     const body = document.getElementById("worklistBody");
     body.innerHTML = list.length ? list.map((r) => {
       const sm = statusMeta(r.status);
+      const np = normalizePriority(r.priority);
+      const npTranslated = t('blood_bank.' + np.toLowerCase(), np);
+      const pDot = "● ";
       return `
       <tr class="${r.id === selectedId ? "selected" : ""}" data-id="${r.id}">
         <td><div class="pname">${escapeHtml(r.patient_name)}</div><div class="puhid">${escapeHtml(r.patient_uhid || "unregistered")} · ${escapeHtml(r.ward_location || "—")}</div></td>
         <td><span class="badge group">${r.blood_group}</span> ${r.units_required}u ${escapeHtml(r.component)}</td>
-        <td><span class="badge ${r.priority}">${r.priority}</span></td>
+        <td><span class="badge ${np}">${pDot}${npTranslated}</span></td>
         <td><div class="status-pill"><span class="dot ${sm.cls}"></span>${sm.label}</div></td>
       </tr>`;
     }).join("") : `<tr><td colspan="4"><div class="empty">No requests match these filters.</div></td></tr>`;
@@ -228,6 +343,8 @@
     document.getElementById("cntCrossmatch").textContent = requests.filter((r) => r.status === "crossmatch").length;
     document.getElementById("cntIssued").textContent = requests.filter((r) => r.status === "issued").length;
     document.getElementById("cntRejected").textContent = requests.filter((r) => r.status === "rejected").length;
+
+    renderPanel();
   }
 
   function renderPanel() {
@@ -235,41 +352,51 @@
     const panel = document.getElementById("panel");
     if (!r) { panel.innerHTML = `<div class="empty">Select a request to view details, or create a new one.</div>`; return; }
     const initials = r.patient_name.split(" ").map((w) => w[0]).join("").slice(0, 2);
-    const staffOptions = [`<option value="" ${!r.assigned_staff_id ? "selected" : ""}>Unassigned</option>`]
+    const unassignedLabel = t('blood_bank.unassigned', 'Unassigned');
+    const staffOptions = [`<option value="" ${!r.assigned_staff_id ? "selected" : ""}>${unassignedLabel}</option>`]
       .concat(staffList.map((s) => `<option value="${s.user_id}" ${s.user_id === r.assigned_staff_id ? "selected" : ""}>${escapeHtml(s.full_name)}</option>`))
       .join("");
     const available = unitsFor(r.blood_group, r.component);
+    const np = normalizePriority(r.priority);
+    const npTranslated = t('blood_bank.' + np.toLowerCase(), np);
+    const priorityBanner = np === "Emergency"
+      ? `<div class="panel-priority-banner emergency">● ${t('blood_bank.emergency_banner', 'EMERGENCY — Priority Transfusion Care')}</div>`
+      : np === "Observation"
+      ? `<div class="panel-priority-banner observation">● ${t('blood_bank.observation_banner', 'OBSERVATION — Monitored Care Order')}</div>`
+      : `<div class="panel-priority-banner routine">● ${t('blood_bank.routine_banner', 'ROUTINE — Standard Order')}</div>`;
 
     panel.innerHTML = `
+      ${priorityBanner}
       <div class="panel-head">
         <div class="panel-avatar">${initials}</div>
         <div><div class="panel-name">${escapeHtml(r.patient_name)}</div><div class="panel-meta">${escapeHtml(r.patient_uhid || "unregistered")} · ${r.age || "—"}${r.sex || ""} · ${r.request_code}</div></div>
       </div>
       <div class="info-grid">
-        <div class="info-row"><span class="k">Blood group / component</span><span class="v">${r.blood_group} · ${escapeHtml(r.component)}</span></div>
-        <div class="info-row"><span class="k">Units required</span><span class="v">${r.units_required}</span></div>
-        <div class="info-row"><span class="k">Available in stock</span><span class="v" style="color:${available >= r.units_required ? "var(--green)" : "var(--red)"}">${available} unit(s)</span></div>
-        <div class="info-row"><span class="k">Ward / location</span><span class="v">${escapeHtml(r.ward_location || "—")}</span></div>
-        <div class="info-row"><span class="k">Requesting physician</span><span class="v">${escapeHtml(r.ref_physician || "—")}</span></div>
-        <div class="info-row"><span class="k">Requested at</span><span class="v">${new Date(r.created_at).toLocaleString()}</span></div>
+        <div class="info-row"><span class="k">${t('blood_bank.priority_level', 'Priority level')}</span><span class="v"><span class="badge ${np}">${np === "Emergency" ? "🚨 " : np === "Observation" ? "👁️ " : "📋 "}${npTranslated}</span></span></div>
+        <div class="info-row"><span class="k">${t('blood_bank.blood_group_component', 'Blood group / component')}</span><span class="v">${r.blood_group} · ${escapeHtml(r.component)}</span></div>
+        <div class="info-row"><span class="k">${t('blood_bank.units_required', 'Units required')}</span><span class="v">${r.units_required}</span></div>
+        <div class="info-row"><span class="k">${t('blood_bank.available_in_stock', 'Available in stock')}</span><span class="v" style="color:${available >= r.units_required ? "var(--green)" : "var(--red)"}">${available} unit(s)</span></div>
+        <div class="info-row"><span class="k">${t('blood_bank.ward_location', 'Ward / location')}</span><span class="v">${escapeHtml(r.ward_location || "—")}</span></div>
+        <div class="info-row"><span class="k">${t('blood_bank.requesting_physician', 'Requesting physician')}</span><span class="v">${escapeHtml(r.ref_physician || "—")}</span></div>
+        <div class="info-row"><span class="k">${t('blood_bank.requested_at', 'Requested at')}</span><span class="v">${new Date(r.created_at).toLocaleString()}</span></div>
       </div>
-      <div class="field-label">Assign staff</div>
+      <div class="field-label">${t('blood_bank.assign_staff', 'Assign staff')}</div>
       <select class="full" id="assignSelect">${staffOptions}</select>
-      <div class="field-label">Crossmatch checklist</div>
+      <div class="field-label">${t('blood_bank.crossmatch_checklist', 'Crossmatch checklist')}</div>
       <div class="checklist">
-        <label><input type="checkbox" id="cmSample" ${r.crossmatch_sample ? "checked" : ""}> Patient sample collected</label>
-        <label><input type="checkbox" id="cmAbo" ${r.crossmatch_abo ? "checked" : ""}> ABO / Rh typing confirmed</label>
-        <label><input type="checkbox" id="cmScreen" ${r.crossmatch_screen ? "checked" : ""}> Antibody screen &amp; crossmatch compatible</label>
+        <label><input type="checkbox" id="cmSample" ${r.crossmatch_sample ? "checked" : ""}> ${t('blood_bank.sample_collected', 'Patient sample collected')}</label>
+        <label><input type="checkbox" id="cmAbo" ${r.crossmatch_abo ? "checked" : ""}> ${t('blood_bank.abo_typing_confirmed', 'ABO / Rh typing confirmed')}</label>
+        <label><input type="checkbox" id="cmScreen" ${r.crossmatch_screen ? "checked" : ""}> ${t('blood_bank.screen_compatible', 'Antibody screen & crossmatch compatible')}</label>
       </div>
-      <div class="field-label">Notes</div>
+      <div class="field-label">${t('blood_bank.notes', 'Notes')}</div>
       <textarea class="full" id="notesArea" placeholder="Crossmatch remarks, reaction notes, etc.">${escapeHtml(r.notes || "")}</textarea>
       <div class="panel-actions">
-        <button class="btn" id="saveNotesBtn">Save notes</button>
-        <button class="btn primary" id="issueBtn" ${r.status === "issued" || r.status === "rejected" ? "disabled" : ""}>Issue unit(s)</button>
+        <button class="btn" id="saveNotesBtn">${t('blood_bank.save_notes', 'Save notes')}</button>
+        <button class="btn primary" id="issueBtn" ${r.status === "issued" || r.status === "rejected" ? "disabled" : ""}>${t('blood_bank.issue_units', 'Issue unit(s)')}</button>
       </div>
       <div class="panel-actions">
-        <button class="btn" id="slipBtn">Download issue slip (PDF)</button>
-        <button class="btn critical" id="rejectBtn" ${r.status === "issued" || r.status === "rejected" ? "disabled" : ""}>Reject request</button>
+        <button class="btn" id="slipBtn">${t('blood_bank.download_slip', 'Download issue slip (PDF)')}</button>
+        <button class="btn critical" id="rejectBtn" ${r.status === "issued" || r.status === "rejected" ? "disabled" : ""}>${t('blood_bank.reject_request', 'Reject request')}</button>
       </div>`;
 
     document.getElementById("assignSelect").addEventListener("change", (e) => assignStaff(r.id, e.target.value));
@@ -676,19 +803,25 @@
     GROUPS.forEach((g) => (stockByGroup[g] = unitsFor(g, "Whole Blood") + unitsFor(g, "Packed RBC") + unitsFor(g, "Fresh Frozen Plasma") + unitsFor(g, "Platelets") + unitsFor(g, "Cryoprecipitate")));
     document.getElementById("reportStockByGroup").innerHTML = barRows(stockByGroup, Math.max(1, ...Object.values(stockByGroup)));
 
-    const byStatus = { requested: 0, crossmatch: 0, issued: 0, rejected: 0 };
-    requests.forEach((r) => { byStatus[r.status] = (byStatus[r.status] || 0) + 1; });
+    const rawByStatus = { requested: 0, crossmatch: 0, issued: 0, rejected: 0 };
+    requests.forEach((r) => { rawByStatus[r.status] = (rawByStatus[r.status] || 0) + 1; });
+    const byStatus = {
+      [t("blood_bank.requested", "Requested")]: rawByStatus.requested,
+      [t("blood_bank.crossmatch", "Crossmatch")]: rawByStatus.crossmatch,
+      [t("blood_bank.issued", "Issued")]: rawByStatus.issued,
+      [t("blood_bank.rejected", "Rejected")]: rawByStatus.rejected
+    };
     document.getElementById("reportByStatus").innerHTML = barRows(byStatus, Math.max(1, ...Object.values(byStatus)));
 
     const totalBilled = billing.reduce((s, b) => s + parseFloat(b.amount), 0);
     const collected = billing.filter((b) => b.status === "paid").reduce((s, b) => s + parseFloat(b.amount), 0);
     document.getElementById("reportSummary").innerHTML = `
-      <div class="info-row"><span class="k">Total requests</span><span class="v">${requests.length}</span></div>
-      <div class="info-row"><span class="k">Total units in stock</span><span class="v">${inventoryUnits.length}</span></div>
-      <div class="info-row"><span class="k">Registered donors</span><span class="v">${donors.length}</span></div>
-      <div class="info-row"><span class="k">Patient donations recorded</span><span class="v">${patientDonations.length}</span></div>
-      <div class="info-row"><span class="k">Total billed</span><span class="v">₹${totalBilled.toFixed(2)}</span></div>
-      <div class="info-row"><span class="k">Collected</span><span class="v">₹${collected.toFixed(2)}</span></div>`;
+      <div class="info-row"><span class="k">${t("blood_bank.report_total_requests", "Total requests")}</span><span class="v">${requests.length}</span></div>
+      <div class="info-row"><span class="k">${t("blood_bank.report_total_units_stock", "Total units in stock")}</span><span class="v">${inventoryUnits.length}</span></div>
+      <div class="info-row"><span class="k">${t("blood_bank.report_registered_donors", "Registered donors")}</span><span class="v">${donors.length}</span></div>
+      <div class="info-row"><span class="k">${t("blood_bank.report_patient_donations_rec", "Patient donations recorded")}</span><span class="v">${patientDonations.length}</span></div>
+      <div class="info-row"><span class="k">${t("blood_bank.report_total_billed", "Total billed")}</span><span class="v">₹${totalBilled.toFixed(2)}</span></div>
+      <div class="info-row"><span class="k">${t("blood_bank.report_collected", "Collected")}</span><span class="v">₹${collected.toFixed(2)}</span></div>`;
   }
 
   // ---------- Tabs & search wiring ----------
@@ -703,9 +836,164 @@
     });
   }
 
+  function updateActiveFilterBadge() {
+    let count = 0;
+    if (filters.priority !== "all") count++;
+    if (filters.group !== "all") count++;
+    if (filters.component !== "all") count++;
+    if (filters.status !== "all") count++;
+    if (filters.scope !== "all") count++;
+    if (filters.q) count++;
+
+    const badge = document.getElementById("activeFilterBadge");
+    if (badge) {
+      if (count > 0) {
+        badge.style.display = "inline-block";
+        badge.textContent = count;
+      } else {
+        badge.style.display = "none";
+      }
+    }
+
+    // Sync popover priority chips
+    document.querySelectorAll("[data-filter-priority]").forEach((chip) => {
+      chip.classList.toggle("active", chip.dataset.filterPriority === filters.priority);
+    });
+    // Sync quick filter bar chips
+    document.querySelectorAll("[data-chip-priority]").forEach((chip) => {
+      chip.classList.toggle("active", chip.dataset.chipPriority === filters.priority);
+    });
+    // Sync selects
+    const grpSel = document.getElementById("popoverGroupSelect");
+    if (grpSel) grpSel.value = filters.group;
+    const compSel = document.getElementById("popoverComponentSelect");
+    if (compSel) compSel.value = filters.component;
+  }
+
+  function setSortMode(sortVal) {
+    filters.sort = sortVal;
+    const sortSelect = document.getElementById("sortSelect");
+    if (sortSelect) sortSelect.value = sortVal;
+    
+    const keyMap = {
+      time: 'blood_bank.sort_time',
+      priority: 'blood_bank.sort_priority',
+      name: 'blood_bank.sort_name'
+    };
+    const labels = {
+      time: t('blood_bank.sort_time', 'Sort: Request Time'),
+      priority: t('blood_bank.sort_priority', 'Sort: Priority'),
+      name: t('blood_bank.sort_name', 'Sort: Patient Name')
+    };
+    const lbl = document.getElementById("sortLabelText");
+    if (lbl) {
+      lbl.setAttribute("data-i18n", keyMap[sortVal] || "blood_bank.sort_by");
+      lbl.textContent = labels[sortVal] || t('blood_bank.sort_by', 'Sort');
+    }
+
+    document.querySelectorAll("#sortMenuPopover .sort-option").forEach((opt) => {
+      opt.classList.toggle("active", opt.dataset.sort === sortVal);
+    });
+  }
+
+  function setPriorityFilter(priorityVal) {
+    filters.priority = priorityVal;
+    updateActiveFilterBadge();
+    renderWorklist();
+  }
+
+  function resetAllFilters() {
+    filters = { scope: "all", group: "all", status: "all", priority: "all", component: "all", q: "", sort: "time" };
+    const search = document.getElementById("search");
+    if (search) search.value = "";
+    setSortMode("time");
+    updateActiveFilterBadge();
+    renderWorklist();
+  }
+
   function wireRequestsToolbar() {
-    document.getElementById("search").addEventListener("input", (e) => { filters.q = e.target.value.trim(); renderWorklist(); });
-    document.getElementById("sortSelect").addEventListener("change", (e) => { filters.sort = e.target.value; renderWorklist(); });
+    const search = document.getElementById("search");
+    if (search) {
+      search.addEventListener("input", (e) => {
+        filters.q = e.target.value.trim();
+        updateActiveFilterBadge();
+        renderWorklist();
+      });
+    }
+
+    const container = document.getElementById("sortDropdownContainer");
+    const trigger = document.getElementById("sortTriggerBtn");
+    if (trigger && container) {
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        container.classList.toggle("open");
+      });
+
+      // Sort options
+      document.querySelectorAll("#sortMenuPopover .sort-option").forEach((opt) => {
+        opt.addEventListener("click", (e) => {
+          e.stopPropagation();
+          setSortMode(opt.dataset.sort);
+          renderWorklist();
+        });
+      });
+
+      // Priority filter chips inside popover
+      document.querySelectorAll("[data-filter-priority]").forEach((chip) => {
+        chip.addEventListener("click", (e) => {
+          e.stopPropagation();
+          setPriorityFilter(chip.dataset.filterPriority);
+        });
+      });
+
+      // Blood group select inside popover
+      const grpSel = document.getElementById("popoverGroupSelect");
+      if (grpSel) {
+        grpSel.addEventListener("change", (e) => {
+          filters.group = e.target.value;
+          updateActiveFilterBadge();
+          renderWorklist();
+        });
+      }
+
+      // Component select inside popover
+      const compSel = document.getElementById("popoverComponentSelect");
+      if (compSel) {
+        compSel.addEventListener("change", (e) => {
+          filters.component = e.target.value;
+          updateActiveFilterBadge();
+          renderWorklist();
+        });
+      }
+
+      // Reset button
+      const resetBtn = document.getElementById("resetFiltersBtn");
+      if (resetBtn) {
+        resetBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          resetAllFilters();
+        });
+      }
+
+      // Close on outside click
+      document.addEventListener("click", (e) => {
+        if (!container.contains(e.target)) {
+          container.classList.remove("open");
+        }
+      });
+    }
+
+    // Quick filter bar chips
+    document.querySelectorAll("[data-chip-priority]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setPriorityFilter(btn.dataset.chipPriority);
+      });
+    });
+
+    const sortSelect = document.getElementById("sortSelect");
+    if (sortSelect) {
+      sortSelect.addEventListener("change", (e) => { setSortMode(e.target.value); renderWorklist(); });
+    }
   }
 
   async function init() {
@@ -718,6 +1006,10 @@
     const root = document.getElementById("appRoot");
     const tpl = document.getElementById("appTemplate");
     root.replaceWith(tpl.content.cloneNode(true));
+
+    if (window.i18n && typeof window.i18n.applyTranslations === 'function') {
+      window.i18n.applyTranslations();
+    }
 
     wireSidebarStatic();
     wireTabs();
@@ -752,6 +1044,10 @@
         MEDISYS_RT.on(resource, refreshAndRerender)
       );
     }
+
+    window.addEventListener("i18n:languageChanged", () => {
+      renderAll();
+    });
   }
 
   document.addEventListener("DOMContentLoaded", init);

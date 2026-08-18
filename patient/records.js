@@ -269,9 +269,12 @@
     if (!user) return;
     wireLogout();
     await loadProfile();
-    loadRecords();
     if (window.MEDISYS_RT) {
       ["consultations", "lab_orders", "vitals", "ipd_admissions"].forEach((resource) => MEDISYS_RT.on(resource, loadRecords));
     }
+    window.addEventListener("i18n:languageChanged", () => {
+      loadRecords();
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

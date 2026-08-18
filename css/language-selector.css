@@ -1,0 +1,99 @@
+/* Reusable Language Selector Styles for MEDISYS */
+
+.medisys-lang-wrap {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  margin: 0 4px;
+}
+
+.medisys-lang-flag-img {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  width: 18px;
+  height: 12px;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  z-index: 2;
+}
+
+.medisys-lang-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: rgba(255, 255, 255, 0.95);
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 26px 6px 34px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.medisys-lang-select:hover {
+  border-color: #94a3b8;
+  background-color: #ffffff;
+}
+
+.medisys-lang-select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.medisys-lang-icon {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+  font-size: 10px;
+  color: #64748b;
+}
+
+/* Dark / Portal Topbar theme adaptation */
+.portal-header-right .medisys-lang-select,
+.topbar-right .medisys-lang-select {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.portal-header-right .medisys-lang-select option,
+.topbar-right .medisys-lang-select option {
+  background-color: #1e293b;
+  color: #ffffff;
+}
+
+.portal-header-right .medisys-lang-select:hover,
+.topbar-right .medisys-lang-select:hover {
+  background-color: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.portal-header-right .medisys-lang-icon,
+.topbar-right .medisys-lang-icon {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Standalone Top Bar Language Container for Login Page */
+.lp-header-lang {
+  position: absolute;
+  top: 8px;
+  right: 24px;
+  z-index: 1000;
+}
+
+.lp-header-lang .medisys-lang-select {
+  background-color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 6px 26px 6px 34px;
+  font-size: 13px;
+  border-radius: 6px;
+}
