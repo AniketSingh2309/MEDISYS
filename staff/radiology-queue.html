@@ -256,16 +256,16 @@
     <span class="sub" id="hospitalNameLabel">Core5 MEDISYS</span>
   </div>
   <div class="topbar-right">
-    <a href="dashboard.html" class="back-link">&larr; Back to Dashboard</a>
+    <a href="dashboard.html" class="back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
     <span id="portalUser"></span>
     <div class="avatar" id="portalAvatar"></div>
-    <button type="button" class="logout-btn" id="logoutBtn">Logout</button>
+    <button type="button" class="logout-btn" id="logoutBtn" data-i18n="common.logout">Logout</button>
   </div>
 </div>
 
 <div class="layout">
   <div class="sidebar">
-    <h4>Queue</h4>
+    <h4 data-i18n="blood_bank.queue">Queue</h4>
     <div class="side-item active" data-scope="all">All studies <span class="count" id="cntAll">0</span></div>
     <div class="side-item" data-scope="mine">Assigned to me <span class="count" id="cntMine">0</span></div>
     <div class="side-item" data-scope="unclaimed">Unassigned <span class="count" id="cntUnassigned">0</span></div>
@@ -273,9 +273,9 @@
     <h4>Modality</h4>
     <div id="modalitySideItems"></div>
 
-    <h4>Status</h4>
-    <div class="side-item active" data-status="all">All <span class="count" id="cntStatusAll">0</span></div>
-    <div class="side-item" data-status="pending">Pending <span class="count" id="cntPending">0</span></div>
+    <h4 data-i18n="common.status">Status</h4>
+    <div class="side-item active" data-status="all"><span data-i18n="blood_bank.all">All</span> <span class="count" id="cntStatusAll">0</span></div>
+    <div class="side-item" data-status="pending"><span data-i18n="status.pending">Pending</span> <span class="count" id="cntPending">0</span></div>
     <div class="side-item" data-status="in_progress">In progress <span class="count" id="cntInProgress">0</span></div>
     <div class="side-item" data-status="reported">Reported <span class="count" id="cntReported">0</span></div>
     <div class="side-item" data-status="verified">Verified <span class="count" id="cntVerified">0</span></div>
@@ -301,11 +301,11 @@
       <table>
         <thead>
           <tr>
-            <th>Patient</th>
+            <th data-i18n="common.patient">Patient</th>
             <th>Study</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Radiologist</th>
+            <th data-i18n="blood_bank.priority">Priority</th>
+            <th data-i18n="common.status">Status</th>
+            <th data-i18n="common.doctor">Radiologist</th>
           </tr>
         </thead>
         <tbody id="worklistBody"></tbody>

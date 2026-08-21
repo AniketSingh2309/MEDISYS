@@ -29,16 +29,24 @@
     });
   }
 
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   async function loadAdmissions() {
     const res = await fetch("/api/ipd/admissions?status=admitted", { credentials: "same-origin" });
     const data = await res.json();
     const select = document.getElementById("admissionSelect");
     if (!data.success || data.admissions.length === 0) {
-      select.innerHTML = `<option value="">No admitted patients</option>`;
+      select.innerHTML = `<option value="">${t('doctor_ipd.no_admitted_patients', 'No admitted patients')}</option>`;
       return;
     }
     select.innerHTML =
-      `<option value="">Select a patient</option>` +
+      `<option value="">${t('doctor_ipd.select_patient', 'Select a patient')}</option>` +
       data.admissions
         .map((a) => `<option value="${a.id}">${escapeHtml(a.patient_name || a.patient_uhid)} (${escapeHtml(a.ward_name || "")} ${escapeHtml(a.bed_number || "")})</option>`)
         .join("");
@@ -60,7 +68,7 @@
             <div class="chart-feed-meta">${escapeHtml(new Date(v.recorded_at).toLocaleString())}</div>
           </div>`
         )
-        .join("") || `<p class="wizard-hint">No vitals logged yet.</p>`;
+        .join("") || `<p class="wizard-hint">${t('doctor_ipd.no_vitals_logged', 'No vitals logged yet.')}</p>`;
 
     document.getElementById("notesFeed").innerHTML =
       data.notes
@@ -70,7 +78,7 @@
             <div class="chart-feed-meta">by ${escapeHtml(n.flagged_by)} &middot; ${escapeHtml(new Date(n.created_at).toLocaleString())}</div>
           </div>`
         )
-        .join("") || `<p class="wizard-hint">No notes yet.</p>`;
+        .join("") || `<p class="wizard-hint">${t('doctor_ipd.no_notes', 'No notes yet.')}</p>`;
 
     document.getElementById("ordersFeed").innerHTML =
       data.orders
@@ -80,7 +88,7 @@
             <div class="chart-feed-meta">${escapeHtml(new Date(o.created_at).toLocaleString())}</div>
           </div>`
         )
-        .join("") || `<p class="wizard-hint">No orders issued yet.</p>`;
+        .join("") || `<p class="wizard-hint">${t('doctor_ipd.no_orders_issued', 'No orders issued yet.')}</p>`;
   }
 
   function wireVoiceDictation() {
@@ -116,7 +124,7 @@
       errorEl.textContent = "";
       const message = document.getElementById("roundNote").value.trim();
       if (!message || !currentAdmissionId) {
-        errorEl.textContent = "Note message is required.";
+        errorEl.textContent = t('doctor_ipd.note_required', 'Note message is required.');
         return;
       }
       const res = await fetch(`/api/ipd/admissions/${currentAdmissionId}/notes`, {
@@ -127,7 +135,7 @@
       });
       const data = await res.json();
       if (!data.success) {
-        errorEl.textContent = data.message || "Could not post note.";
+        errorEl.textContent = data.message || t('doctor_ipd.could_not_post_note', 'Could not post note.');
         return;
       }
       document.getElementById("roundNote").value = "";
@@ -139,7 +147,7 @@
       errorEl.textContent = "";
       const description = document.getElementById("orderDescription").value.trim();
       if (!description || !currentAdmissionId) {
-        errorEl.textContent = "Order description is required.";
+        errorEl.textContent = t('doctor_ipd.order_required', 'Order description is required.');
         return;
       }
       const res = await fetch(`/api/ipd/admissions/${currentAdmissionId}/orders`, {
@@ -153,7 +161,7 @@
       });
       const data = await res.json();
       if (!data.success) {
-        errorEl.textContent = data.message || "Could not issue order.";
+        errorEl.textContent = data.message || t('doctor_ipd.could_not_issue_order', 'Could not issue order.');
         return;
       }
       document.getElementById("orderDescription").value = "";
@@ -172,5 +180,10 @@
     if (window.MEDISYS_RT) {
       MEDISYS_RT.on("ipd_admissions", loadAdmissions);
     }
+    window.addEventListener("i18n:languageChanged", () => {
+      loadAdmissions();
+      if (currentAdmissionId) loadChart(currentAdmissionId);
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

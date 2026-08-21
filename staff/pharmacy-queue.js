@@ -1,4 +1,12 @@
 (function () {
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, (c) => ({
       "&": "&amp;",
@@ -1492,6 +1500,12 @@
     MEDISYS_RT.on("pharmacy_stock", loadPharmacyStock);
     MEDISYS_RT.on("patients", () => loadPatientsSection());
   }
+
+  window.addEventListener("i18n:languageChanged", () => {
+    loadPharmacyOrders();
+    loadPharmacyStock();
+    if (window.i18n) window.i18n.applyTranslations();
+  });
 }
 
   document.addEventListener("DOMContentLoaded", init);

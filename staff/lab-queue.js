@@ -30,6 +30,14 @@
     });
   }
 
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   async function configureForDesignation() {
     const res = await fetch("/api/me", { credentials: "same-origin" });
     const data = await res.json();
@@ -37,11 +45,11 @@
     department = designation === "Radiologist" ? "Radiology" : "Pathology";
 
     document.getElementById("queueHeading").textContent =
-      department === "Radiology" ? "Radiology Queue" : "Pathology & Lab Queue";
+      department === "Radiology" ? t("navigation.radiology_queue", "Radiology Queue") : t("navigation.pathology_lab", "Pathology & Lab Queue");
     document.getElementById("queueSubtitle").textContent =
       department === "Radiology"
-        ? "Imaging orders sent by doctors, waiting to be claimed and reported."
-        : "Pathology and lab test orders sent by doctors, waiting to be claimed and resulted.";
+        ? t("dashboard.card_rad_hint", "Imaging orders sent by doctors, waiting to be claimed and reported.")
+        : t("dashboard.card_path_hint", "Pathology and lab test orders sent by doctors, waiting to be claimed and resulted.");
   }
 
   async function loadUnclaimed() {
@@ -224,5 +232,9 @@
         loadCompleted();
       });
     }
+
+    window.addEventListener("i18n:languageChanged", () => {
+      configureForDesignation();
+    });
   });
 })();

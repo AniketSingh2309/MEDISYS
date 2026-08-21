@@ -1,4 +1,12 @@
 (function () {
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   async function guardSession() {
     const res = await fetch("/api/session", { credentials: "same-origin" });
     const data = await res.json();
@@ -40,14 +48,14 @@
     if (!data.success) return;
 
     const { fullName, hospitalName } = data.profile;
-    document.getElementById("welcomeHeading").textContent = `Welcome, ${fullName}`;
-    document.getElementById("patientSubtitle").textContent = `Patient at ${hospitalName}`;
+    document.getElementById("welcomeHeading").textContent = `${t("dashboard.welcome", "Welcome")}, ${fullName}`;
+    document.getElementById("patientSubtitle").textContent = `${t("dashboard.patient_at", "Patient at")} ${hospitalName}`;
 
     document.getElementById("patientActionCards").innerHTML =
-      actionCard("records.html", ICONS.records, "Your Medical Records", "Consultations, admissions, vitals, and lab/radiology results") +
-      actionCard("appointments.html", ICONS.calendar, "Appointments", "Every OPD visit you've booked, past and upcoming") +
-      actionCard("prescriptions.html", ICONS.prescription, "Prescriptions", "Medicines your doctor has prescribed and their dispense status") +
-      actionCard("bills.html", ICONS.bill, "Bills &amp; Invoices", "Outstanding charges, past bills, and pharmacy invoices");
+      actionCard("records.html", ICONS.records, t("records.title", "Your Medical Records"), t("dashboard.card_patient_records_hint", "Consultations, admissions, vitals, and lab/radiology results")) +
+      actionCard("appointments.html", ICONS.calendar, t("appointments.title", "Appointments"), t("dashboard.card_patient_appointments_hint", "Every OPD visit you've booked, past and upcoming")) +
+      actionCard("prescriptions.html", ICONS.prescription, t("prescriptions.title", "Prescriptions"), t("dashboard.card_patient_prescriptions_hint", "Medicines your doctor has prescribed and their dispense status")) +
+      actionCard("bills.html", ICONS.bill, t("bills.title", "Bills & Invoices"), t("dashboard.card_patient_bills_hint", "Outstanding charges, past bills, and pharmacy invoices"));
   }
 
   document.addEventListener("DOMContentLoaded", async () => {
@@ -55,5 +63,9 @@
     if (!user) return;
     wireLogout();
     loadProfile();
+
+    window.addEventListener("i18n:languageChanged", () => {
+      loadProfile();
+    });
   });
 })();

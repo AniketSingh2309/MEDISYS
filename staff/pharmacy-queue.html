@@ -684,32 +684,32 @@
   </header>
 
   <main class="portal-main" style="max-width: 1200px; margin: 0 auto; padding: 20px;">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
     
     <div class="pharmacy-nav">
       <button class="pill-tab active" id="navPrescriptions">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-        Prescriptions <span class="pill-badge" id="pendingCount">0</span>
+        <span data-i18n="navigation.prescriptions">Prescriptions</span> <span class="pill-badge" id="pendingCount">0</span>
       </button>
       <button class="pill-tab" id="navStock">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-        Medicine Stock <span class="pill-badge" id="stockCount">0</span>
+        <span>Medicine Stock</span> <span class="pill-badge" id="stockCount">0</span>
       </button>
       <button class="pill-tab" id="navBilling">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-        Billing
+        <span data-i18n="billing_desk.billing">Billing</span>
       </button>
       <button class="pill-tab" id="navPatients">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-        Patients
+        <span data-i18n="navigation.patients">Patients</span>
       </button>
       <button class="pill-tab" id="navInteraction">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-        Direct Counter Sale
+        <span>Direct Counter Sale</span>
       </button>
       <button class="pill-tab" id="navSummary" style="margin-left: auto; border: 2px solid #e2e8f0; border-radius: 999px;">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-        Summary
+        <span data-i18n="blood_bank.reports">Summary</span>
       </button>
     </div>
 
@@ -717,8 +717,8 @@
     <div id="sectionPrescriptions">
       <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px;">
         <div>
-          <h1 style="font-family: serif; color: var(--navy-dark); font-size: 32px; margin-bottom: 8px;">Prescriptions to dispense</h1>
-          <p class="portal-subtitle" style="font-size: 15px;">Tap a card to check stock and dispense, step by step.</p>
+          <h1 style="font-family: serif; color: var(--navy-dark); font-size: 32px; margin-bottom: 8px;" data-i18n="prescriptions.title">Prescriptions to dispense</h1>
+          <p class="portal-subtitle" style="font-size: 15px;" data-i18n="prescriptions.subtitle">Tap a card to check stock and dispense, step by step.</p>
         </div>
       </div>
 

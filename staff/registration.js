@@ -29,6 +29,14 @@
     });
   }
 
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   function wireSearch() {
     const input = document.getElementById("patientSearch");
     const results = document.getElementById("searchResults");
@@ -63,7 +71,7 @@
           .join("");
 
         if (data.patients.length === 0) {
-          results.innerHTML = `<p class="portal-subtitle">No matching patients found.</p>`;
+          results.innerHTML = `<p class="portal-subtitle">${t('registration.no_matching_patients', 'No matching patients found.')}</p>`;
         }
       }, 300);
     });
@@ -80,7 +88,7 @@
 
       const fullName = document.getElementById("fullName").value.trim();
       if (!fullName) {
-        errorEl.textContent = "Patient name is required.";
+        errorEl.textContent = t('registration.name_required', 'Patient name is required.');
         return;
       }
 
@@ -107,7 +115,7 @@
         const data = await res.json();
 
         if (!data.success) {
-          errorEl.textContent = data.message || "Could not register patient. Please try again.";
+          errorEl.textContent = data.message || t('registration.error_create', 'Could not register patient. Please try again.');
           return;
         }
 
@@ -115,9 +123,9 @@
         document.getElementById("uhidOutput").value = data.patient.uhid;
         document.getElementById("patientPasswordOutput").value = data.patient.password;
         document.getElementById("patientResult").hidden = false;
-        if (window.showToast) showToast(`Patient ${fullName} registered — UHID ${data.patient.uhid}`, "success");
+        if (window.showToast) showToast(`${t('registration.patient', 'Patient')} ${fullName} ${t('registration.registered_uhid', 'registered — UHID')} ${data.patient.uhid}`, "success");
       } catch (err) {
-        errorEl.textContent = "Unable to reach the server. Please try again.";
+        errorEl.textContent = t('common.server_error', 'Unable to reach the server. Please try again.');
       } finally {
         submitBtn.disabled = false;
       }
@@ -153,5 +161,9 @@
     wireLogout();
     wireSearch();
     wireForm();
+
+    window.addEventListener("i18n:languageChanged", () => {
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

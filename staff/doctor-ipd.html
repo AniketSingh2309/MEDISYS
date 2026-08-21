@@ -15,24 +15,24 @@
     </div>
     <div class="portal-header-right">
       <span class="portal-user" id="portalUser"></span>
-      <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+      <button type="button" class="portal-logout-btn" id="logoutBtn" data-i18n="common.logout">Logout</button>
     </div>
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>IPD Rounds</h1>
-    <p class="portal-subtitle">Your admitted patients &mdash; write round notes and issue orders.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="navigation.ipd_rounds">IPD Rounds</h1>
+    <p class="portal-subtitle" data-i18n="dashboard.card_doc_ipd_hint">Your admitted patients &mdash; write round notes and issue orders.</p>
 
     <div class="portal-card wizard-step">
-      <label for="admissionSelect">Admitted Patient</label>
+      <label for="admissionSelect" data-i18n="opd.currently_in_ward">Admitted Patient</label>
       <select id="admissionSelect"></select>
     </div>
 
     <div id="workspace" hidden>
       <div class="portal-card">
         <div class="chart-section">
-          <h2 class="chart-section-title">Vitals</h2>
+          <h2 class="chart-section-title" data-i18n="records.vitals">Vitals</h2>
           <div id="vitalsFeed"></div>
         </div>
 
@@ -52,22 +52,22 @@
         </div>
 
         <div class="chart-section">
-          <h2 class="chart-section-title">Issue Order</h2>
+          <h2 class="chart-section-title" data-i18n="doctor_ipd.issue_order">Issue Order</h2>
           <div class="wizard-grid">
             <div>
-              <label for="orderType">Type</label>
+              <label for="orderType" data-i18n="appointments.type">Type</label>
               <select id="orderType">
-                <option value="test">Test</option>
-                <option value="medicine">Medicine</option>
-                <option value="procedure">Procedure</option>
-                <option value="nursing_instruction">Nursing Instruction</option>
+                <option value="test" data-i18n="doctor_ipd.type_test">Test</option>
+                <option value="medicine" data-i18n="doctor_ipd.type_medicine">Medicine</option>
+                <option value="procedure" data-i18n="doctor_ipd.type_procedure">Procedure</option>
+                <option value="nursing_instruction" data-i18n="doctor_ipd.type_nursing_instruction">Nursing Instruction</option>
               </select>
             </div>
           </div>
-          <label for="orderDescription">Description</label>
+          <label for="orderDescription" data-i18n="bills.description">Description</label>
           <textarea id="orderDescription"></textarea>
           <div class="wizard-nav">
-            <button type="button" class="login-btn wizard-next-btn" id="issueOrderBtn">Issue Order</button>
+            <button type="button" class="login-btn wizard-next-btn" id="issueOrderBtn" data-i18n="doctor_ipd.issue_order">Issue Order</button>
           </div>
           <div id="ordersFeed"></div>
         </div>

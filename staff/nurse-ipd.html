@@ -20,38 +20,38 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>IPD Patients</h1>
-    <p class="portal-subtitle">Select an admitted patient to log medication administered.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="nurse_pages.ipd_patients_title">IPD Patients</h1>
+    <p class="portal-subtitle" data-i18n="nurse_pages.ipd_patients_subtitle">Select an admitted patient to log medication administered.</p>
 
     <div class="portal-card wizard-step">
-      <label for="admissionSelect">Admitted Patient</label>
+      <label for="admissionSelect" data-i18n="nurse_pages.ipd_patients_title">Admitted Patient</label>
       <select id="admissionSelect"></select>
     </div>
 
     <div id="workspace" hidden>
       <div class="portal-card">
         <div class="chart-section">
-          <h2 class="chart-section-title">Doctor's Orders</h2>
+          <h2 class="chart-section-title" data-i18n="nurse_pages.doctors_orders">Doctor's Orders</h2>
           <div id="ordersFeed"></div>
         </div>
 
         <div class="chart-section">
-          <h2 class="chart-section-title">Log Medication Administered</h2>
+          <h2 class="chart-section-title" data-i18n="nurse_pages.log_medication">Log Medication Administered</h2>
           <div class="wizard-grid">
             <div>
-              <label for="medicineName">Medicine</label>
+              <label for="medicineName" data-i18n="nurse_pages.medicine">Medicine</label>
               <input type="text" id="medicineName" />
             </div>
             <div>
-              <label for="dose">Dose</label>
-              <input type="text" id="dose" placeholder="e.g. 500mg" />
+              <label for="dose" data-i18n="nurse_pages.dose">Dose</label>
+              <input type="text" id="dose" data-i18n-placeholder="nurse_pages.dose_placeholder" placeholder="e.g. 500mg" />
             </div>
           </div>
-          <label for="marNotes">Notes</label>
-          <input type="text" id="marNotes" placeholder="Optional" />
+          <label for="marNotes" data-i18n="nurse_pages.notes">Notes</label>
+          <input type="text" id="marNotes" data-i18n-placeholder="common.optional" placeholder="Optional" />
           <div class="wizard-nav">
-            <button type="button" class="login-btn wizard-next-btn" id="logMarBtn">Log Dose</button>
+            <button type="button" class="login-btn wizard-next-btn" id="logMarBtn" data-i18n="nurse_pages.log_dose">Log Dose</button>
           </div>
           <div id="marFeed"></div>
         </div>

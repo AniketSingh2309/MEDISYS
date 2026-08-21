@@ -20,13 +20,13 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>My Queue</h1>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="navigation.my_queue">My Queue</h1>
     <p class="portal-subtitle">Today's patients.</p>
 
     <div class="portal-card">
       <table class="portal-table" id="queueTable">
-        <thead><tr><th>Token</th><th>Patient</th><th>Time</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="opd.token">Token</th><th data-i18n="common.patient">Patient</th><th data-i18n="common.time">Time</th><th data-i18n="common.status">Status</th><th></th></tr></thead>
         <tbody id="queueTableBody"></tbody>
       </table>
       <p class="portal-empty" id="queueEmptyState" hidden>No patients in your queue today.</p>

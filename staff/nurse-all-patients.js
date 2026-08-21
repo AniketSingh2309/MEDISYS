@@ -29,6 +29,14 @@
     });
   }
 
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   async function loadAllPatients() {
     const res = await fetch("/api/ipd/admissions?status=admitted&scope=all", { credentials: "same-origin" });
     const data = await res.json();
@@ -51,14 +59,14 @@
           <td>${escapeHtml(a.doctor_name || "—")}</td>
           <td>${escapeHtml(a.assigned_nurse_id || "—")}</td>
           <td>${a.admitted_at ? escapeHtml(new Date(a.admitted_at).toLocaleString()) : "—"}</td>
-          <td><button type="button" class="wizard-suggest-btn discharge-btn" data-id="${a.id}" data-name="${escapeHtml(a.patient_name || a.patient_uhid)}">Discharge</button></td>
+          <td><button type="button" class="wizard-suggest-btn discharge-btn" data-id="${a.id}" data-name="${escapeHtml(a.patient_name || a.patient_uhid)}">${t('nurse.discharge', 'Discharge')}</button></td>
         </tr>`
       )
       .join("");
 
     tbody.querySelectorAll(".discharge-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        if (!confirm(`Discharge ${btn.dataset.name}? This frees their bed immediately.`)) return;
+        if (!confirm(`${t('nurse.confirm_discharge', 'Discharge')} ${btn.dataset.name}?`)) return;
         btn.disabled = true;
         try {
           const res = await fetch(`/api/ipd/admissions/${btn.dataset.id}/discharge`, {
@@ -67,12 +75,12 @@
           });
           const data = await res.json();
           if (!data.success) {
-            if (window.showToast) showToast(data.message || "Could not discharge patient.", "error");
-            else alert(data.message || "Could not discharge patient.");
+            if (window.showToast) showToast(data.message || t('nurse.could_not_discharge', 'Could not discharge patient.'), "error");
+            else alert(data.message || t('nurse.could_not_discharge', 'Could not discharge patient.'));
             btn.disabled = false;
             return;
           }
-          if (window.showToast) showToast(`${btn.dataset.name} discharged — bed freed.`, "success");
+          if (window.showToast) showToast(`${btn.dataset.name} ${t('nurse.discharged_freed', 'discharged — bed freed.')}`, "success");
           loadAllPatients();
         } catch (err) {
           btn.disabled = false;
@@ -90,5 +98,9 @@
     if (window.MEDISYS_RT) {
       ["ipd_admissions", "patients", "wards_beds"].forEach((resource) => MEDISYS_RT.on(resource, loadAllPatients));
     }
+    window.addEventListener("i18n:languageChanged", () => {
+      loadAllPatients();
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

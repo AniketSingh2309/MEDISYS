@@ -27,6 +27,14 @@
     });
   }
 
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   async function loadWards() {
     const res = await fetch("/api/wards", { credentials: "same-origin" });
     const data = await res.json();
@@ -45,17 +53,17 @@
         (w) => `
         <div class="ward-card">
           <div class="ward-card-title-row">
-            <div class="ward-card-title">${escapeHtml(w.name)} <span class="wizard-hint" style="display:inline;">(${w.beds.length} bed${w.beds.length === 1 ? "" : "s"})</span></div>
-            <button type="button" class="icon-btn-delete delete-ward-btn" data-ward-id="${w.id}" data-ward-name="${escapeHtml(w.name)}" aria-label="Delete ward">&times; Delete Ward</button>
+            <div class="ward-card-title">${escapeHtml(w.name)} <span class="wizard-hint" style="display:inline;">(${w.beds.length} ${t('ward.beds', 'bed(s)')})</span></div>
+            <button type="button" class="icon-btn-delete delete-ward-btn" data-ward-id="${w.id}" data-ward-name="${escapeHtml(w.name)}" aria-label="Delete ward">&times; ${t('ward.delete_ward', 'Delete Ward')}</button>
           </div>
           <div class="bed-chip-grid">
             ${w.beds
               .map((b) => `<span class="bed-chip ${escapeHtml(b.status)}">${escapeHtml(b.bed_number)}</span>`)
-              .join("") || `<span class="wizard-hint">No beds yet.</span>`}
+              .join("") || `<span class="wizard-hint">${t('ward.no_beds', 'No beds yet.')}</span>`}
           </div>
           <div class="wizard-suggest-row" style="margin-top: 14px;">
             <input type="number" min="1" max="200" value="5" data-ward-id="${w.id}" class="add-bed-input" style="max-width: 90px;" />
-            <button type="button" class="wizard-suggest-btn add-bed-btn" data-ward-id="${w.id}">+ Add Beds</button>
+            <button type="button" class="wizard-suggest-btn add-bed-btn" data-ward-id="${w.id}">+ ${t('ward.add_beds', 'Add Beds')}</button>
           </div>
         </div>`
       )
@@ -75,28 +83,28 @@
         });
         const data = await res.json();
         if (data.success) {
-          if (window.showToast) showToast(`${count} bed(s) added.`, "success");
+          if (window.showToast) showToast(`${count} ${t('ward.beds_added', 'bed(s) added.')}`, "success");
           loadWards();
         } else if (window.showToast) {
-          showToast(data.message || "Could not add beds.", "error");
+          showToast(data.message || t('ward.could_not_add_beds', 'Could not add beds.'), "error");
         }
       });
     });
 
     list.querySelectorAll(".delete-ward-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        if (!confirm(`Delete ${btn.dataset.wardName}? This removes all its (empty) beds too.`)) return;
+        if (!confirm(`${t('ward.delete', 'Delete')} ${btn.dataset.wardName}?`)) return;
         const res = await fetch(`/api/wards/${btn.dataset.wardId}`, {
           method: "DELETE",
           credentials: "same-origin",
         });
         const data = await res.json();
         if (data.success) {
-          if (window.showToast) showToast(`${btn.dataset.wardName} deleted.`, "success");
+          if (window.showToast) showToast(`${btn.dataset.wardName} ${t('ward.deleted', 'deleted.')}`, "success");
           loadWards();
         } else {
-          if (window.showToast) showToast(data.message || "Could not delete ward.", "error");
-          else alert(data.message || "Could not delete ward.");
+          if (window.showToast) showToast(data.message || t('ward.could_not_delete', 'Could not delete ward.'), "error");
+          else alert(data.message || t('ward.could_not_delete', 'Could not delete ward.'));
         }
       });
     });
@@ -111,11 +119,11 @@
       const name = input.value.trim();
       const bedCount = Number(bedCountInput.value);
       if (!name) {
-        errorEl.textContent = "Ward name is required.";
+        errorEl.textContent = t('ward.name_required', 'Ward name is required.');
         return;
       }
       if (!bedCount || bedCount < 1) {
-        errorEl.textContent = "Enter how many beds this ward should have.";
+        errorEl.textContent = t('ward.enter_bed_count', 'Enter how many beds this ward should have.');
         return;
       }
 
@@ -127,12 +135,12 @@
       });
       const data = await res.json();
       if (!data.success) {
-        errorEl.textContent = data.message || "Could not add ward.";
+        errorEl.textContent = data.message || t('ward.could_not_add_ward', 'Could not add ward.');
         return;
       }
       input.value = "";
       bedCountInput.value = "10";
-      if (window.showToast) showToast(`${name} created with ${data.bedsCreated} bed(s).`, "success");
+      if (window.showToast) showToast(`${name} ${t('ward.created_with', 'created with')} ${data.bedsCreated} ${t('ward.beds', 'bed(s).')}`, "success");
       loadWards();
     });
   }
@@ -147,5 +155,9 @@
     if (window.MEDISYS_RT) {
       MEDISYS_RT.on("wards_beds", loadWards);
     }
+    window.addEventListener("i18n:languageChanged", () => {
+      loadWards();
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

@@ -20,32 +20,32 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>Ward &amp; Bed Setup</h1>
-    <p class="portal-subtitle">Add wards and beds so IPD admissions can be allocated.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="ward.title">Ward &amp; Bed Setup</h1>
+    <p class="portal-subtitle" data-i18n="ward.subtitle">Add wards and beds so IPD admissions can be allocated.</p>
 
     <div class="portal-card wizard-step">
-      <h2>Add Ward</h2>
+      <h2 data-i18n="ward.add_ward">Add Ward</h2>
       <div class="wizard-grid">
         <div>
-          <label for="wardName">Ward Name</label>
-          <input type="text" id="wardName" placeholder="e.g. General Ward, ICU" />
+          <label for="wardName" data-i18n="ward.ward_name">Ward Name</label>
+          <input type="text" id="wardName" data-i18n-placeholder="ward.ward_name_placeholder" placeholder="e.g. General Ward, ICU" />
         </div>
         <div>
-          <label for="wardBedCount">Number of Beds</label>
+          <label for="wardBedCount" data-i18n="ward.number_of_beds">Number of Beds</label>
           <input type="number" id="wardBedCount" min="1" max="200" value="10" />
         </div>
       </div>
-      <p class="wizard-hint">Beds are created automatically and numbered B-01, B-02, ... — no manual bed entry needed.</p>
+      <p class="wizard-hint" data-i18n="ward.auto_bed_hint">Beds are created automatically and numbered B-01, B-02, ... — no manual bed entry needed.</p>
       <div class="wizard-nav">
-        <button type="button" class="login-btn wizard-next-btn" id="addWardBtn">Create Ward</button>
+        <button type="button" class="login-btn wizard-next-btn" id="addWardBtn" data-i18n="ward.create_ward">Create Ward</button>
       </div>
       <p class="form-error" id="wardFormError" role="alert" aria-live="polite"></p>
     </div>
 
-    <h2 class="portal-section-title">Wards</h2>
+    <h2 class="portal-section-title" data-i18n="ward.wards_title">Wards</h2>
     <div id="wardsList"></div>
-    <p class="portal-card portal-empty" id="wardsEmptyState" hidden>No wards added yet.</p>
+    <p class="portal-card portal-empty" id="wardsEmptyState" data-i18n="ward.no_wards_yet" hidden>No wards added yet.</p>
   </main>
 
   <footer class="site-footer">

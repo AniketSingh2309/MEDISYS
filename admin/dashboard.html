@@ -22,27 +22,27 @@
   <main class="portal-main">
     <div class="portal-toolbar">
       <div>
-        <h1>Registered Hospitals</h1>
-        <p class="portal-subtitle">Onboard and manage hospitals running MEDISYS.</p>
+        <h1 data-i18n="admin.registered_hospitals">Registered Hospitals</h1>
+        <p class="portal-subtitle" data-i18n="admin.dashboard_subtitle">Onboard and manage hospitals running MEDISYS.</p>
       </div>
-      <a href="onboard.html" class="login-btn portal-register-btn">+ Register New Hospital</a>
+      <a href="onboard.html" class="login-btn portal-register-btn" data-i18n="admin.register_hospital">+ Register New Hospital</a>
     </div>
 
     <div class="portal-card">
       <div id="emptyState" class="portal-empty" hidden>
-        <p>No hospitals registered yet.</p>
-        <a href="onboard.html" class="forgot-link">Register your first hospital &rarr;</a>
+        <p data-i18n="admin.no_hospitals">No hospitals registered yet.</p>
+        <a href="onboard.html" class="forgot-link" data-i18n="admin.register_first">Register your first hospital &rarr;</a>
       </div>
 
       <table class="portal-table" id="hospitalTable" hidden>
         <thead>
           <tr>
-            <th>Facility</th>
-            <th>City / State</th>
-            <th>Beds</th>
-            <th>Client Admin</th>
-            <th>Status</th>
-            <th>Registered</th>
+            <th data-i18n="admin.facility">Facility</th>
+            <th data-i18n="admin.city_state">City / State</th>
+            <th data-i18n="admin.beds">Beds</th>
+            <th data-i18n="admin.client_admin">Client Admin</th>
+            <th data-i18n="common.status">Status</th>
+            <th data-i18n="admin.registered_date">Registered</th>
             <th></th>
           </tr>
         </thead>

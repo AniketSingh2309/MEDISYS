@@ -692,4 +692,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       renderAll();
     });
   }
+
+  window.addEventListener("i18n:languageChanged", () => {
+    renderAll();
+    if (window.i18n) window.i18n.applyTranslations();
+  });
 });

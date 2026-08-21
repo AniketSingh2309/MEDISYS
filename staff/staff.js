@@ -8,21 +8,20 @@
     bloodbank: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-4 5-6 8.5-6 11a6 6 0 0 0 12 0c0-2.5-2-6-6-11z"/></svg>`,
   };
 
-  const MODULE_LABELS = {
-    opd: "OPD",
-    radiology: "Radiology",
-    billing: "Billing & Insurance",
-    pharmacy: "Pharmacy",
-    laboratory: "Laboratory",
-    bloodbank: "Blood Bank",
-  };
-
   const ROLE_MODULE = {
     pharmacist: "pharmacy",
     pathology_staff: "pathology",
     billing_staff: "billing",
     blood_bank_staff: "bloodbank",
   };
+
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
 
   async function guardSession() {
     const res = await fetch("/api/session", { credentials: "same-origin" });
@@ -51,8 +50,9 @@
 
     const { fullName, roleLabel, hospitalName, role, details } = data.profile;
     const displayLabel = role === "pathology_staff" && details?.designation ? details.designation : roleLabel;
-    document.getElementById("welcomeHeading").textContent = `Welcome, ${fullName}`;
-    document.getElementById("staffSubtitle").textContent = `${displayLabel} at ${hospitalName}`;
+    
+    document.getElementById("welcomeHeading").textContent = `${t('dashboard.welcome', 'Welcome')}, ${fullName}`;
+    document.getElementById("staffSubtitle").textContent = `${displayLabel} ${t('dashboard.at', 'at')} ${hospitalName}`;
 
     const actionCards = document.getElementById("staffActionCards");
     const CARD_ICONS = {
@@ -76,49 +76,47 @@
 
     if (role === "receptionist") {
       actionCards.innerHTML =
-        actionCard("registration.html", "registration", "Patient Registration", "Search existing patients or register a new one") +
-        actionCard("opd.html", "calendar", "OPD Booking &amp; Queue", "Book an appointment, issue a walk-in token, view today's queue") +
-        actionCard("ipd-admission.html", "admission", "Admission Request", "Start a direct IPD admission for a patient");
+        actionCard("registration.html", "registration", t("navigation.registration", "Patient Registration"), t("dashboard.card_reg_hint", "Search existing patients or register a new one")) +
+        actionCard("opd.html", "calendar", t("opd.title", "OPD Booking & Queue"), t("dashboard.card_opd_hint", "Book an appointment, issue a walk-in token, view today's queue")) +
+        actionCard("ipd-admission.html", "admission", t("navigation.admission", "Admission Request"), t("dashboard.card_adm_hint", "Start a direct IPD admission for a patient"));
     } else if (role === "nurse") {
       actionCards.innerHTML =
-        actionCard("vitals.html", "vitals", "OPD Vitals", "Log BP, temperature, weight, SpO2 before consultation") +
-        actionCard("ward-setup.html", "ward", "Ward &amp; Bed Setup", "Add wards and beds for this hospital") +
-        actionCard("bed-allocation.html", "bed", "Bed Allocation", "Allocate a bed to a pending admission request") +
-        actionCard("nurse-ipd.html", "admission", "IPD Patients", "Log medication administered for admitted patients") +
-        actionCard("nurse-patients.html", "queue", "My Patients", "Patients auto-assigned to you for this shift") +
-        actionCard("nurse-all-patients.html", "queue", "All Patients", "Every admitted patient hospital-wide, with a Discharge button");
+        actionCard("vitals.html", "vitals", t("navigation.opd_vitals", "OPD Vitals"), t("dashboard.card_vitals_hint", "Log BP, temperature, weight, SpO2 before consultation")) +
+        actionCard("ward-setup.html", "ward", t("navigation.ward_bed", "Ward & Bed Setup"), t("dashboard.card_ward_hint", "Add wards and beds for this hospital")) +
+        actionCard("bed-allocation.html", "bed", t("navigation.bed_allocation", "Bed Allocation"), t("dashboard.card_bed_hint", "Allocate a bed to a pending admission request")) +
+        actionCard("nurse-ipd.html", "admission", t("navigation.ipd_patients", "IPD Patients"), t("dashboard.card_nurse_ipd_hint", "Log medication administered for admitted patients")) +
+        actionCard("nurse-patients.html", "queue", t("navigation.my_patients", "My Patients"), t("dashboard.card_nurse_pat_hint", "Patients auto-assigned to you for this shift")) +
+        actionCard("nurse-all-patients.html", "queue", t("navigation.all_patients", "All Patients"), t("dashboard.card_nurse_all_hint", "Every admitted patient hospital-wide, with a Discharge button"));
     } else if (role === "doctor") {
       actionCards.innerHTML =
-        actionCard("doctor-schedule.html", "clock", "My Schedule", "Set your weekly available time slots") +
-        actionCard("doctor-queue.html", "queue", "My Queue", "Call patients, view EMR history, record consultations") +
-        actionCard("doctor-ipd.html", "admission", "IPD Rounds", "Round notes and orders for your admitted patients") +
-        actionCard("doctor-patients.html", "registration", "My Patients", "Prescriptions and lab/radiology reports for everyone you've seen");
+        actionCard("doctor-schedule.html", "clock", t("navigation.my_schedule", "My Schedule"), t("dashboard.card_doc_sched_hint", "Set your weekly available time slots")) +
+        actionCard("doctor-queue.html", "queue", t("navigation.my_queue", "My Queue"), t("dashboard.card_doc_queue_hint", "Call patients, view EMR history, record consultations")) +
+        actionCard("doctor-ipd.html", "admission", t("navigation.ipd_rounds", "IPD Rounds"), t("dashboard.card_doc_ipd_hint", "Round notes and orders for your admitted patients")) +
+        actionCard("doctor-patients.html", "registration", t("navigation.my_patients", "My Patients"), t("dashboard.card_doc_pat_hint", "Prescriptions and lab/radiology reports for everyone you've seen"));
     } else if (role === "pathology_staff") {
       const designation = details?.designation;
       const isRadiologist = designation === "Radiologist";
       const href = isRadiologist ? "radiology-queue.html" : "pathology-queue.html";
-      const label = isRadiologist ? "Radiology Queue" : "Pathology &amp; Lab Queue";
+      const label = isRadiologist ? t("navigation.radiology_queue", "Radiology Queue") : t("navigation.pathology_lab", "Pathology & Lab Queue");
       const hint = isRadiologist
-        ? "Triage imaging studies, report and sign off with image upload"
-        : "Triage samples, enter results and sign off with specimen image upload";
+        ? t("dashboard.card_rad_hint", "Triage imaging studies, report and sign off with image upload")
+        : t("dashboard.card_path_hint", "Triage samples, enter results and sign off with specimen image upload");
       actionCards.innerHTML = actionCard(href, "queue", label, hint);
     } else if (role === "pharmacist") {
-      actionCards.innerHTML = actionCard("pharmacy-queue.html", "queue", "Pharmacy Queue", "View pending prescriptions and dispense medicines");
+      actionCards.innerHTML = actionCard("pharmacy-queue.html", "queue", t("navigation.pharmacy_queue", "Pharmacy Queue"), t("dashboard.card_pharm_hint", "View pending prescriptions and dispense medicines"));
     } else if (role === "blood_bank_staff") {
-      actionCards.innerHTML = actionCard("blood-bank-queue.html", "queue", "Blood Bank", "Requests, crossmatch, inventory, donors, and billing");
+      actionCards.innerHTML = actionCard("blood-bank-queue.html", "queue", t("navigation.blood_bank", "Blood Bank"), t("dashboard.card_blood_hint", "Requests, crossmatch, inventory, donors, and billing"));
     } else if (role === "billing_staff") {
-      actionCards.innerHTML = actionCard("billing-desk.html", "queue", "Billing Desk", "Create bills, collect payments, and track insurance claims");
+      actionCards.innerHTML = actionCard("billing-desk.html", "queue", t("billing_desk.title", "Billing Desk"), t("dashboard.card_bill_hint", "Create bills, collect payments, and track insurance claims"));
     }
 
-    // Only show "Coming soon" for roles that have a ROLE_MODULE but no action cards yet.
-    // Since pharmacist/blood_bank_staff now have an action card, we can omit them from the generic grid.
     const moduleKey = (role === "pathology_staff" || role === "pharmacist" || role === "blood_bank_staff" || role === "billing_staff") ? null : ROLE_MODULE[role];
     const grid = document.getElementById("staffModuleGrid");
     grid.innerHTML = moduleKey
       ? `<div class="module-card readonly">
           <span class="module-card-icon">${MODULE_ICONS[moduleKey]}</span>
-          <span class="module-card-label">${MODULE_LABELS[moduleKey]}</span>
-          <span class="module-card-soon">Coming soon</span>
+          <span class="module-card-label">${t("navigation." + moduleKey, moduleKey)}</span>
+          <span class="module-card-soon">${t("dashboard.coming_soon", "Coming soon")}</span>
         </div>`
       : "";
   }
@@ -128,5 +126,9 @@
     if (!user) return;
     wireLogout();
     loadProfile();
+
+    window.addEventListener("i18n:languageChanged", () => {
+      loadProfile();
+    });
   });
 })();

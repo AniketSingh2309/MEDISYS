@@ -39,12 +39,157 @@
 
   .main{padding:24px 28px 60px;}
 
-  .triage{display:flex; border-radius:var(--radius); overflow:hidden; height:46px; margin-bottom:22px; border:1px solid var(--line);}
-  .triage-seg{display:flex; align-items:center; justify-content:center; gap:8px; color:#fff; font-size:12.5px; font-weight:600; letter-spacing:.03em;}
-  .triage-seg span.n{font-family:var(--mono); font-size:14px;}
-  .triage-seg.stat{background:var(--red);}
-  .triage-seg.urgent{background:var(--amber);}
-  .triage-seg.routine{background:var(--blood);}
+  /* Standard Executive Triage Bar */
+  .triage-container {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 22px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+  }
+  .triage-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .triage-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .triage-title .live-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 0 0 rgba(163, 45, 45, 0.4);
+    animation: pulse-ring 2s infinite;
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(163, 45, 45, 0.4); }
+    70% { box-shadow: 0 0 0 8px rgba(163, 45, 45, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(163, 45, 45, 0); }
+  }
+  .triage-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+  .triage-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .triage-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  }
+  .triage-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .triage-card:hover {
+    border-color: #CBD5E1;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  }
+  .triage-card.emergency-card {
+    border-left: 4px solid #EF4444;
+    background: #FAFAFA;
+  }
+  .triage-card.observation-card {
+    border-left: 4px solid #F59E0B;
+    background: #FAFAFA;
+  }
+  .triage-card.routine-card {
+    border-left: 4px solid #3B82F6;
+    background: #FAFAFA;
+  }
+  .triage-card .left-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .triage-card .badge-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .emergency-card .badge-icon {
+    background: #FEF2F2;
+    color: #991B1B;
+    border: 1px solid #FECACA;
+  }
+  .observation-card .badge-icon {
+    background: #FFFBEB;
+    color: #92400E;
+    border: 1px solid #FDE68A;
+  }
+  .routine-card .badge-icon {
+    background: #F0F9FF;
+    color: #075985;
+    border: 1px solid #BAE6FD;
+  }
+  .triage-card .priority-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1E293B;
+  }
+  .triage-card .priority-sub {
+    font-size: 11px;
+    color: #64748B;
+    font-weight: 400;
+  }
+  .triage-card .priority-count {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: #334155;
+  }
+  .emergency-card .priority-count { color: #991B1B; }
+  .observation-card .priority-count { color: #92400E; }
+  .routine-card .priority-count { color: #075985; }
+
+  .triage-track {
+    display: flex;
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #F1F5F9;
+    gap: 2px;
+  }
+  .triage-track-seg {
+    height: 100%;
+    transition: width 0.4s ease;
+  }
+  .triage-track-seg.emergency, .triage-track-seg.stat { background: #EF4444; }
+  .triage-track-seg.observation, .triage-track-seg.urgent { background: #F59E0B; }
+  .triage-track-seg.routine { background: #3B82F6; }
 
   .metrics{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px;}
   .metric{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
@@ -72,8 +217,215 @@
 
   .toolbar{display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;}
   .toolbar input[type=text]{flex:1; min-width:220px; padding:9px 12px; border:1px solid var(--line); border-radius:8px; font-size:13.5px; background:var(--surface);}
-  .toolbar select{padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:var(--surface);}
   .toolbar .count-label{font-size:12.5px; color:var(--ink-mute); margin-left:auto;}
+
+  .custom-sort-dropdown {
+    position: relative;
+    display: inline-block;
+  }
+  .sort-trigger-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #FFFFFF;
+    border: 1.5px solid #D0D7DE;
+    border-radius: 12px;
+    padding: 8px 14px;
+    height: 38px;
+    font-size: 13.5px;
+    font-weight: 550;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    font-family: inherit;
+  }
+  .sort-trigger-btn:hover {
+    border-color: #94A3B8;
+    background: #F8FAFC;
+    color: #0F172A;
+  }
+  .sort-trigger-btn .filter-funnel-icon {
+    color: #475569;
+    flex-shrink: 0;
+  }
+  .sort-trigger-btn .sort-chevron-icon {
+    color: #64748B;
+    transition: transform 0.2s ease;
+  }
+  .custom-sort-dropdown.open .sort-chevron-icon {
+    transform: rotate(180deg);
+  }
+
+  .sort-menu-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 230px;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.14), 0 4px 6px -2px rgba(15, 23, 42, 0.05);
+    padding: 8px 6px;
+    z-index: 100;
+    display: none;
+  }
+  .custom-sort-dropdown.open .sort-menu-popover {
+    display: block;
+    animation: fadeInDown 0.15s ease-out;
+  }
+  @keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .sort-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .sort-option:hover {
+    background: #F1F5F9;
+    color: #0F172A;
+  }
+  .sort-option.active {
+    background: #EFF6FF;
+    color: #1D4ED8;
+    font-weight: 600;
+  }
+  .sort-option .sort-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .sort-option.active .sort-dot {
+    background: #2563EB;
+  }
+
+  .popover-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748B;
+    padding: 6px 8px 3px;
+  }
+  .popover-divider {
+    height: 1px;
+    background: #E2E8F0;
+    margin: 6px 0;
+  }
+  .popover-chip-grid {
+    display: flex;
+    gap: 4px;
+    padding: 2px 4px;
+    flex-wrap: wrap;
+  }
+  .popover-chip {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    background: #F1F5F9;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .popover-chip:hover {
+    background: #E2E8F0;
+    color: #0F172A;
+  }
+  .popover-chip.active {
+    background: #2563EB;
+    color: #FFFFFF;
+  }
+  .popover-chip.emergency.active { background: #DC2626; color: #FFFFFF; }
+  .popover-chip.observation.active { background: #D97706; color: #FFFFFF; }
+  .popover-chip.routine.active { background: #2563EB; color: #FFFFFF; }
+
+  .popover-select {
+    width: calc(100% - 8px);
+    margin: 3px 4px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid #CBD5E1;
+    font-size: 12px;
+    background: #F8FAFC;
+    color: #334155;
+    outline: none;
+  }
+  .popover-reset-btn {
+    width: calc(100% - 8px);
+    margin: 4px 4px 2px;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid #E2E8F0;
+    background: #F8FAFC;
+    color: #64748B;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+  }
+  .popover-reset-btn:hover {
+    background: #FEF2F2;
+    color: #DC2626;
+    border-color: #FCA5A5;
+  }
+
+  .quick-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .quick-filter-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748B;
+    margin-right: 2px;
+  }
+  .chip-btn {
+    border: 1px solid #E2E8F0;
+    background: #FFFFFF;
+    color: #475569;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 550;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .chip-btn:hover {
+    background: #F1F5F9;
+    border-color: #CBD5E1;
+  }
+  .chip-btn.active {
+    background: #3B82F6;
+    color: #FFFFFF;
+    border-color: #2563EB;
+  }
+  .chip-btn.emergency.active { background: #EF4444; border-color: #DC2626; }
+  .chip-btn.observation.active { background: #F59E0B; border-color: #D97706; }
+  .chip-btn.routine.active { background: #3B82F6; border-color: #2563EB; }
+  .active-filter-badge {
+    background: #2563EB;
+    color: #FFFFFF;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: 2px;
+  }
   .board{display:grid; grid-template-columns:1.5fr 1fr; gap:18px; align-items:start;}
   table{width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
   thead th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-mute); padding:11px 14px; background:var(--surface-2); border-bottom:1px solid var(--line);}
@@ -84,10 +436,59 @@
   tbody tr.selected{background:var(--blood-tint);}
   .pname{font-weight:600;}
   .puhid{font-family:var(--mono); font-size:11px; color:var(--ink-mute);}
-  .badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.02em;}
-  .badge.STAT{background:var(--red-tint); color:var(--red);}
-  .badge.Urgent{background:var(--amber-tint); color:var(--amber);}
-  .badge.Routine{background:var(--surface-2); color:var(--ink-soft);}
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .badge.Emergency, .badge.STAT {
+    background: #FEF2F2;
+    color: #B91C1C;
+    border: 1px solid #FCA5A5;
+  }
+  .badge.Observation, .badge.Urgent {
+    background: #FFFBEB;
+    color: #B45309;
+    border: 1px solid #FCD34D;
+  }
+  .badge.Routine {
+    background: #F0F9FF;
+    color: #0369A1;
+    border: 1px solid #7DD3FC;
+  }
+  .badge.group{background:var(--blood-tint); color:var(--blood-deep); font-family:var(--mono);}
+  .badge.paid{background:var(--green-tint); color:var(--green);}
+  .badge.pending{background:var(--amber-tint); color:var(--amber);}
+  .panel-priority-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .panel-priority-banner.emergency {
+    background: #FEF2F2;
+    color: #991B1B;
+    border: 1px solid #FECACA;
+  }
+  .panel-priority-banner.observation {
+    background: #FFFBEB;
+    color: #92400E;
+    border: 1px solid #FDE68A;
+  }
+  .panel-priority-banner.routine {
+    background: #F0F9FF;
+    color: #075985;
+    border: 1px solid #BAE6FD;
+  }
   .badge.group{background:var(--blood-tint); color:var(--blood-deep); font-family:var(--mono);}
   .badge.paid{background:var(--green-tint); color:var(--green);}
   .badge.pending{background:var(--amber-tint); color:var(--amber);}
@@ -178,29 +579,29 @@
   </div>
 </header>
 
-<main class="portal-main" style="max-width: 1400px; margin: 0 auto; padding: 20px 20px 0;">
-  <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
+  <main class="portal-main" style="max-width: 1400px; margin: 0 auto; padding: 20px 20px 0;">
+  <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
 </main>
 
-<div id="appRoot" class="loading-state">Loading blood bank data…</div>
+<div id="appRoot" class="loading-state" data-i18n="common.loading">Loading blood bank data…</div>
 
 <template id="appTemplate">
 <div class="layout">
   <div class="sidebar">
-    <h4>Queue</h4>
-    <div class="side-item active" data-scope="all">All requests <span class="count" id="cntAll">0</span></div>
-    <div class="side-item" data-scope="mine">Handled by me <span class="count" id="cntMine">0</span></div>
-    <div class="side-item" data-scope="unassigned">Unassigned <span class="count" id="cntUnassigned">0</span></div>
+    <h4 data-i18n="blood_bank.queue">Queue</h4>
+    <div class="side-item active" data-scope="all"><span data-i18n="blood_bank.all_requests">All requests</span> <span class="count" id="cntAll">0</span></div>
+    <div class="side-item" data-scope="mine"><span data-i18n="blood_bank.handled_by_me">Handled by me</span> <span class="count" id="cntMine">0</span></div>
+    <div class="side-item" data-scope="unassigned"><span data-i18n="blood_bank.unassigned">Unassigned</span> <span class="count" id="cntUnassigned">0</span></div>
 
-    <h4>Blood group</h4>
+    <h4 data-i18n="blood_bank.blood_group">Blood group</h4>
     <div id="groupSideItems"></div>
 
-    <h4>Status</h4>
-    <div class="side-item active" data-status="all">All <span class="count" id="cntStatusAll">0</span></div>
-    <div class="side-item" data-status="requested">Requested <span class="count" id="cntRequested">0</span></div>
-    <div class="side-item" data-status="crossmatch">Crossmatch <span class="count" id="cntCrossmatch">0</span></div>
-    <div class="side-item" data-status="issued">Issued <span class="count" id="cntIssued">0</span></div>
-    <div class="side-item" data-status="rejected">Rejected <span class="count" id="cntRejected">0</span></div>
+    <h4 data-i18n="common.status">Status</h4>
+    <div class="side-item active" data-status="all"><span data-i18n="blood_bank.all">All</span> <span class="count" id="cntStatusAll">0</span></div>
+    <div class="side-item" data-status="requested"><span data-i18n="blood_bank.requested">Requested</span> <span class="count" id="cntRequested">0</span></div>
+    <div class="side-item" data-status="crossmatch"><span data-i18n="blood_bank.crossmatch">Crossmatch</span> <span class="count" id="cntCrossmatch">0</span></div>
+    <div class="side-item" data-status="issued"><span data-i18n="blood_bank.issued">Issued</span> <span class="count" id="cntIssued">0</span></div>
+    <div class="side-item" data-status="rejected"><span data-i18n="blood_bank.rejected">Rejected</span> <span class="count" id="cntRejected">0</span></div>
   </div>
 
   <div class="main">
@@ -209,30 +610,101 @@
     <div class="metrics" id="metricsRow"></div>
 
     <div class="tabs">
-      <div class="tab active" data-tab="requests">Requests &amp; issue</div>
-      <div class="tab" data-tab="inventory">Inventory</div>
-      <div class="tab" data-tab="donors">Donor register</div>
-      <div class="tab" data-tab="patientdonation">Patient blood donation</div>
-      <div class="tab" data-tab="compat">Compatibility checker</div>
-      <div class="tab" data-tab="billing">Billing</div>
-      <div class="tab" data-tab="reports">Reports</div>
+      <div class="tab active" data-tab="requests" data-i18n="blood_bank.requests_issue">Requests &amp; issue</div>
+      <div class="tab" data-tab="inventory" data-i18n="blood_bank.inventory">Inventory</div>
+      <div class="tab" data-tab="donors" data-i18n="blood_bank.donor_register">Donor register</div>
+      <div class="tab" data-tab="patientdonation" data-i18n="blood_bank.patient_blood_donation">Patient blood donation</div>
+      <div class="tab" data-tab="compat" data-i18n="blood_bank.compatibility_checker">Compatibility checker</div>
+      <div class="tab" data-tab="billing" data-i18n="blood_bank.billing">Billing</div>
+      <div class="tab" data-tab="reports" data-i18n="blood_bank.reports">Reports</div>
     </div>
 
     <!-- ===== REQUESTS TAB ===== -->
     <div class="tabpage active" id="tab-requests">
       <div class="toolbar">
-        <input type="text" id="search" placeholder="Search patient, UHID or request ID">
-        <select id="sortSelect">
-          <option value="time">Sort: request time</option>
-          <option value="priority">Sort: priority</option>
-          <option value="name">Sort: patient name</option>
-        </select>
-        <button class="btn primary" style="flex:none; padding:9px 16px;" id="newRequestBtn">+ New request</button>
+        <input type="text" id="search" placeholder="Search patient, UHID or request ID" data-i18n-placeholder="blood_bank.search_placeholder">
+        <div class="custom-sort-dropdown" id="sortDropdownContainer">
+          <button class="sort-trigger-btn" id="sortTriggerBtn" type="button" title="Sort queue">
+            <svg class="filter-funnel-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+            <span id="sortLabelText" data-i18n="blood_bank.sort_time">Sort: Request Time</span>
+            <svg class="sort-chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="sort-menu-popover" id="sortMenuPopover">
+            <div class="popover-section-label" data-i18n="blood_bank.sort_by">🔀 SORT BY</div>
+            <div class="sort-option active" data-sort="time">
+              <span class="sort-dot"></span> <span data-i18n="blood_bank.sort_time">Request time (Newest)</span>
+            </div>
+            <div class="sort-option" data-sort="priority">
+              <span class="sort-dot"></span> <span data-i18n="blood_bank.sort_priority">Priority level (Emergency → Routine)</span>
+            </div>
+            <div class="sort-option" data-sort="name">
+              <span class="sort-dot"></span> <span data-i18n="blood_bank.sort_name">Patient name (A to Z)</span>
+            </div>
+
+            <div class="popover-divider"></div>
+            <div class="popover-section-label" data-i18n="blood_bank.filter_by_priority">🚨 FILTER BY PRIORITY</div>
+            <div class="popover-chip-grid">
+              <div class="popover-chip active" data-filter-priority="all" data-i18n="blood_bank.all">All</div>
+              <div class="popover-chip emergency" data-filter-priority="Emergency" data-i18n="blood_bank.emergency">Emergency</div>
+              <div class="popover-chip observation" data-filter-priority="Observation" data-i18n="blood_bank.observation">Observation</div>
+              <div class="popover-chip routine" data-filter-priority="Routine" data-i18n="blood_bank.routine">Routine</div>
+            </div>
+
+            <div class="popover-divider"></div>
+            <div class="popover-section-label" data-i18n="blood_bank.filter_by_blood_group">🩸 FILTER BY BLOOD GROUP</div>
+            <select class="popover-select" id="popoverGroupSelect">
+              <option value="all">All Groups</option>
+              <option value="A+">A+</option>
+              <option value="A-">A-</option>
+              <option value="B+">B+</option>
+              <option value="B-">B-</option>
+              <option value="AB+">AB+</option>
+              <option value="AB-">AB-</option>
+              <option value="O+">O+</option>
+              <option value="O-">O-</option>
+            </select>
+
+            <div class="popover-divider"></div>
+            <div class="popover-section-label" data-i18n="blood_bank.filter_by_component">📦 FILTER BY COMPONENT</div>
+            <select class="popover-select" id="popoverComponentSelect">
+              <option value="all">All Components</option>
+              <option value="Packed RBC">Packed RBC</option>
+              <option value="Whole Blood">Whole Blood</option>
+              <option value="Fresh Frozen Plasma">Fresh Frozen Plasma</option>
+              <option value="Platelets">Platelets</option>
+              <option value="Cryoprecipitate">Cryoprecipitate</option>
+            </select>
+
+            <div class="popover-divider"></div>
+            <button class="popover-reset-btn" id="resetFiltersBtn" type="button" data-i18n="blood_bank.reset_all_filters">
+              🔄 Reset All Filters
+            </button>
+          </div>
+          <select id="sortSelect" style="display:none;">
+            <option value="time">time</option>
+            <option value="priority">priority</option>
+            <option value="name">name</option>
+          </select>
+        </div>
+        <button class="btn primary" style="flex:none; padding:9px 16px;" id="newRequestBtn" data-i18n="blood_bank.new_request">+ New request</button>
         <span class="count-label" id="countLabel"></span>
+      </div>
+
+      <!-- Quick Filter Bar -->
+      <div class="quick-filter-bar" id="quickFilterBar">
+        <span class="quick-filter-label" data-i18n="blood_bank.quick_filter">Quick Filter:</span>
+        <button class="chip-btn active" data-chip-priority="all" data-i18n="blood_bank.all_queue">All Queue</button>
+        <button class="chip-btn emergency" data-chip-priority="Emergency" data-i18n="blood_bank.emergency">🚨 Emergency</button>
+        <button class="chip-btn observation" data-chip-priority="Observation" data-i18n="blood_bank.observation">👁️ Observation</button>
+        <button class="chip-btn routine" data-chip-priority="Routine" data-i18n="blood_bank.routine">📋 Routine</button>
       </div>
       <div class="board">
         <table>
-          <thead><tr><th>Patient</th><th>Group / Unit</th><th>Priority</th><th>Status</th></tr></thead>
+          <thead><tr><th data-i18n="common.patient">Patient</th><th data-i18n="blood_bank.group_unit">Group / Unit</th><th data-i18n="blood_bank.priority">Priority</th><th data-i18n="common.status">Status</th></tr></thead>
           <tbody id="worklistBody"></tbody>
         </table>
         <div class="panel" id="panel"></div>
@@ -369,19 +841,19 @@
     <div class="tabpage" id="tab-reports">
       <div class="report-grid">
         <div class="report-card">
-          <h4>Units issued by blood group (all time)</h4>
+          <h4 data-i18n="blood_bank.report_issued_by_group">Units issued by blood group (all time)</h4>
           <div id="reportIssuedByGroup"></div>
         </div>
         <div class="report-card">
-          <h4>Current stock by blood group</h4>
+          <h4 data-i18n="blood_bank.report_stock_by_group">Current stock by blood group</h4>
           <div id="reportStockByGroup"></div>
         </div>
         <div class="report-card">
-          <h4>Requests by status</h4>
+          <h4 data-i18n="blood_bank.report_by_status">Requests by status</h4>
           <div id="reportByStatus"></div>
         </div>
         <div class="report-card">
-          <h4>Summary</h4>
+          <h4 data-i18n="blood_bank.report_summary">Summary</h4>
           <div class="info-grid" id="reportSummary"></div>
         </div>
       </div>
@@ -411,13 +883,13 @@
         <select class="full" id="nrComponent"><option>Packed RBC</option><option>Whole Blood</option><option>Fresh Frozen Plasma</option><option>Platelets</option><option>Cryoprecipitate</option></select>
       </div>
       <div><label>Units required</label><input class="full" id="nrUnits" type="number" min="1" value="1"></div>
-      <div><label>Priority</label><select class="full" id="nrPriority"><option>Routine</option><option>Urgent</option><option>STAT</option></select></div>
+      <div><label>Priority</label><select class="full" id="nrPriority"><option value="Routine" selected>Routine</option><option value="Observation">Observation</option><option value="Emergency">Emergency</option></select></div>
       <div><label>Ward / location</label><input class="full" id="nrWard"></div>
       <div><label>Requesting physician</label><input class="full" id="nrRef"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn ghost" id="nrCancel">Cancel</button>
-      <button class="btn primary" id="nrSubmit">Create request</button>
+      <button class="btn ghost" id="nrCancel" data-i18n="common.cancel">Cancel</button>
+      <button class="btn primary" id="nrSubmit" data-i18n="common.submit">Create request</button>
     </div>
   </div>
 </div>
@@ -435,7 +907,7 @@
       <div><label>Units collected</label><input class="full" id="donUnits" type="number" min="1" value="1"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn ghost" id="donCancel">Cancel</button>
+      <button class="btn ghost" id="donCancel" data-i18n="common.cancel">Cancel</button>
       <button class="btn primary" id="donSubmit">Add to stock</button>
     </div>
   </div>
@@ -443,6 +915,7 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="../realtime-client.js"></script>
+<script src="../portal-ui.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="blood-bank-queue.js"></script>
 </body>

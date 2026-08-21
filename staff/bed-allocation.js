@@ -27,6 +27,14 @@
     });
   }
 
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   async function loadPending() {
     const [pendingRes, bedsRes] = await Promise.all([
       fetch("/api/ipd/admissions?status=requested", { credentials: "same-origin" }),
@@ -56,14 +64,14 @@
         (a) => `
         <div class="staff-entry-card" style="margin-bottom: 14px;">
           <div class="staff-entry-name">${escapeHtml(a.patient_name || a.patient_uhid)}</div>
-          <div class="staff-entry-detail">Admitting doctor: ${escapeHtml(a.doctor_name || "—")}</div>
-          <div class="staff-entry-detail">Requested ${escapeHtml(new Date(a.created_at).toLocaleString())}</div>
+          <div class="staff-entry-detail">${t('bed.admitting_doctor', 'Admitting doctor')}: ${escapeHtml(a.doctor_name || "—")}</div>
+          <div class="staff-entry-detail">${t('bed.requested', 'Requested')} ${escapeHtml(new Date(a.created_at).toLocaleString())}</div>
           <div class="wizard-suggest-row" style="margin-top: 12px;">
             <select data-admission-id="${a.id}" class="bed-select">
-              <option value="">Select a bed</option>
+              <option value="">${t('bed.select_bed', 'Select a bed')}</option>
               ${bedOptions}
             </select>
-            <button type="button" class="wizard-suggest-btn allocate-btn" data-admission-id="${a.id}">Allocate</button>
+            <button type="button" class="wizard-suggest-btn allocate-btn" data-admission-id="${a.id}">${t('bed.allocate', 'Allocate')}</button>
           </div>
         </div>`
       )
@@ -85,7 +93,7 @@
         if (data.success) {
           loadPending();
         } else {
-          alert(data.message || "Could not allocate bed.");
+          if (window.showToast) showToast(data.message || t('bed.could_not_allocate', 'Could not allocate bed.'), "error");
         }
       });
     });
@@ -99,7 +107,12 @@
 
     if (window.MEDISYS_RT) {
       MEDISYS_RT.on("ipd_admissions", loadPending);
-      MEDISYS_RT.on("wards_beds", loadPending);
+      MEDISYS_RT.on("beds", loadPending);
     }
+
+    window.addEventListener("i18n:languageChanged", () => {
+      loadPending();
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

@@ -20,16 +20,16 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>Appointments</h1>
-    <p class="portal-subtitle">Every OPD visit you've booked, past and upcoming.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="appointments.title">Appointments</h1>
+    <p class="portal-subtitle" data-i18n="appointments.subtitle">Every OPD visit you've booked, past and upcoming.</p>
 
     <div class="portal-card">
       <table class="portal-table" id="appointmentsTable">
-        <thead><tr><th>Date</th><th>Time</th><th>Doctor</th><th>Type</th><th>Status</th></tr></thead>
+        <thead><tr><th data-i18n="common.date">Date</th><th data-i18n="common.time">Time</th><th data-i18n="common.doctor">Doctor</th><th data-i18n="appointments.type">Type</th><th data-i18n="common.status">Status</th></tr></thead>
         <tbody id="appointmentsTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="appointmentsEmptyState" hidden>No appointments on file yet.</p>
+      <p class="portal-empty" id="appointmentsEmptyState" hidden data-i18n="appointments.no_appointments">No appointments on file yet.</p>
     </div>
   </main>
 

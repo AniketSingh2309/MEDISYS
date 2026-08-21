@@ -20,16 +20,16 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>My Patients</h1>
-    <p class="portal-subtitle">Admitted patients auto-assigned to you for this shift. Refreshes automatically.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="doctor.my_patients">My Patients</h1>
+    <p class="portal-subtitle" data-i18n="nurse_pages.my_patients_subtitle">Admitted patients auto-assigned to you for this shift. Refreshes automatically.</p>
 
     <div class="portal-card">
       <table class="portal-table" id="myPatientsTable">
-        <thead><tr><th>Patient</th><th>Ward</th><th>Bed</th><th>Admitting Doctor</th><th>Admitted</th></tr></thead>
+        <thead><tr><th data-i18n="common.patient">Patient</th><th data-i18n="hospital_page.ward">Ward</th><th data-i18n="admin.beds">Bed</th><th data-i18n="ipd_admission.admitting_doctor">Admitting Doctor</th><th data-i18n="nurse_pages.admitted">Admitted</th></tr></thead>
         <tbody id="myPatientsTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="myPatientsEmptyState" hidden>No patients assigned to you right now.</p>
+      <p class="portal-empty" id="myPatientsEmptyState" data-i18n="nurse_pages.no_patients_assigned" hidden>No patients assigned to you right now.</p>
     </div>
   </main>
 

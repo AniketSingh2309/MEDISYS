@@ -20,16 +20,16 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>Prescriptions</h1>
-    <p class="portal-subtitle">Medicines your doctor has prescribed and their dispense status at the pharmacy.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="prescriptions.title">Prescriptions</h1>
+    <p class="portal-subtitle" data-i18n="prescriptions.subtitle">Medicines your doctor has prescribed and their dispense status at the pharmacy.</p>
 
     <div class="portal-card">
       <table class="portal-table" id="prescriptionsTable">
-        <thead><tr><th>Medicine</th><th>Dosage</th><th>Duration</th><th>Food Instruction</th><th>Urgency</th><th>Status</th><th>Prescribed</th></tr></thead>
+        <thead><tr><th data-i18n="prescriptions.medicine">Medicine</th><th data-i18n="prescriptions.dosage">Dosage</th><th data-i18n="prescriptions.duration">Duration</th><th data-i18n="prescriptions.food_instruction">Food Instruction</th><th data-i18n="prescriptions.urgency">Urgency</th><th data-i18n="common.status">Status</th><th data-i18n="prescriptions.prescribed">Prescribed</th></tr></thead>
         <tbody id="prescriptionsTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="prescriptionsEmptyState" hidden>No prescriptions on file yet.</p>
+      <p class="portal-empty" id="prescriptionsEmptyState" hidden data-i18n="prescriptions.no_prescriptions">No prescriptions on file yet.</p>
     </div>
   </main>
 

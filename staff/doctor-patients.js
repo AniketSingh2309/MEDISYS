@@ -257,5 +257,15 @@
       MEDISYS_RT.on("ipd_admissions", loadPatients);
       MEDISYS_RT.on("lab_orders", loadPatients);
     }
+
+    window.addEventListener("i18n:languageChanged", () => {
+      loadPatients();
+      if (currentPatientUhid) {
+        const nameEl = document.getElementById("chartPatientTitle");
+        const name = nameEl ? nameEl.textContent : "";
+        loadChart(currentPatientUhid, name);
+      }
+      if (window.i18n) window.i18n.applyTranslations();
+    });
   });
 })();

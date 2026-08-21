@@ -44,12 +44,12 @@
     const enteredCaptcha = captchaInput.value.trim();
 
     if (!userId || !password) {
-      formError.textContent = "Please enter User ID and password.";
+      formError.textContent = window.i18n ? window.i18n.t("login.error_empty") : "Please enter User ID and password.";
       return;
     }
 
     if (enteredCaptcha.toUpperCase() !== currentCaptcha.toUpperCase()) {
-      formError.textContent = "Incorrect captcha. Please try again.";
+      formError.textContent = window.i18n ? window.i18n.t("login.error_captcha") : "Incorrect captcha. Please try again.";
       renderCaptcha();
       return;
     }
@@ -82,11 +82,11 @@
         window.location.href = "/staff/dashboard.html";
         return;
       } else {
-        formError.textContent = data.message || "Invalid User ID or password.";
+        formError.textContent = data.message || (window.i18n ? window.i18n.t("login.error_credentials") : "Invalid User ID or password.");
         renderCaptcha();
       }
     } catch (err) {
-      formError.textContent = "Unable to reach the server. Please try again.";
+      formError.textContent = window.i18n ? window.i18n.t("login.error_network") : "Unable to reach the server. Please try again.";
     } finally {
       submitBtn.disabled = false;
     }

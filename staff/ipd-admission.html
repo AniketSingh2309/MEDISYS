@@ -20,41 +20,41 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>Admission Request</h1>
-    <p class="portal-subtitle">Initiate a direct IPD admission for a patient.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="ipd_admission.title">Admission Request</h1>
+    <p class="portal-subtitle" data-i18n="ipd_admission.subtitle">Initiate a direct IPD admission for a patient.</p>
 
     <div class="portal-card wizard-step">
-      <label for="patientSearch">Search patient by name, phone, or UHID</label>
-      <input type="text" id="patientSearch" placeholder="e.g. Ramesh, 98765xxxxx, PAT-CHG-000001" />
+      <label for="patientSearch" data-i18n="ipd_admission.search_label">Search patient by name, phone, or UHID</label>
+      <input type="text" id="patientSearch" data-i18n-placeholder="ipd_admission.search_placeholder" placeholder="e.g. Ramesh, 98765xxxxx, PAT-CHG-000001" />
       <div id="searchResults" class="staff-roster-grid patient-search-results"></div>
       <p class="wizard-hint" id="selectedPatientHint"></p>
     </div>
 
     <div class="portal-card">
       <form id="admissionForm" class="wizard-step" novalidate>
-        <label for="doctorSelect">Admitting Doctor</label>
+        <label for="doctorSelect" data-i18n="ipd_admission.admitting_doctor">Admitting Doctor</label>
         <select id="doctorSelect"></select>
 
         <label class="module-check" style="margin-top: 16px;">
           <input type="checkbox" id="consentObtained" />
-          Consent form obtained
+          <span data-i18n="ipd_admission.consent_obtained">Consent form obtained</span>
         </label>
 
-        <label for="idProofNote">ID Proof</label>
-        <input type="text" id="idProofNote" placeholder="e.g. Aadhaar verified, copy on file" />
+        <label for="idProofNote" data-i18n="ipd_admission.id_proof">ID Proof</label>
+        <input type="text" id="idProofNote" data-i18n-placeholder="ipd_admission.id_proof_placeholder" placeholder="e.g. Aadhaar verified, copy on file" />
 
         <p class="form-error" id="admissionFormError" role="alert" aria-live="polite"></p>
 
         <div class="wizard-nav">
-          <button type="submit" class="login-btn wizard-next-btn" id="submitAdmissionBtn">Submit Admission Request</button>
+          <button type="submit" class="login-btn wizard-next-btn" id="submitAdmissionBtn" data-i18n="ipd_admission.submit_request">Submit Admission Request</button>
         </div>
       </form>
 
       <div id="admissionResult" class="wizard-result" hidden>
-        <h2>Admission Request Created</h2>
-        <p>This patient is now in the pending list for bed allocation by a nurse/ward admin.</p>
-        <a href="dashboard.html" class="login-btn portal-register-btn wizard-done-btn">Back to Dashboard</a>
+        <h2 data-i18n="ipd_admission.created_title">Admission Request Created</h2>
+        <p data-i18n="ipd_admission.created_subtitle">This patient is now in the pending list for bed allocation by a nurse/ward admin.</p>
+        <a href="dashboard.html" class="login-btn portal-register-btn wizard-done-btn" data-i18n="registration.back_to_dashboard">Back to Dashboard</a>
       </div>
     </div>
   </main>

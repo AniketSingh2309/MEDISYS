@@ -20,104 +20,104 @@
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>Patient Registration</h1>
-    <p class="portal-subtitle">Search for an existing patient, or register a new one.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="registration.title">Patient Registration</h1>
+    <p class="portal-subtitle" data-i18n="registration.subtitle">Search for an existing patient, or register a new one.</p>
 
     <div class="portal-card wizard-step">
-      <label for="patientSearch">Search by name, phone, or UHID</label>
-      <input type="text" id="patientSearch" placeholder="e.g. Ramesh, 98765xxxxx, UH-CHG-000001" />
+      <label for="patientSearch" data-i18n="registration.search_label">Search by name, phone, or UHID</label>
+      <input type="text" id="patientSearch" placeholder="e.g. Ramesh, 98765xxxxx, UH-CHG-000001" data-i18n-placeholder="registration.search_placeholder" />
       <div id="searchResults" class="staff-roster-grid patient-search-results"></div>
     </div>
 
-    <h2 class="portal-section-title">+ New Patient</h2>
+    <h2 class="portal-section-title" data-i18n="registration.new_patient">+ New Patient</h2>
     <div class="portal-card">
       <form id="patientForm" class="wizard-step" novalidate>
-        <label for="fullName">Full Name *</label>
+        <label for="fullName" data-i18n="patient.full_name">Full Name *</label>
         <input type="text" id="fullName" name="fullName" required />
 
-        <label for="uhidCustom">UHID</label>
-        <input type="text" id="uhidCustom" name="uhidCustom" placeholder="Leave blank to auto-generate (e.g. PAT-CHG-000001)" />
+        <label for="uhidCustom" data-i18n="patient.uhid">UHID</label>
+        <input type="text" id="uhidCustom" name="uhidCustom" placeholder="Leave blank to auto-generate (e.g. PAT-CHG-000001)" data-i18n-placeholder="registration.uhid_placeholder" />
 
-        <label for="patientPasswordCustom">Patient Portal Password</label>
+        <label for="patientPasswordCustom" data-i18n="registration.portal_password">Patient Portal Password</label>
         <div class="wizard-suggest-row">
-          <input type="text" id="patientPasswordCustom" placeholder="Leave blank to auto-generate" />
-          <button type="button" class="wizard-suggest-btn" id="suggestPatientPasswordBtn">Suggest</button>
+          <input type="text" id="patientPasswordCustom" placeholder="Leave blank to auto-generate" data-i18n-placeholder="registration.password_placeholder" />
+          <button type="button" class="wizard-suggest-btn" id="suggestPatientPasswordBtn" data-i18n="registration.suggest">Suggest</button>
         </div>
-        <p class="wizard-hint">This lets the patient log in to their own portal using their UHID and this password.</p>
+        <p class="wizard-hint" data-i18n="registration.password_hint">This lets the patient log in to their own portal using their UHID and this password.</p>
 
         <div class="wizard-grid">
           <div>
-            <label for="dob">Date of Birth</label>
+            <label for="dob" data-i18n="registration.dob">Date of Birth</label>
             <input type="date" id="dob" name="dob" />
           </div>
           <div>
-            <label for="gender">Gender</label>
+            <label for="gender" data-i18n="patient.gender">Gender</label>
             <select id="gender" name="gender">
-              <option value="">Select</option>
+              <option value="" data-i18n="common.select">Select</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
               <option value="Other">Other</option>
             </select>
           </div>
           <div>
-            <label for="phone">Phone</label>
+            <label for="phone" data-i18n="registration.phone">Phone</label>
             <input type="text" id="phone" name="phone" />
           </div>
         </div>
 
-        <label for="address">Address</label>
+        <label for="address" data-i18n="registration.address">Address</label>
         <input type="text" id="address" name="address" />
 
         <div class="wizard-grid">
           <div>
-            <label for="emergencyContactName">Emergency Contact Name</label>
+            <label for="emergencyContactName" data-i18n="registration.emergency_name">Emergency Contact Name</label>
             <input type="text" id="emergencyContactName" name="emergencyContactName" />
           </div>
           <div>
-            <label for="emergencyContactPhone">Emergency Contact Phone</label>
+            <label for="emergencyContactPhone" data-i18n="registration.emergency_phone">Emergency Contact Phone</label>
             <input type="text" id="emergencyContactPhone" name="emergencyContactPhone" />
           </div>
         </div>
 
-        <label for="abhaId">ABHA ID</label>
-        <input type="text" id="abhaId" name="abhaId" placeholder="Optional" />
-        <p class="wizard-hint">Manual entry only for now &mdash; not yet verified against the real ABDM system.</p>
+        <label for="abhaId" data-i18n="registration.abha_id">ABHA ID</label>
+        <input type="text" id="abhaId" name="abhaId" placeholder="Optional" data-i18n-placeholder="common.optional" />
+        <p class="wizard-hint" data-i18n="registration.abha_hint">Manual entry only for now &mdash; not yet verified against the real ABDM system.</p>
 
-        <label for="category">Patient Category</label>
+        <label for="category" data-i18n="registration.category">Patient Category</label>
         <select id="category" name="category">
-          <option value="walk-in">Walk-in</option>
-          <option value="referral">Referral</option>
-          <option value="insurance">Insurance</option>
-          <option value="corporate">Corporate</option>
+          <option value="walk-in" data-i18n="registration.walk_in">Walk-in</option>
+          <option value="referral" data-i18n="registration.referral">Referral</option>
+          <option value="insurance" data-i18n="registration.insurance">Insurance</option>
+          <option value="corporate" data-i18n="registration.corporate">Corporate</option>
         </select>
 
         <p class="form-error" id="patientFormError" role="alert" aria-live="polite"></p>
 
         <div class="wizard-nav">
-          <button type="submit" class="login-btn wizard-next-btn" id="submitPatientBtn">Register Patient</button>
+          <button type="submit" class="login-btn wizard-next-btn" id="submitPatientBtn" data-i18n="registration.register_patient">Register Patient</button>
         </div>
       </form>
 
       <div id="patientResult" class="wizard-result" hidden>
-        <h2>Patient Registered</h2>
-        <p>The patient can log in to their own portal with the UHID and password below. <strong>The password is shown only once</strong> &mdash; copy it now and share both securely.</p>
+        <h2 data-i18n="registration.patient_registered">Patient Registered</h2>
+        <p data-i18n="registration.registered_notice">The patient can log in to their own portal with the UHID and password below. <strong>The password is shown only once</strong> &mdash; copy it now and share both securely.</p>
 
-        <label class="wizard-result-label" for="uhidOutput">UHID</label>
+        <label class="wizard-result-label" for="uhidOutput" data-i18n="patient.uhid">UHID</label>
         <div class="invite-link-row">
           <input type="text" id="uhidOutput" readonly />
-          <button type="button" class="captcha-refresh" id="copyUhidBtn">Copy</button>
+          <button type="button" class="captcha-refresh" id="copyUhidBtn" data-i18n="common.copy">Copy</button>
         </div>
 
-        <label class="wizard-result-label" for="patientPasswordOutput">Password</label>
+        <label class="wizard-result-label" for="patientPasswordOutput" data-i18n="registration.portal_password">Password</label>
         <div class="invite-link-row">
           <input type="text" id="patientPasswordOutput" readonly />
-          <button type="button" class="captcha-refresh" id="copyPatientPasswordBtn">Copy</button>
+          <button type="button" class="captcha-refresh" id="copyPatientPasswordBtn" data-i18n="common.copy">Copy</button>
         </div>
 
         <div class="wizard-nav">
-          <button type="button" class="wizard-back-btn" id="registerAnotherBtn">Register Another</button>
-          <a href="dashboard.html" class="login-btn portal-register-btn wizard-done-btn">Back to Dashboard</a>
+          <button type="button" class="wizard-back-btn" id="registerAnotherBtn" data-i18n="registration.register_another">Register Another</button>
+          <a href="dashboard.html" class="login-btn portal-register-btn wizard-done-btn" data-i18n="registration.back_to_dashboard">Back to Dashboard</a>
         </div>
       </div>
     </div>

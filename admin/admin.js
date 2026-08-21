@@ -1,17 +1,47 @@
 (function () {
   const MODULE_LABELS = {
-    opd: "OPD",
-    radiology: "Radiology",
-    billing: "Billing & Insurance",
-    pharmacy: "Pharmacy",
-    pathology: "Pathology",
-    laboratory: "Laboratory",
+    opd: "module.opd",
+    radiology: "module.radiology",
+    billing: "module.billing",
+    pharmacy: "module.pharmacy",
+    pathology: "module.pathology",
+    laboratory: "module.laboratory",
+    blood_bank: "module.blood_bank",
+    ipd: "module.ipd",
   };
+
+  function getModuleLabel(m) {
+    const key = MODULE_LABELS[m] || `module.${m}`;
+    const fallbacks = {
+      opd: "OPD",
+      radiology: "Radiology",
+      billing: "Billing & Insurance",
+      pharmacy: "Pharmacy",
+      pathology: "Pathology",
+      laboratory: "Laboratory",
+      blood_bank: "Blood Bank",
+      ipd: "IPD",
+    };
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallbacks[m] || m;
+  }
 
   const STATUS_LABELS = {
     pending_activation: "Pending Activation",
     active: "Active",
   };
+
+  function getStatusLabel(s) {
+    const key = s === "pending_activation" ? "admin.status_pending" : s === "active" ? "admin.status_active" : null;
+    if (key && window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return STATUS_LABELS[s] || s;
+  }
 
   async function guardSession() {
     const res = await fetch("/api/session", { credentials: "same-origin" });
@@ -51,9 +81,10 @@
   const TRASH_ICON = `<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M9 3h6a1 1 0 0 1 1 1v1h4v2H4V5h4V4a1 1 0 0 1 1-1zm-2 6h2v9H7V9zm4 0h2v9h-2V9zm4 0h2v9h-2V9zM6 7h12l-1 14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 7z"/></svg>`;
 
   async function deleteHospital(id, name) {
-    const confirmed = window.confirm(
-      `Permanently delete "${name}" and its entire database? This cannot be undone.`
-    );
+    const msg = window.i18n && typeof window.i18n.t === "function"
+      ? window.i18n.t("admin.delete_hospital_confirm", { name })
+      : `Permanently delete "${name}" and its entire database? This cannot be undone.`;
+    const confirmed = window.confirm(msg);
     if (!confirmed) return false;
 
     const res = await fetch(`/api/hospitals/${id}`, {
@@ -92,7 +123,7 @@
     tbody.innerHTML = data.hospitals
       .map((h) => {
         const registered = new Date(h.created_at).toLocaleDateString();
-        const statusLabel = STATUS_LABELS[h.status] || h.status;
+        const statusLabel = getStatusLabel(h.status);
         return `<tr class="portal-row" data-id="${h.id}" tabindex="0">
           <td>${escapeHtml(h.name)}</td>
           <td>${escapeHtml([h.city, h.state].filter(Boolean).join(", ") || "—")}</td>
@@ -139,8 +170,11 @@
     const res = await fetch(`/api/hospitals/${id}`, { credentials: "same-origin" });
     const data = await res.json();
 
+    const noneSelectedLabel = window.i18n ? window.i18n.t("admin.none_selected") : "None selected";
+    const notFoundLabel = window.i18n ? window.i18n.t("admin.hospital_not_found") : "Hospital not found.";
+
     if (!data.success) {
-      container.innerHTML = `<p class="form-error">${escapeHtml(data.message || "Hospital not found.")}</p>`;
+      container.innerHTML = `<p class="form-error">${escapeHtml(data.message || notFoundLabel)}</p>`;
       return;
     }
 
@@ -148,12 +182,12 @@
     const modules = (() => {
       try {
         const parsed = typeof h.modules === "string" ? JSON.parse(h.modules) : h.modules;
-        return (parsed || []).map((m) => MODULE_LABELS[m] || m).join(", ") || "None selected";
+        return (parsed || []).map((m) => getModuleLabel(m)).join(", ") || noneSelectedLabel;
       } catch {
-        return "None selected";
+        return noneSelectedLabel;
       }
     })();
-    const statusLabel = STATUS_LABELS[h.status] || h.status;
+    const statusLabel = getStatusLabel(h.status);
     const registered = new Date(h.created_at).toLocaleString();
 
     document.getElementById("hospitalName").textContent = h.name;
@@ -311,7 +345,7 @@
 
     function renderReview() {
       const d = collectData();
-      const moduleLabels = d.modules.map((m) => MODULE_LABELS[m] || m).join(", ") || "None selected";
+      const moduleLabels = d.modules.map((m) => getModuleLabel(m)).join(", ") || "None selected";
       const review = document.getElementById("wizardReview");
       review.innerHTML = `
         <h3>Legal &amp; facility details</h3>
@@ -407,5 +441,10 @@
     initDashboard();
     initWizard();
     initHospitalDetail();
+
+    window.addEventListener("i18n:languageChanged", () => {
+      initDashboard();
+      initHospitalDetail();
+    });
   });
 })();

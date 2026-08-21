@@ -15,49 +15,49 @@
     </div>
     <div class="portal-header-right">
       <span class="portal-user" id="portalUser"></span>
-      <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+      <button type="button" class="portal-logout-btn" id="logoutBtn" data-i18n="common.logout">Logout</button>
     </div>
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1>My Schedule</h1>
-    <p class="portal-subtitle">Set availability for specific calendar dates. Patients book slots from these — nothing repeats automatically.</p>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="schedule.title">My Schedule</h1>
+    <p class="portal-subtitle" data-i18n="schedule.subtitle">Set availability for specific calendar dates. Patients book slots from these — nothing repeats automatically.</p>
 
     <div class="portal-card wizard-step">
-      <h2>Add Availability</h2>
+      <h2 data-i18n="schedule.add_availability">Add Availability</h2>
       <div class="wizard-grid">
         <div>
-          <label for="availDate">Date</label>
+          <label for="availDate" data-i18n="schedule.date">Date</label>
           <input type="date" id="availDate" />
         </div>
         <div>
-          <label for="startTime">Start Time</label>
+          <label for="startTime" data-i18n="schedule.start_time">Start Time</label>
           <input type="time" id="startTime" value="09:00" />
         </div>
         <div>
-          <label for="endTime">End Time</label>
+          <label for="endTime" data-i18n="schedule.end_time">End Time</label>
           <input type="time" id="endTime" value="13:00" />
         </div>
         <div>
-          <label for="slotMinutes">Slot Length (min)</label>
+          <label for="slotMinutes" data-i18n="schedule.slot_length">Slot Length (min)</label>
           <input type="number" id="slotMinutes" value="15" min="5" />
         </div>
       </div>
 
       <label class="module-check" style="cursor: pointer; margin-top: 14px;">
         <input type="checkbox" id="repeatToggle" />
-        Repeat the same hours across a date range
+        <span data-i18n="schedule.repeat_hours">Repeat the same hours across a date range</span>
       </label>
 
       <div id="repeatOptions" hidden style="margin-top: 10px;">
         <div class="wizard-grid">
           <div>
-            <label for="repeatEndDate">Until (inclusive)</label>
+            <label for="repeatEndDate" data-i18n="schedule.until_inclusive">Until (inclusive)</label>
             <input type="date" id="repeatEndDate" />
           </div>
         </div>
-        <label style="font-size: 13px; font-weight: 600; color: var(--gray-text); margin: 14px 0 6px; display: block;">Only on these days</label>
+        <label style="font-size: 13px; font-weight: 600; color: var(--gray-text); margin: 14px 0 6px; display: block;" data-i18n="schedule.only_days">Only on these days</label>
         <div class="consult-med-row" id="weekdayChecks">
           <label class="module-check"><input type="checkbox" value="0" checked /> Sun</label>
           <label class="module-check"><input type="checkbox" value="1" checked /> Mon</label>
@@ -72,17 +72,17 @@
 
       <p class="form-error" id="scheduleFormError" role="alert" aria-live="polite"></p>
       <div class="wizard-nav">
-        <button type="button" class="login-btn wizard-next-btn" id="addBlockBtn">Add Availability</button>
+        <button type="button" class="login-btn wizard-next-btn" id="addBlockBtn" data-i18n="schedule.add_availability">Add Availability</button>
       </div>
     </div>
 
-    <h2 class="portal-section-title">Upcoming Availability</h2>
+    <h2 class="portal-section-title" data-i18n="schedule.upcoming_availability">Upcoming Availability</h2>
     <div class="portal-card">
       <table class="portal-table" id="scheduleTable">
-        <thead><tr><th>Date</th><th>Start</th><th>End</th><th>Slot Length</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="schedule.date">Date</th><th data-i18n="schedule.start_time">Start</th><th data-i18n="schedule.end_time">End</th><th data-i18n="schedule.slot_length">Slot Length</th><th></th></tr></thead>
         <tbody id="scheduleTableBody"></tbody>
       </table>
-      <p class="portal-empty" id="scheduleEmptyState" hidden>No upcoming availability set yet.</p>
+      <p class="portal-empty" id="scheduleEmptyState" hidden data-i18n="schedule.no_upcoming">No upcoming availability set yet.</p>
     </div>
   </main>
 

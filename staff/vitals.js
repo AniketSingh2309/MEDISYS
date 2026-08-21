@@ -29,6 +29,22 @@
     });
   }
 
+  function getStatusDisplay(s) {
+    const key = `opd.status_${s}`;
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    const fallbacks = {
+      waiting: "Waiting",
+      in_consultation: "In Consultation",
+      "in-consultation": "In Consultation",
+      completed: "Completed",
+      cancelled: "Cancelled",
+    };
+    return fallbacks[s] || s;
+  }
+
   async function loadQueue() {
     const res = await fetch("/api/opd/queue", { credentials: "same-origin" });
     const data = await res.json();
@@ -44,6 +60,8 @@
     }
     emptyState.hidden = true;
 
+    const docLabel = window.i18n ? window.i18n.t("common.doctor") : "Doctor";
+
     list.innerHTML = visits
       .map(
         (v) => `
@@ -51,9 +69,9 @@
           v.patient_uhid
         )}" data-patient-name="${escapeHtml(v.patient_name || v.patient_uhid)}" style="margin-bottom: 10px;" tabindex="0">
           <div class="staff-entry-name">#${v.token_number} — ${escapeHtml(v.patient_name || v.patient_uhid)}
-            <span class="queue-status ${escapeHtml(v.status)}">${escapeHtml(v.status)}</span>
+            <span class="queue-status ${escapeHtml(v.status)}">${escapeHtml(getStatusDisplay(v.status))}</span>
           </div>
-          <div class="staff-entry-detail">Doctor: ${escapeHtml(v.doctor_name || v.doctor_user_id)}</div>
+          <div class="staff-entry-detail">${escapeHtml(docLabel)}: ${escapeHtml(v.doctor_name || v.doctor_user_id)}</div>
         </div>`
       )
       .join("");
@@ -65,7 +83,8 @@
           patientUhid: card.dataset.patientUhid,
           patientName: card.dataset.patientName,
         };
-        document.getElementById("vitalsFormTitle").textContent = `Log Vitals — ${selectedVisit.patientName}`;
+        const titleLabel = window.i18n ? window.i18n.t("vitals.log_vitals_title") : "Log Vitals";
+        document.getElementById("vitalsFormTitle").textContent = `${titleLabel} — ${selectedVisit.patientName}`;
         document.getElementById("vitalsFormSection").hidden = false;
         document.getElementById("vitalsFormError").textContent = "";
       });
@@ -78,7 +97,7 @@
       errorEl.textContent = "";
 
       if (!selectedVisit) {
-        errorEl.textContent = "Please select a patient from the queue first.";
+        errorEl.textContent = window.i18n ? window.i18n.t("vitals.select_patient_first") : "Please select a patient from the queue first.";
         return;
       }
 
@@ -98,12 +117,12 @@
       const data = await res.json();
 
       if (!data.success) {
-        errorEl.textContent = data.message || "Could not save vitals.";
+        errorEl.textContent = data.message || (window.i18n ? window.i18n.t("vitals.save_error") : "Could not save vitals.");
         return;
       }
 
       errorEl.style.color = "#0a7d3a";
-      errorEl.textContent = "Vitals saved.";
+      errorEl.textContent = window.i18n ? window.i18n.t("vitals.save_success") : "Vitals saved.";
       ["bp", "temperature", "weight", "spo2"].forEach((id) => (document.getElementById(id).value = ""));
     });
   }
@@ -119,5 +138,9 @@
       MEDISYS_RT.on("opd_queue", loadQueue);
       MEDISYS_RT.on("ipd_admissions", loadQueue);
     }
+
+    window.addEventListener("i18n:languageChanged", () => {
+      loadQueue();
+    });
   });
 })();
