@@ -4,3 +4,4 @@ node_modules/
 .claude/
 server/uploads/
 server/NUL
+server/server.log

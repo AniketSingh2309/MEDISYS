@@ -43,6 +43,8 @@
 
         <div class="chart-section">
           <h2 class="chart-section-title">Write Round Note</h2>
+          <label>Dictate in your language</label>
+          <div id="voiceDictate"></div>
           <textarea id="roundNote" placeholder="Round observations, admission notes..."></textarea>
           <div class="wizard-nav">
             <button type="button" class="login-btn wizard-next-btn" id="postRoundNoteBtn">Post Note</button>
@@ -86,6 +88,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="../realtime-client.js"></script>
   <script src="../portal-ui.js"></script>
+  <script src="../language/voice-widget.js"></script>
 <script src="doctor-ipd.js"></script>
 </body>
 </html>

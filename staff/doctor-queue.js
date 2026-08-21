@@ -126,43 +126,146 @@
     });
   }
 
-  function wireAddMedButton() {
-    document.getElementById("addMedBtn").addEventListener("click", () => {
-      const errorEl = document.getElementById("consultError");
-      errorEl.textContent = "";
-      const medicineName = document.getElementById("medName").value.trim();
-      const dosage = document.getElementById("medDosage").value;
-      const duration = document.getElementById("medDuration").value;
-      const foodInstruction = document.getElementById("medFoodInstruction").value;
-      const urgency = document.getElementById("medUrgency").value;
-      if (!medicineName || !dosage || !duration) {
-        errorEl.textContent = "Fill in medicine name, dosage, and duration before adding it.";
-        return;
-      }
-      selectedMeds.push({ medicineName, dosage, duration, foodInstruction, urgency });
-      renderSelectedMeds();
-      document.getElementById("medName").value = "";
-      document.getElementById("medDosage").value = "";
-      document.getElementById("medDuration").value = "";
-      document.getElementById("medFoodInstruction").value = "";
-      document.getElementById("medUrgency").value = "routine";
+  // Each mic button is scoped to one field — dictating into Symptoms only
+  // fills Symptoms, dictating into Medicine only fills the medicine row,
+  // and so on. The one thing that applies across all of them is the
+  // admission flag: if the doctor says "admit" while dictating anything,
+  // tick the admission checkbox regardless of which mic picked it up.
+  function applyAdmitSuggestion(data) {
+    if (data.admitSuggested) document.getElementById("admitCheckbox").checked = true;
+  }
+
+  function wireVoiceMics() {
+    if (!window.MedisysVoice) return;
+
+    const languageSelect = document.getElementById("voiceLanguage");
+    MedisysVoice.renderLanguageOptions(languageSelect);
+    const getLanguage = () => languageSelect.value;
+    const setStatus = (text) => {
+      document.getElementById("voiceStatus").textContent = text;
+    };
+    const showError = (message) => {
+      document.getElementById("consultError").textContent = message;
+    };
+
+    MedisysVoice.attachMic(document.getElementById("micSymptoms"), {
+      getLanguage,
+      onStatus: setStatus,
+      onError: showError,
+      onResult: (data) => {
+        const el = document.getElementById("symptoms");
+        const text = data.transcriptEnglish || data.notes || "";
+        el.value = el.value.trim() ? `${el.value}\n${text}` : text;
+        applyAdmitSuggestion(data);
+      },
     });
+
+    MedisysVoice.attachMic(document.getElementById("micNotes"), {
+      getLanguage,
+      onStatus: setStatus,
+      onError: showError,
+      onResult: (data) => {
+        const el = document.getElementById("consultNotes");
+        const text = data.transcriptEnglish || data.notes || "";
+        el.value = el.value.trim() ? `${el.value}\n${text}` : text;
+        applyAdmitSuggestion(data);
+      },
+    });
+
+    MedisysVoice.attachMic(document.getElementById("micMedicine"), {
+      getLanguage,
+      onStatus: setStatus,
+      onError: showError,
+      onResult: (data) => {
+        const med = (data.medicines || [])[0];
+        document.getElementById("medName").value = (med && med.name) || data.transcriptEnglish || data.notes || "";
+        if (med && med.dosage) document.getElementById("medDosage").value = med.dosage;
+        if (med && med.duration) document.getElementById("medDuration").value = med.duration;
+        if (med && med.foodInstruction) document.getElementById("medFoodInstruction").value = med.foodInstruction;
+        applyAdmitSuggestion(data);
+      },
+    });
+
+    MedisysVoice.attachMic(document.getElementById("micTests"), {
+      getLanguage,
+      onStatus: setStatus,
+      onError: showError,
+      onResult: async (data) => {
+        const query = (data.testsSuggested || [])[0] || data.transcriptEnglish || data.notes || "";
+        const matches = (await searchTestCatalog(query)).filter(
+          (t) => !selectedTests.some((s) => String(s.id) === String(t.id))
+        );
+        const match = matches.find((t) => t.name.toLowerCase() === query.toLowerCase()) || matches[0];
+
+        if (match) {
+          selectTest(match.id, match.name);
+          setStatus(`Ticked "${match.name}" from the test catalog.`);
+        } else {
+          // No catalog match — leave it in the search box for manual review
+          // instead of silently dropping the dictation.
+          document.getElementById("testSearchInput").value = query;
+          runTestSearch(query);
+          setStatus(`No catalog match for "${query}" — pick from the results below.`);
+        }
+        applyAdmitSuggestion(data);
+      },
+    });
+  }
+
+  // Shared by the "+ Add" button and the medicine dictation mic, so a fully
+  // specified voice-dictated medicine is added the same way a manually
+  // typed one is — no separate code path to drift out of sync.
+  function addCurrentMedicineToList({ silent = false } = {}) {
+    const errorEl = document.getElementById("consultError");
+    if (!silent) errorEl.textContent = "";
+    const medicineName = document.getElementById("medName").value.trim();
+    const dosage = document.getElementById("medDosage").value;
+    const duration = document.getElementById("medDuration").value;
+    const foodInstruction = document.getElementById("medFoodInstruction").value;
+    const urgency = document.getElementById("medUrgency").value;
+    if (!medicineName || !dosage || !duration) {
+      if (!silent) errorEl.textContent = "Fill in medicine name, dosage, and duration before adding it.";
+      return false;
+    }
+    selectedMeds.push({ medicineName, dosage, duration, foodInstruction, urgency });
+    renderSelectedMeds();
+    document.getElementById("medName").value = "";
+    document.getElementById("medDosage").value = "";
+    document.getElementById("medDuration").value = "";
+    document.getElementById("medFoodInstruction").value = "";
+    document.getElementById("medUrgency").value = "routine";
+    return true;
+  }
+
+  function wireAddMedButton() {
+    document.getElementById("addMedBtn").addEventListener("click", () => addCurrentMedicineToList());
+  }
+
+  // Shared by clicking a search result and by the test-order dictation mic.
+  function selectTest(id, name) {
+    if (selectedTests.some((t) => String(t.id) === String(id))) return;
+    selectedTests.push({ id, name });
+    renderSelectedTests();
+    document.getElementById("testSearchInput").value = "";
+    document.getElementById("testSearchResults").innerHTML = "";
+  }
+
+  async function searchTestCatalog(query) {
+    if (!query.trim()) return [];
+    const res = await fetch(`/api/tests/search?q=${encodeURIComponent(query)}`, { credentials: "same-origin" });
+    const data = await res.json();
+    return data.success ? data.tests : [];
   }
 
   async function runTestSearch(query) {
     const resultsEl = document.getElementById("testSearchResults");
+    const tests = (await searchTestCatalog(query)).filter(
+      (t) => !selectedTests.some((s) => String(s.id) === String(t.id))
+    );
     if (!query.trim()) {
       resultsEl.innerHTML = "";
       return;
     }
-    const res = await fetch(`/api/tests/search?q=${encodeURIComponent(query)}`, { credentials: "same-origin" });
-    const data = await res.json();
-    if (!data.success) {
-      resultsEl.innerHTML = "";
-      return;
-    }
-    const selectedIds = new Set(selectedTests.map((t) => String(t.id)));
-    const tests = data.tests.filter((t) => !selectedIds.has(String(t.id)));
 
     resultsEl.innerHTML = tests
       .map(
@@ -174,12 +277,7 @@
       .join("");
 
     resultsEl.querySelectorAll(".test-search-result-item").forEach((item) => {
-      item.addEventListener("click", () => {
-        selectedTests.push({ id: item.dataset.id, name: item.dataset.name });
-        renderSelectedTests();
-        document.getElementById("testSearchInput").value = "";
-        resultsEl.innerHTML = "";
-      });
+      item.addEventListener("click", () => selectTest(item.dataset.id, item.dataset.name));
     });
   }
 
@@ -271,6 +369,104 @@
       labOrderItems + consultationItems + admissionItems || `<p class="wizard-hint">No prior history.</p>`;
   }
 
+  function buildConsultationPdfHtml() {
+    const patientName = (activeVisit && activeVisit.patientName) || "—";
+    const patientUhid = (activeVisit && activeVisit.patientUhid) || "—";
+    const doctorName = (sessionUser && sessionUser.fullName) || (sessionUser && sessionUser.userId) || "—";
+    const symptoms = document.getElementById("symptoms").value.trim() || "—";
+    const notes = document.getElementById("consultNotes").value.trim() || "—";
+    const admit = document.getElementById("admitCheckbox").checked;
+    const now = new Date();
+
+    const medRows = selectedMeds.length
+      ? selectedMeds
+          .map(
+            (m) => `<tr>
+              <td>${escapeHtml(m.medicineName)}</td>
+              <td>${escapeHtml(m.dosage || "—")}</td>
+              <td>${escapeHtml(String(m.duration || "—"))} day(s)</td>
+              <td>${escapeHtml(m.foodInstruction || "—")}</td>
+              <td>${m.urgency === "urgent" ? "Urgent" : "Routine"}</td>
+            </tr>`
+          )
+          .join("")
+      : `<tr><td colspan="5">No medicines prescribed.</td></tr>`;
+
+    const testRows = selectedTests.length
+      ? selectedTests.map((t) => `<li>${escapeHtml(t.name)}</li>`).join("")
+      : "<li>No tests ordered.</li>";
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Consultation — ${escapeHtml(patientName)}</title>
+<style>
+  body { font-family: -apple-system, Arial, sans-serif; color: #142621; margin: 40px; line-height: 1.5; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .meta { color: #46605a; font-size: 13px; margin-bottom: 24px; }
+  .meta span { display: inline-block; margin-right: 18px; }
+  h2 { font-size: 15px; border-bottom: 1px solid #d6e0dd; padding-bottom: 4px; margin-top: 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eef2f2; }
+  th { color: #46605a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  p.field { white-space: pre-wrap; font-size: 13.5px; margin: 6px 0 0; }
+  .admit-flag { font-weight: 600; color: ${admit ? "#0f6e5e" : "#46605a"}; }
+  footer { margin-top: 32px; font-size: 11px; color: #7c918c; }
+  @media print { body { margin: 20px; } }
+</style>
+</head>
+<body>
+  <h1>MEDISYS — Consultation Record</h1>
+  <div class="meta">
+    <span><strong>Patient:</strong> ${escapeHtml(patientName)} (${escapeHtml(patientUhid)})</span>
+    <span><strong>Doctor:</strong> Dr. ${escapeHtml(doctorName)}</span>
+    <span><strong>Date:</strong> ${escapeHtml(now.toLocaleString())}</span>
+  </div>
+
+  <h2>Symptoms</h2>
+  <p class="field">${escapeHtml(symptoms)}</p>
+
+  <h2>Notes</h2>
+  <p class="field">${escapeHtml(notes)}</p>
+
+  <h2>Prescribed Medicines</h2>
+  <table>
+    <thead><tr><th>Medicine</th><th>Dosage</th><th>Duration</th><th>Instruction</th><th>Priority</th></tr></thead>
+    <tbody>${medRows}</tbody>
+  </table>
+
+  <h2>Tests / X-Rays Ordered</h2>
+  <ul>${testRows}</ul>
+
+  <h2>Admission</h2>
+  <p class="admit-flag">${admit ? "🛏️ Admission requested." : "Not required."}</p>
+
+  <footer>Generated from MEDISYS on ${escapeHtml(now.toLocaleString())}. Review all AI-dictated fields for accuracy before treating this as final.</footer>
+</body>
+</html>`;
+  }
+
+  function wirePdfDownload() {
+    document.getElementById("downloadConsultPdfBtn").addEventListener("click", () => {
+      const errorEl = document.getElementById("consultError");
+      if (!activeVisit) {
+        errorEl.textContent = "Open a consultation before downloading its document.";
+        return;
+      }
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        errorEl.textContent = "Could not open the print window — check your browser's popup blocker.";
+        return;
+      }
+      printWindow.document.write(buildConsultationPdfHtml());
+      printWindow.document.close();
+      printWindow.focus();
+      // Let the new document finish laying out before the print dialog opens.
+      printWindow.onload = () => printWindow.print();
+    });
+  }
+
   function wireConsultForm() {
     document.getElementById("completeConsultBtn").addEventListener("click", async () => {
       const errorEl = document.getElementById("consultError");
@@ -338,6 +534,8 @@
     wireConsultForm();
     wireTestOrderWidget();
     wireAddMedButton();
+    wireVoiceMics();
+    wirePdfDownload();
     loadQueue();
 
     if (window.MEDISYS_RT) {

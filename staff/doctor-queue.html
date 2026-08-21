@@ -41,16 +41,31 @@
       </div>
 
       <div class="wizard-step" style="margin-top: 20px;">
-        <label for="symptoms">Symptoms</label>
+        <div class="voice-lang-row">
+          <label for="voiceLanguage">🎙️ Dictation language</label>
+          <select id="voiceLanguage"></select>
+          <span class="voice-dictate-status" id="voiceStatus" aria-live="polite"></span>
+        </div>
+
+        <div class="field-label-row">
+          <label for="symptoms">Symptoms</label>
+          <button type="button" class="voice-mic-btn" id="micSymptoms" aria-label="Dictate symptoms">🎙️</button>
+        </div>
         <textarea id="symptoms"></textarea>
 
-        <label for="consultNotes">Notes</label>
+        <div class="field-label-row">
+          <label for="consultNotes">Notes</label>
+          <button type="button" class="voice-mic-btn" id="micNotes" aria-label="Dictate notes">🎙️</button>
+        </div>
         <textarea id="consultNotes"></textarea>
 
         <p class="wizard-hint" style="margin: 16px 0 4px;">Add any combination below — prescribe medicine, order tests/X-rays, and/or admit, all in the same consultation.</p>
 
         <div class="consult-action-block">
-          <h3>💊 Prescribe Medicine</h3>
+          <div class="field-label-row">
+            <h3>💊 Prescribe Medicine</h3>
+            <button type="button" class="voice-mic-btn" id="micMedicine" aria-label="Dictate medicine">🎙️</button>
+          </div>
           <div id="selectedMedChips" class="test-chip-row"></div>
           <div class="consult-med-row">
             <input type="text" id="medName" placeholder="Medicine name, e.g. Paracetamol 500mg" autocomplete="off" />
@@ -79,7 +94,10 @@
         </div>
 
         <div class="consult-action-block">
-          <h3>🧪 Order Tests / X-Rays</h3>
+          <div class="field-label-row">
+            <h3>🧪 Order Tests / X-Rays</h3>
+            <button type="button" class="voice-mic-btn" id="micTests" aria-label="Dictate test order">🎙️</button>
+          </div>
           <div id="selectedTestChips" class="test-chip-row"></div>
           <input type="text" id="testSearchInput" placeholder="Type a test name (e.g. CBC, LFT, Chest X-Ray)..." autocomplete="off" />
           <div id="testSearchResults" class="test-search-results"></div>
@@ -98,6 +116,12 @@
           <button type="button" class="login-btn wizard-next-btn" id="completeConsultBtn">Complete Consultation</button>
         </div>
         <p class="wizard-hint" id="consultConfirmation"></p>
+
+        <div class="consult-action-block">
+          <h3>📄 Consultation Document</h3>
+          <p class="wizard-hint" style="margin: 0 0 10px;">Download everything entered above — symptoms, notes, prescribed medicines, tests ordered, and admission status — as a PDF.</p>
+          <button type="button" class="wizard-suggest-btn" id="downloadConsultPdfBtn">⬇️ Download Consultation PDF</button>
+        </div>
       </div>
     </div>
   </main>
@@ -113,6 +137,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="../realtime-client.js"></script>
   <script src="../portal-ui.js"></script>
+  <script src="../language/voice-widget.js"></script>
 <script src="doctor-queue.js"></script>
 </body>
 </html>

@@ -43,6 +43,11 @@ const labImageUpload = multer({
   fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype)),
 });
 
+// Voice dictation clips (doctor consult/rounds) are forwarded to the local
+// AI4Bharat/NeMo service in language/ and never written to disk here.
+const voiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const VOICE_SERVICE_URL = process.env.VOICE_SERVICE_URL || "http://127.0.0.1:8500";
+
 // Server-local "today" as YYYY-MM-DD using local wall-clock fields (NOT
 // toISOString/UTC — that rolls back a day for ~5.5 hours overnight in IST and any
 // other UTC+ timezone). Also safe for parsing a Y-M-D string into a Date anchored at
@@ -1284,6 +1289,36 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
   } catch (err) {
     console.error("Record consultation error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Voice prescription (Sarvam AI, see language/) ----------
+// Doctor dictates in an Indian language; the clip is forwarded to the local
+// language/service.py process, which transcribes, translates, and drafts a
+// structured prescription for the doctor to review before saving as usual.
+
+app.post("/api/voice/prescribe", requireRole("doctor"), voiceUpload.single("audio"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: "No audio recorded." });
+  }
+  const language = (req.body.language || "hi").toLowerCase();
+  try {
+    const form = new FormData();
+    form.append("language", language);
+    form.append("audio", new Blob([req.file.buffer], { type: req.file.mimetype || "audio/webm" }), "dictation.webm");
+
+    const upstream = await fetch(`${VOICE_SERVICE_URL}/transcribe`, { method: "POST", body: form });
+    const data = await upstream.json();
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ success: false, message: data.error || "Voice service error." });
+    }
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error("Voice prescribe error:", err.message);
+    res.status(503).json({
+      success: false,
+      message: "Voice dictation service is unreachable. Make sure language/service.py is running (see language/README.md).",
+    });
   }
 });
 

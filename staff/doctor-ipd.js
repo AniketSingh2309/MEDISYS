@@ -83,6 +83,28 @@
         .join("") || `<p class="wizard-hint">No orders issued yet.</p>`;
   }
 
+  function wireVoiceDictation() {
+    if (!window.MedisysVoice) return;
+    MedisysVoice.mount(document.getElementById("voiceDictate"), {
+      onResult: (data) => {
+        const noteEl = document.getElementById("roundNote");
+        noteEl.value = noteEl.value ? `${noteEl.value}\n${data.notes || ""}` : data.notes || "";
+
+        if ((data.medicines || []).length) {
+          const lines = data.medicines.map(
+            (m) => `${m.name}${m.dosage ? " — " + m.dosage : ""}${m.duration ? ` for ${m.duration}d` : ""}${m.foodInstruction ? ", " + m.foodInstruction : ""}`
+          );
+          document.getElementById("orderType").value = "medicine";
+          const orderEl = document.getElementById("orderDescription");
+          orderEl.value = orderEl.value ? `${orderEl.value}\n${lines.join("\n")}` : lines.join("\n");
+        }
+      },
+      onError: (message) => {
+        document.getElementById("ipdError").textContent = message;
+      },
+    });
+  }
+
   function wireActions() {
     document.getElementById("admissionSelect").addEventListener("change", (e) => {
       if (e.target.value) loadChart(e.target.value);
@@ -144,6 +166,7 @@
     if (!user) return;
     wireLogout();
     wireActions();
+    wireVoiceDictation();
     loadAdmissions();
 
     if (window.MEDISYS_RT) {

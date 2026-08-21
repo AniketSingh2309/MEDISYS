@@ -1,0 +1,15 @@
+# language/.env holds the real SARVAM_API_KEY — never commit it.
+.env
+venv/
+.venv/
+__pycache__/
+*.log
+
+# Kept from an earlier self-hosted AI4Bharat/NeMo path (see README.md) in
+# case that's revisited later — NeMo is several GB and must never be
+# committed if it's ever cloned here again.
+NeMo/
+*.nemo
+*.pt
+*.ckpt
+model_cache/
