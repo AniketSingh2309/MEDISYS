@@ -42,22 +42,16 @@
 
       <div class="wizard-step" style="margin-top: 20px;">
         <div class="voice-lang-row">
-          <label for="voiceLanguage">🎙️ Dictation language</label>
+          <label for="voiceLanguage">Dictation language</label>
           <select id="voiceLanguage"></select>
           <span class="voice-dictate-status" id="voiceStatus" aria-live="polite"></span>
         </div>
 
         <div class="field-label-row">
-          <label for="symptoms">Symptoms</label>
-          <button type="button" class="voice-mic-btn" id="micSymptoms" aria-label="Dictate symptoms">🎙️</button>
+          <label for="symptoms">Symptoms &amp; Notes</label>
+          <button type="button" class="voice-mic-btn" id="micSymptoms" aria-label="Dictate symptoms and notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
         </div>
-        <textarea id="symptoms"></textarea>
-
-        <div class="field-label-row">
-          <label for="consultNotes">Notes</label>
-          <button type="button" class="voice-mic-btn" id="micNotes" aria-label="Dictate notes">🎙️</button>
-        </div>
-        <textarea id="consultNotes"></textarea>
+        <textarea id="symptoms" placeholder="What the patient is experiencing, exam findings, anything else worth noting — one dictation covers all of it."></textarea>
 
         <label for="diagnosisSelect">Diagnosis <span class="wizard-hint" style="display:inline;">(optional — feeds outbreak monitoring)</span></label>
         <select id="diagnosisSelect">
@@ -69,11 +63,11 @@
         <div class="consult-action-block">
           <div class="field-label-row">
             <h3>💊 Prescribe Medicine</h3>
-            <button type="button" class="voice-mic-btn" id="micMedicine" aria-label="Dictate medicine">🎙️</button>
+            <button type="button" class="voice-mic-btn" id="micMedicine" aria-label="Dictate medicine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
           </div>
           <div id="selectedMedChips" class="test-chip-row"></div>
           <div class="consult-med-row">
-            <input type="text" id="medName" placeholder="Medicine name, e.g. Paracetamol 500mg" autocomplete="off" />
+            <input type="text" id="medName" placeholder="Medicine name, e.g. Paracetamol 500mg" autocomplete="off" data-medicine-autocomplete />
             <select id="medDosage">
               <option value="">Dosage</option>
               <option value="1-0-1 (Morning & Evening)">1-0-1 (Morning &amp; Evening)</option>
@@ -101,7 +95,7 @@
         <div class="consult-action-block">
           <div class="field-label-row">
             <h3>🧪 Order Tests / X-Rays</h3>
-            <button type="button" class="voice-mic-btn" id="micTests" aria-label="Dictate test order">🎙️</button>
+            <button type="button" class="voice-mic-btn" id="micTests" aria-label="Dictate test order"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
           </div>
           <div id="selectedTestChips" class="test-chip-row"></div>
           <input type="text" id="testSearchInput" placeholder="Type a test name (e.g. CBC, LFT, Chest X-Ray)..." autocomplete="off" />
@@ -143,6 +137,7 @@
   <script src="../realtime-client.js"></script>
   <script src="../portal-ui.js"></script>
   <script src="../language/voice-widget.js"></script>
+  <script src="../medicine-autocomplete.js"></script>
 <script src="doctor-queue.js"></script>
 </body>
 </html>

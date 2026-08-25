@@ -76,12 +76,55 @@ FOOD_PATTERNS = [
     (re.compile(r"\bempty stomach\b", re.I), "Empty Stomach"),
 ]
 DURATION_PATTERN = re.compile(r"\bfor\s+(\d{1,2})\s+days?\b", re.I)
+# Widened beyond "give/prescribe/start X" to also catch how doctors actually
+# phrase it in casual dictation — "you take medicine of X", "patient should
+# take X", etc. — since the original three trigger words missed common
+# phrasing entirely (the medicine just wouldn't be detected at all).
+# "medicine of" after the trigger is swallowed as a non-capturing prefix so
+# the captured name is just "Paracetamol", not "Medicine Of Paracetamol".
+# The name also stops before a bare "N-N-N" dosage-frequency code (e.g.
+# "Paracetamol 1-0-1") so that code is left for DOSAGE_PATTERNS to parse
+# instead of becoming part of the medicine name — verified against real
+# sample dictations on 2026-08-24; without this stop, "Give Paracetamol
+# 1-0-1 after meal" incorrectly named the medicine "Paracetamol 1-0-1".
 MED_LINE_PATTERN = re.compile(
-    r"(?:give|prescribe|start)\s+([a-zA-Z][a-zA-Z0-9 \-]{2,40}?)(?:,|\.|;|$| for | before | after )",
+    r"(?:give|prescribe|start|(?:you|patient)\s+(?:should\s+|will\s+|can\s+)?take)\s+(?:medicine\s+of\s+)?"
+    r"([a-zA-Z][a-zA-Z0-9 \-]{2,40}?)(?:,|\.|;|$| \d-\d-\d| for | before | after )",
     re.I,
 )
 ADMIT_PATTERN = re.compile(r"\b(admit|admission|needs? to be admitted)\b", re.I)
-TEST_PATTERN = re.compile(r"\border\s+(?:a|an)?\s*([a-zA-Z0-9 \-]{2,30})\s+test\b", re.I)
+# A single trigger word ("order"/"do"/"get"/"conduct"/"run"/"check") followed
+# by one or more comma/"and"-separated test names, ending at the word
+# "test(s)" or the clause boundary — so "do the CBC, dengue test" and "order
+# CBC and dengue test" both yield ["CBC", "dengue"], not just the first name.
+# This is intentionally forgiving (matches the file's existing "good enough,
+# doctor reviews everything" philosophy) rather than a precise grammar.
+TEST_TRIGGER_PATTERN = re.compile(
+    r"\b(?:order|do|get|conduct|run|check)\b\s+(?:a|an|the)?\s*([a-zA-Z0-9 ,\-]{2,80}?)\s+tests?\b",
+    re.I,
+)
+# TEST_TRIGGER_PATTERN needs BOTH a trigger word (order/do/get/...) AND a
+# trailing "test(s)" — verified against real phrasing on 2026-08-25 that this
+# misses most of how doctors actually say it: a bare "CBC" (no trigger, no
+# "test" suffix), "please do a CBC" (has a trigger but no "test" suffix), and
+# "I want a CBC test done" (has "test" but "want" isn't a recognized
+# trigger) all failed to extract anything. Without a structured match, the
+# frontend previously fell back to searching the catalog with the *entire*
+# raw utterance, which only works if the doctor said the bare test name and
+# nothing else — any natural framing broke the substring match entirely.
+# These patterns strip that framing so a short utterance still yields a
+# clean single candidate even when TEST_TRIGGER_PATTERN finds nothing.
+TEST_FALLBACK_PREFIX = re.compile(
+    r"^\s*(?:please\s+|kindly\s+|can\s+you\s+|could\s+you\s+|i\s+want\s+|i\s+would\s+like\s+|i'd\s+like\s+)*"
+    r"(?:(?:order|do|get|conduct|run|check)\s+)?(?:a\s+|an\s+|the\s+)?",
+    re.I,
+)
+TEST_FALLBACK_SUFFIX = re.compile(r"\s+(?:tests?|please|now|done)\s*$", re.I)
+# Cap on how many words the cleaned leftover can be before we stop trusting
+# it as "just a test name" — beyond this it's more likely a full sentence
+# (e.g. a symptom description) that happened to have no trigger match, and
+# blindly searching the catalog with it would be as unreliable as before.
+FALLBACK_MAX_WORDS = 4
 
 
 def structure_transcript(english_text: str) -> dict:
@@ -99,7 +142,46 @@ def structure_transcript(english_text: str) -> dict:
             "foodInstruction": food,
         })
 
-    tests = [m.group(1).strip().title() for m in TEST_PATTERN.finditer(english_text)]
+    # Each trigger match can itself name several tests ("CBC, dengue test"),
+    # so split the captured chunk on commas/"and" before titlecasing — a
+    # doctor listing three tests in one sentence should yield three entries,
+    # not one run-on string the frontend's catalog search can't match.
+    tests = []
+    for match in TEST_TRIGGER_PATTERN.finditer(english_text):
+        for name in re.split(r",|\band\b|&", match.group(1)):
+            name = name.strip(" .")
+            if name:
+                tests.append(name.title())
+
+    # Nothing matched the strict "trigger + test(s)" pattern — try treating
+    # the whole utterance as one test name after stripping common framing
+    # ("please", "can you", "order a", trailing "test"/"done"). Only trusted
+    # if what's left is short; a longer leftover is more likely a sentence
+    # this simple parser just didn't recognize, not a test name.
+    if not tests:
+        cleaned = TEST_FALLBACK_PREFIX.sub("", english_text).strip(" .,")
+        # Trailing filler can stack ("... test done") — strip repeatedly
+        # until nothing more matches, not just once, or "I want a CBC test
+        # done" would only lose "done" and leave "CBC test" behind.
+        prev = None
+        while prev != cleaned:
+            prev = cleaned
+            cleaned = TEST_FALLBACK_SUFFIX.sub("", cleaned).strip(" .,")
+        # Gate on the TOTAL length before splitting, not per-fragment after
+        # — a real bug caught in testing: an unrelated symptom sentence
+        # ("Patient has fever and headache for the last three days, no
+        # vomiting") has no trigger word, so prefix-stripping does nothing,
+        # but splitting on "and"/commas chops it into short-enough pieces
+        # ("Patient has fever", "no vomiting") that each individually passed
+        # a per-fragment cap and got fabricated into fake test names. Capping
+        # the whole cleaned string first means only genuinely short
+        # dictations (a bare test name, or a short comma-separated list of
+        # them) reach the split step at all.
+        if cleaned and len(cleaned.split()) <= FALLBACK_MAX_WORDS + 4:
+            for name in re.split(r",|\band\b|&", cleaned):
+                name = name.strip(" .")
+                if name and len(name.split()) <= FALLBACK_MAX_WORDS:
+                    tests.append(name.title())
 
     return {
         "notes": english_text.strip(),

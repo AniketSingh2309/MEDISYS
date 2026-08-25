@@ -200,24 +200,19 @@
       document.getElementById("consultError").textContent = message;
     };
 
+    // One combined "Symptoms & Notes" field/mic — a doctor dictating what's
+    // happening with a patient naturally covers both in one breath, so a
+    // separate Notes box + second mic button was just friction. Used to be
+    // two fields (symptoms/notes) each with their own mic; consolidated
+    // 2026-08-24. The backend still has two columns (symptoms, notes) for
+    // older records, so on submit this single field's value is sent as
+    // `symptoms` and `notes` is left empty — see the submit payload below.
     MedisysVoice.attachMic(document.getElementById("micSymptoms"), {
       getLanguage,
       onStatus: setStatus,
       onError: showError,
       onResult: (data) => {
         const el = document.getElementById("symptoms");
-        const text = data.transcriptEnglish || data.notes || "";
-        el.value = el.value.trim() ? `${el.value}\n${text}` : text;
-        applyAdmitSuggestion(data);
-      },
-    });
-
-    MedisysVoice.attachMic(document.getElementById("micNotes"), {
-      getLanguage,
-      onStatus: setStatus,
-      onError: showError,
-      onResult: (data) => {
-        const el = document.getElementById("consultNotes");
         const text = data.transcriptEnglish || data.notes || "";
         el.value = el.value.trim() ? `${el.value}\n${text}` : text;
         applyAdmitSuggestion(data);
@@ -234,6 +229,17 @@
         if (med && med.dosage) document.getElementById("medDosage").value = med.dosage;
         if (med && med.duration) document.getElementById("medDuration").value = med.duration;
         if (med && med.foodInstruction) document.getElementById("medFoodInstruction").value = med.foodInstruction;
+        // If the dictation gave us everything required (name, dosage,
+        // duration), add it to the prescription list immediately — same
+        // logic the "+ Add" button uses — instead of leaving it sitting in
+        // the form waiting for a manual click. If anything's missing (e.g.
+        // dosage phrasing the parser didn't recognize), it's left filled-in
+        // for the doctor to complete and add themselves.
+        if (addCurrentMedicineToList({ silent: true })) {
+          setStatus(`Added ${med.name} to the prescription.`);
+        } else {
+          setStatus("Got the medicine — fill in whatever's missing and click + Add.");
+        }
         applyAdmitSuggestion(data);
       },
     });
@@ -243,21 +249,37 @@
       onStatus: setStatus,
       onError: showError,
       onResult: async (data) => {
-        const query = (data.testsSuggested || [])[0] || data.transcriptEnglish || data.notes || "";
-        const matches = (await searchTestCatalog(query)).filter(
-          (t) => !selectedTests.some((s) => String(s.id) === String(t.id))
-        );
-        const match = matches.find((t) => t.name.toLowerCase() === query.toLowerCase()) || matches[0];
+        // A single dictation can name several tests ("CBC, dengue test") —
+        // add every one that matches the catalog, not just the first.
+        const queries = data.testsSuggested && data.testsSuggested.length ? data.testsSuggested : [data.transcriptEnglish || data.notes || ""];
+        const added = [];
+        const notFound = [];
+        for (const query of queries) {
+          if (!query.trim()) continue;
+          const matches = (await searchTestCatalog(query)).filter(
+            (t) => !selectedTests.some((s) => String(s.id) === String(t.id))
+          );
+          const match = matches.find((t) => t.name.toLowerCase() === query.toLowerCase()) || matches[0];
+          if (match) {
+            selectTest(match.id, match.name);
+            added.push(match.name);
+          } else {
+            notFound.push(query);
+          }
+        }
 
-        if (match) {
-          selectTest(match.id, match.name);
-          setStatus(`Ticked "${match.name}" from the test catalog.`);
-        } else {
-          // No catalog match — leave it in the search box for manual review
-          // instead of silently dropping the dictation.
-          document.getElementById("testSearchInput").value = query;
-          runTestSearch(query);
-          setStatus(`No catalog match for "${query}" — pick from the results below.`);
+        if (added.length && !notFound.length) {
+          setStatus(`Ticked ${added.join(", ")} from the test catalog.`);
+        } else if (added.length && notFound.length) {
+          setStatus(`Ticked ${added.join(", ")}. No catalog match for ${notFound.join(", ")} — pick from the results below.`);
+          document.getElementById("testSearchInput").value = notFound[0];
+          runTestSearch(notFound[0]);
+        } else if (notFound.length) {
+          // Nothing matched at all — leave the first one in the search box
+          // for manual review instead of silently dropping the dictation.
+          document.getElementById("testSearchInput").value = notFound[0];
+          runTestSearch(notFound[0]);
+          setStatus(`No catalog match for "${notFound[0]}" — pick from the results below.`);
         }
         applyAdmitSuggestion(data);
       },
@@ -353,7 +375,6 @@
     document.getElementById("consultConfirmation").textContent = "";
     document.getElementById("consultError").textContent = "";
     document.getElementById("symptoms").value = "";
-    document.getElementById("consultNotes").value = "";
     document.getElementById("diagnosisSelect").value = "";
     document.getElementById("medName").value = "";
     document.getElementById("medDosage").value = "";
@@ -433,7 +454,6 @@
     const patientUhid = (activeVisit && activeVisit.patientUhid) || "—";
     const doctorName = (sessionUser && sessionUser.fullName) || (sessionUser && sessionUser.userId) || "—";
     const symptoms = document.getElementById("symptoms").value.trim() || "—";
-    const notes = document.getElementById("consultNotes").value.trim() || "—";
     const admit = document.getElementById("admitCheckbox").checked;
     const now = new Date();
 
@@ -483,11 +503,8 @@
     <span><strong>Date:</strong> ${escapeHtml(now.toLocaleString())}</span>
   </div>
 
-  <h2>Symptoms</h2>
+  <h2>Symptoms &amp; Notes</h2>
   <p class="field">${escapeHtml(symptoms)}</p>
-
-  <h2>Notes</h2>
-  <p class="field">${escapeHtml(notes)}</p>
 
   <h2>Prescribed Medicines</h2>
   <table>
@@ -549,8 +566,12 @@
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
           body: JSON.stringify({
+            // The old separate "Notes" field is gone — one dictation/typed
+            // field covers both now. `notes` isn't sent at all; the backend
+            // already stores null when it's absent (see POST
+            // /api/opd/visits/:id/consultation), so nothing downstream that
+            // reads consultation.notes on older records breaks.
             symptoms: document.getElementById("symptoms").value.trim(),
-            notes: document.getElementById("consultNotes").value.trim(),
             diagnosis: document.getElementById("diagnosisSelect").value,
             prescriptions: selectedMeds,
             testIds: selectedTests.map((t) => t.id),

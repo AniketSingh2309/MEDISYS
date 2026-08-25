@@ -12,6 +12,12 @@
     ["pa", "Punjabi"], ["or", "Odia"], ["en", "English"],
   ];
 
+  // Matches the inline-SVG icon language used everywhere else in MEDISYS
+  // (stroke="currentColor", viewBox 24x24) instead of an emoji — emoji mic
+  // icons render inconsistently (tiny/low-contrast) across OSes and browsers.
+  const MIC_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>`;
+  const STOP_ICON = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`;
+
   /**
    * Renders a "language select + dictate button" control into `container`
    * and calls `onResult(data)` with the service's JSON response once a
@@ -21,7 +27,7 @@
     container.classList.add("voice-dictate-widget");
     container.innerHTML = `
       <select class="voice-dictate-lang"></select>
-      <button type="button" class="wizard-suggest-btn voice-dictate-btn">🎙️ Dictate (AI)</button>
+      <button type="button" class="wizard-suggest-btn voice-dictate-btn">${MIC_ICON}<span>Dictate (AI)</span></button>
       <span class="voice-dictate-status" aria-live="polite"></span>
     `;
     const select = container.querySelector(".voice-dictate-lang");
@@ -50,7 +56,8 @@
       };
       recorder.start();
       recording = true;
-      button.textContent = "⏹️ Stop & Transcribe";
+      button.innerHTML = `${STOP_ICON}<span>Stop &amp; Transcribe</span>`;
+      button.classList.add("voice-mic-recording");
       status.textContent = "Recording…";
       if (onStart) onStart();
     }
@@ -74,7 +81,8 @@
         if (onError) onError(err.message || "Voice dictation failed.");
       } finally {
         button.disabled = false;
-        button.textContent = "🎙️ Dictate (AI)";
+        button.innerHTML = `${MIC_ICON}<span>Dictate (AI)</span>`;
+        button.classList.remove("voice-mic-recording");
         recording = false;
         if (onStop) onStop();
       }
@@ -117,7 +125,15 @@
    * each scoped to a single field.
    */
   function attachMic(button, { getLanguage, onResult, onError, onStatus } = {}) {
-    const idleLabel = button.textContent;
+    // The icon itself never changes — idle vs. recording is communicated by
+    // the .voice-mic-recording class alone (red fill + pulse, see admin.css),
+    // the same way a native OS mic indicator works. Previously this swapped
+    // button.textContent between "🎙️"/"⏹️" emoji, which both looked
+    // inconsistent across platforms and would have silently broken once the
+    // button held an SVG icon instead of emoji text (textContent of an
+    // element containing only an <svg> is "", so the "idle" label restored
+    // after recording would have gone blank).
+    button.innerHTML = MIC_ICON;
     let recorder = null;
     let chunks = [];
     let recording = false;
@@ -137,8 +153,8 @@
       };
       recorder.start();
       recording = true;
-      button.textContent = "⏹️";
       button.classList.add("voice-mic-recording");
+      button.setAttribute("aria-label", (button.getAttribute("aria-label") || "Dictate") + " (recording — click to stop)");
       setStatus("Recording…");
     }
 
@@ -161,8 +177,8 @@
         if (onError) onError(err.message || "Voice dictation failed.");
       } finally {
         button.disabled = false;
-        button.textContent = idleLabel;
         button.classList.remove("voice-mic-recording");
+        button.setAttribute("aria-label", (button.getAttribute("aria-label") || "Dictate").replace(" (recording — click to stop)", ""));
         recording = false;
       }
     }
