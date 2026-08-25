@@ -678,6 +678,10 @@
       <img src="../logo.png" alt="Core5 MEDISYS" class="brand-logo" />
     </div>
     <div class="portal-header-right">
+      <button type="button" id="lowStockBellBtn" title="Low stock alerts" style="position: relative; background: none; border: none; cursor: pointer; padding: 6px; color: var(--navy-dark, #1b2f6e); display: flex; align-items: center;">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+        <span id="lowStockBellBadge" hidden style="position: absolute; top: 2px; right: 2px; background: #b91c1c; color: #fff; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 999px; display: flex; align-items: center; justify-content: center; padding: 0 3px;">0</span>
+      </button>
       <span class="portal-user" id="portalUser"></span>
       <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
     </div>
@@ -694,6 +698,14 @@
       <button class="pill-tab" id="navStock">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
         <span>Medicine Stock</span> <span class="pill-badge" id="stockCount">0</span>
+      </button>
+      <button class="pill-tab" id="navLowStock">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"></path></svg>
+        <span>Low Stock</span> <span class="pill-badge" id="lowStockTabCount" style="background: #b91c1c;">0</span>
+      </button>
+      <button class="pill-tab" id="navOrders">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+        <span>Orders</span> <span class="pill-badge" id="ordersTabCount">0</span>
       </button>
       <button class="pill-tab" id="navBilling">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -811,6 +823,38 @@
           <input type="text" id="stockSearchInput" placeholder="Search stock..." style="padding: 10px 16px 10px 40px; border: 1px solid #e2e8f0; border-radius: 8px; width: 320px; font-size: 14px; background: white;" autocomplete="off" />
         </div>
         <div id="stockList" style="display: flex; flex-direction: column;"></div>
+      </div>
+    </div>
+
+    <!-- LOW STOCK SECTION -->
+    <div id="sectionLowStock" hidden>
+      <div style="margin-bottom: 20px;">
+        <h1 style="font-family: serif; color: var(--navy-dark);">Low Stock Alerts</h1>
+        <p class="portal-subtitle">Medicines whose total stock across all non-expired batches has fallen to or below their reorder threshold. Once you create a PO for one, it moves to the Orders tab and drops off this list.</p>
+      </div>
+
+      <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <div id="lowStockList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        <div id="lowStockEmptyState" hidden style="padding: 40px; text-align: center; color: #64748b;">
+          <p style="font-size: 15px; font-weight: 600;">Nothing needs attention right now.</p>
+          <p style="font-size: 13px; margin-top: 4px;">Every tracked medicine is above its reorder threshold, or already has a purchase order out (check the Orders tab).</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ORDERS SECTION -->
+    <div id="sectionOrders" hidden>
+      <div style="margin-bottom: 20px;">
+        <h1 style="font-family: serif; color: var(--navy-dark);">Purchase Orders</h1>
+        <p class="portal-subtitle">Every reorder raised from the Low Stock tab. Mark one Received once the stock actually arrives (then add it as a new batch from Medicine Stock), or Cancel it to send that medicine back to the Low Stock list.</p>
+      </div>
+
+      <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <div id="ordersList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        <div id="ordersEmptyState" hidden style="padding: 40px; text-align: center; color: #64748b;">
+          <p style="font-size: 15px; font-weight: 600;">No purchase orders yet.</p>
+          <p style="font-size: 13px; margin-top: 4px;">Create one from the Low Stock tab when a medicine needs reordering.</p>
+        </div>
       </div>
     </div>
 
@@ -980,7 +1024,7 @@
         <form id="addStockForm">
           <div class="form-group">
             <label>Medicine Name</label>
-            <input type="text" id="stockMedName" placeholder="e.g. Paracetamol 500mg" required />
+            <input type="text" id="stockMedName" placeholder="e.g. Paracetamol 500mg" required data-medicine-autocomplete />
           </div>
           <div class="form-group">
             <label>Category</label>
@@ -1011,11 +1055,50 @@
               <label>Unit Price (₹)</label>
               <input type="number" step="0.01" id="stockPrice" placeholder="e.g. 12.50" />
             </div>
-            <div class="form-group"></div>
+            <div class="form-group">
+              <label>Supplier (optional)</label>
+              <input type="text" id="stockSupplier" placeholder="e.g. Central Pharma Wholesalers" />
+            </div>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-secondary" id="closeStockModal2">Cancel</button>
             <button type="submit" class="btn-primary">Save Stock</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reorder Threshold Modal -->
+  <div id="thresholdModal" class="modal">
+    <div class="modal-content" style="max-width: 420px;">
+      <div class="modal-header">
+        <h2 style="font-size: 18px; display: flex; align-items: center; gap: 8px;">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+          Reorder Threshold
+        </h2>
+        <button type="button" class="modal-close-btn" id="closeThresholdModal">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="thresholdForm">
+          <input type="hidden" id="thresholdMedName" />
+          <p style="font-size: 13px; color: #64748b; margin: 0 0 16px;" id="thresholdMedLabel"></p>
+          <div class="form-group">
+            <label>Alert when total stock falls to or below</label>
+            <div class="form-row" style="align-items: flex-start;">
+              <input type="number" min="0" step="1" id="thresholdValue" placeholder="e.g. 50" style="flex: 1;" />
+              <select id="thresholdType" style="flex: 1; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px;">
+                <option value="fixed">units (fixed count)</option>
+                <option value="percentage">% of last batch received</option>
+              </select>
+            </div>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: 8px;">Leave the number blank to use the default: 10% of the most recently received batch, recalculated automatically as new batches arrive.</p>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="closeThresholdModal2">Cancel</button>
+            <button type="submit" class="btn-primary">Save Threshold</button>
           </div>
         </form>
       </div>
@@ -1130,6 +1213,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="../realtime-client.js"></script>
   <script src="../portal-ui.js"></script>
+  <script src="../medicine-autocomplete.js"></script>
 <script src="pharmacy-queue.js"></script>
 </body>
 </html>

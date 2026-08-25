@@ -382,6 +382,7 @@
     "no_staff_yet": "No staff registered yet.",
     "add_first_staff": "Add your first staff member →",
     "coming_soon": "Coming soon",
+    "open_module": "Open",
     "staff_count_zero": "No staff registered yet",
     "staff_count_one": "{count} staff member",
     "staff_count_other": "{count} staff members",

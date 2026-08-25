@@ -13,6 +13,7 @@ const { ROLE_PREFIXES, ROLE_LABELS, STAFF_ROLES, DESIGNATION_PREFIXES } = requir
 const { computeAvailableSlots } = require("./slots");
 const { assignNurseForAdmission } = require("./nurseAssignment");
 const { initRealtime, broadcast, broadcastGlobal } = require("./realtime");
+const abdmService = require("./abdmService");
 
 const UPLOADS_DIR = path.join(__dirname, "uploads", "lab-results");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -489,12 +490,34 @@ app.get("/api/hospital/disease-alerts", requireHospitalAdmin, async (req, res) =
   }
 });
 
-app.get("/api/me", requireTenantUser, (req, res) => {
-  const { fullName, role, hospitalName, details } = req.session.user;
-  res.json({
-    success: true,
-    profile: { fullName, role, roleLabel: ROLE_LABELS[role] || role, hospitalName, details: details || {} },
-  });
+app.get("/api/me", requireTenantUser, async (req, res) => {
+  const { userId, fullName, role, hospitalId, hospitalName, details } = req.session.user;
+  const profile = { fullName, role, roleLabel: ROLE_LABELS[role] || role, hospitalName, details: details || {} };
+
+  // Patients log in as their own UHID — surface their linked ABHA (if any) so
+  // the portal can show it without a second round trip. Staff/admin roles
+  // don't have a patient row, so this only runs for role === "patient".
+  if (role === "patient") {
+    try {
+      const [rows] = await pool.query(
+        "SELECT abha_id, abha_address, abha_verified, abha_link_status FROM patients WHERE uhid = ? AND hospital_id = ? LIMIT 1",
+        [userId, hospitalId]
+      );
+      if (rows.length > 0) {
+        profile.abha = {
+          abhaId: rows[0].abha_id || null,
+          abhaAddress: rows[0].abha_address || null,
+          verified: Boolean(rows[0].abha_verified),
+          linkStatus: rows[0].abha_link_status || null,
+        };
+      }
+    } catch (err) {
+      console.error("Fetch patient ABHA for /api/me error:", err.message);
+      // Non-fatal — profile still loads without the ABHA block.
+    }
+  }
+
+  res.json({ success: true, profile });
 });
 
 app.get("/api/hospital/staff", requireHospitalAdmin, async (req, res) => {
@@ -713,6 +736,9 @@ app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
     emergencyContactName,
     emergencyContactPhone,
     abhaId,
+    abhaAddress,
+    abhaVerified,
+    abhaLinkStatus,
     category,
     uhid: customUhid,
     password: customPassword,
@@ -756,11 +782,18 @@ app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
     const password = customPassword || generateTempPassword();
     const passwordHash = await bcrypt.hash(password, 12);
 
+    const ALLOWED_ABHA_LINK_STATUSES = ["verified", "pending", "not_found"];
+    const linkStatus = abhaVerified
+      ? "verified"
+      : ALLOWED_ABHA_LINK_STATUSES.includes(abhaLinkStatus)
+      ? abhaLinkStatus
+      : null;
+
     const [result] = await pool.query(
       `INSERT INTO patients
         (hospital_id, uhid, password_hash, full_name, dob, gender, phone, address, emergency_contact_name,
-         emergency_contact_phone, abha_id, category, registered_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         emergency_contact_phone, abha_id, abha_address, abha_verified, abha_link_status, category, registered_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         hospitalId,
         customUhid || null,
@@ -773,6 +806,9 @@ app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
         emergencyContactName || null,
         emergencyContactPhone || null,
         abhaId || null,
+        abhaAddress || null,
+        abhaVerified ? 1 : 0,
+        linkStatus,
         category || null,
         userId,
       ]
@@ -796,6 +832,142 @@ app.post("/api/patients", requireReceptionistOrAdmin, async (req, res) => {
   } catch (err) {
     console.error("Create patient error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- ABHA (Ayushman Bharat Health Account) fetch-on-registration ----------
+// Lets the receptionist pull an existing ABHA holder's demographics (name, DOB,
+// gender, address, ABHA number/address) via mobile or Aadhaar + OTP, to auto-fill
+// the New Patient form instead of typing everything by hand. Falls back to a
+// "create a new ABHA" (Aadhaar OTP enrollment) flow if none is found.
+//
+// Each requested txnId is remembered server-side (short TTL, in-memory) so verify
+// can't be called with an OTP for a different identifier than the one that
+// actually requested it, and so stale txns don't linger.
+const abdmTxns = new Map(); // txnId -> { kind: 'login'|'enroll', identifierType, identifierValue, createdAt }
+const ABDM_TXN_TTL_MS = 10 * 60 * 1000;
+
+function rememberAbdmTxn(txnId, entry) {
+  abdmTxns.set(txnId, { ...entry, createdAt: Date.now() });
+}
+function takeAbdmTxn(txnId) {
+  const entry = abdmTxns.get(txnId);
+  if (!entry) return null;
+  if (Date.now() - entry.createdAt > ABDM_TXN_TTL_MS) {
+    abdmTxns.delete(txnId);
+    return null;
+  }
+  return entry;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [txnId, entry] of abdmTxns) {
+    if (now - entry.createdAt > ABDM_TXN_TTL_MS) abdmTxns.delete(txnId);
+  }
+}, 5 * 60 * 1000).unref();
+
+// Provider outages/timeouts/missing-config all surface as PROVIDER_ERROR or
+// NOT_CONFIGURED — both are reported to the frontend as `providerDown: true`
+// so staff can carry on registering the patient manually (with abha_link_status
+// left 'pending' for a later retry) instead of being blocked by an ABDM/Eka
+// Care hiccup.
+function respondAbdmError(res, err, fallbackMessage) {
+  if (err.code === "INVALID_OTP") {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+  if (err.code === "NOT_FOUND") {
+    return res.status(404).json({
+      success: false,
+      notFound: true,
+      message: "No ABHA found for this identifier. Continue with manual registration, or create a new ABHA.",
+    });
+  }
+  if (err.code === "NOT_CONFIGURED" || err.code === "PROVIDER_ERROR") {
+    console.error("ABHA provider unavailable:", err.message);
+    return res.status(502).json({
+      success: false,
+      providerDown: true,
+      message: `${fallbackMessage} You can continue with manual registration — this patient will be flagged for an ABHA retry later.`,
+    });
+  }
+  console.error("ABHA unexpected error:", err.message);
+  return res.status(502).json({ success: false, providerDown: true, message: fallbackMessage });
+}
+
+app.post("/api/abha/request-otp", requireReceptionistOrAdmin, async (req, res) => {
+  const { type, value } = req.body || {};
+  if (!["mobile", "aadhaar"].includes(type) || !value) {
+    return res.status(400).json({ success: false, message: "A mobile number or Aadhaar number is required." });
+  }
+  const digits = String(value).replace(/\D/g, "");
+  if (type === "mobile" && !/^[6-9]\d{9}$/.test(digits)) {
+    return res.status(400).json({ success: false, message: "Enter a valid 10-digit mobile number." });
+  }
+  if (type === "aadhaar" && !/^\d{12}$/.test(digits)) {
+    return res.status(400).json({ success: false, message: "Enter a valid 12-digit Aadhaar number." });
+  }
+
+  try {
+    const { txnId } = await abdmService.requestLoginOtp(type, digits);
+    rememberAbdmTxn(txnId, { kind: "login", identifierType: type, identifierValue: digits });
+    res.json({ success: true, txnId, mock: abdmService.isMock(), provider: abdmService.currentProviderName() });
+  } catch (err) {
+    respondAbdmError(res, err, "Could not reach the ABHA provider to send an OTP.");
+  }
+});
+
+app.post("/api/abha/verify-otp", requireReceptionistOrAdmin, async (req, res) => {
+  const { txnId, otp } = req.body || {};
+  if (!txnId || !otp) {
+    return res.status(400).json({ success: false, message: "OTP is required." });
+  }
+  const entry = takeAbdmTxn(txnId);
+  if (!entry || entry.kind !== "login") {
+    return res.status(400).json({ success: false, message: "This OTP request has expired. Please fetch details again." });
+  }
+
+  try {
+    const profile = await abdmService.verifyLoginOtp(txnId, String(otp).trim(), entry.identifierType);
+    abdmTxns.delete(txnId);
+    res.json({ success: true, profile });
+  } catch (err) {
+    respondAbdmError(res, err, "Could not verify the OTP with the ABHA provider.");
+  }
+});
+
+// Create-a-new-ABHA fallback (Aadhaar OTP enrollment) — reuses the same OTP UI.
+app.post("/api/abha/enroll/request-otp", requireReceptionistOrAdmin, async (req, res) => {
+  const { aadhaar } = req.body || {};
+  const digits = String(aadhaar || "").replace(/\D/g, "");
+  if (!/^\d{12}$/.test(digits)) {
+    return res.status(400).json({ success: false, message: "Enter a valid 12-digit Aadhaar number." });
+  }
+
+  try {
+    const { txnId } = await abdmService.requestEnrollmentOtp(digits);
+    rememberAbdmTxn(txnId, { kind: "enroll", identifierType: "aadhaar", identifierValue: digits });
+    res.json({ success: true, txnId, mock: abdmService.isMock(), provider: abdmService.currentProviderName() });
+  } catch (err) {
+    respondAbdmError(res, err, "Could not reach the ABHA provider to send an OTP.");
+  }
+});
+
+app.post("/api/abha/enroll/verify-otp", requireReceptionistOrAdmin, async (req, res) => {
+  const { txnId, otp, mobile } = req.body || {};
+  if (!txnId || !otp) {
+    return res.status(400).json({ success: false, message: "OTP is required." });
+  }
+  const entry = takeAbdmTxn(txnId);
+  if (!entry || entry.kind !== "enroll") {
+    return res.status(400).json({ success: false, message: "This OTP request has expired. Please try again." });
+  }
+
+  try {
+    const profile = await abdmService.verifyEnrollmentOtp(txnId, String(otp).trim(), mobile);
+    abdmTxns.delete(txnId);
+    res.json({ success: true, profile });
+  } catch (err) {
+    respondAbdmError(res, err, "Could not create the ABHA with the provider.");
   }
 });
 
@@ -1918,11 +2090,17 @@ app.post("/api/pharmacy-orders", requireRole("doctor"), async (req, res) => {
 
 app.get("/api/pharmacy-orders", requireTenantUser, async (req, res) => {
   try {
+    // Was missing a hospital_id filter — every logged-in staff member, at
+    // any hospital, could see every other hospital's pharmacy orders. Found
+    // while building the admin Pharmacy overview on 2026-08-21.
+    const { hospitalId } = req.session.user;
     const [orders] = await pool.query(
-      `SELECT po.*, p.full_name as patient_name, p.dob as patient_dob, p.gender as patient_gender 
+      `SELECT po.*, p.full_name as patient_name, p.dob as patient_dob, p.gender as patient_gender
        FROM medisys_pharmacy.pharmacy_orders po
        LEFT JOIN patients p ON po.patient_uhid = p.uhid
-       ORDER BY po.created_at DESC`
+       WHERE po.hospital_id = ?
+       ORDER BY po.created_at DESC`,
+      [hospitalId]
     );
     res.json({ success: true, orders });
   } catch (err) {
@@ -1933,12 +2111,12 @@ app.get("/api/pharmacy-orders", requireTenantUser, async (req, res) => {
 
 app.post("/api/pharmacy-orders/:id/dispense", requireTenantUser, async (req, res) => {
   try {
-    const { userId } = req.session.user;
+    const { userId, hospitalId } = req.session.user;
     const orderId = req.params.id;
 
     // 1. Get the order to find medicine name
     const [orders] = await pool.query(
-      `SELECT * FROM medisys_pharmacy.pharmacy_orders WHERE id = ?`, [orderId]
+      `SELECT * FROM medisys_pharmacy.pharmacy_orders WHERE id = ? AND hospital_id = ?`, [orderId, hospitalId]
     );
     if (orders.length === 0) {
       return res.status(404).json({ success: false, message: "Order not found." });
@@ -1950,12 +2128,15 @@ app.post("/api/pharmacy-orders/:id/dispense", requireTenantUser, async (req, res
 
     // 2. Auto-deduct stock — find matching stock by medicine name (case-insensitive, closest match)
     //    Pick the batch with earliest expiry (FEFO — First Expiry First Out) that has stock > 0
+    //    Scoped to this hospital — was missing hospital_id, so dispensing here
+    //    could silently deduct another hospital's stock. Found/fixed alongside
+    //    the low-stock alert feature on 2026-08-21.
     const medName = order.medicine_name.trim();
     const [matchingStock] = await pool.query(
-      `SELECT * FROM medisys_pharmacy.pharmacy_stock 
-       WHERE LOWER(medicine_name) LIKE CONCAT('%', LOWER(?), '%') AND stock_quantity > 0
+      `SELECT * FROM medisys_pharmacy.pharmacy_stock
+       WHERE hospital_id = ? AND LOWER(medicine_name) LIKE CONCAT('%', LOWER(?), '%') AND stock_quantity > 0
        ORDER BY expiry_date ASC LIMIT 1`,
-      [medName]
+      [hospitalId, medName]
     );
 
     let stockDeducted = false;
@@ -2263,8 +2444,13 @@ app.post("/api/pharmacy-direct-sale", requireTenantUser, async (req, res) => {
 
 app.get("/api/pharmacy-stock", requireTenantUser, async (req, res) => {
   try {
+    // Was missing a hospital_id filter — every hospital's stock was visible
+    // to every other hospital's staff. Found/fixed alongside the low-stock
+    // alert feature on 2026-08-21.
+    const { hospitalId } = req.session.user;
     const [stock] = await pool.query(
-      `SELECT * FROM medisys_pharmacy.pharmacy_stock ORDER BY medicine_name ASC`
+      `SELECT * FROM medisys_pharmacy.pharmacy_stock WHERE hospital_id = ? ORDER BY medicine_name ASC`,
+      [hospitalId]
     );
     res.json({ success: true, stock });
   } catch (err) {
@@ -2276,17 +2462,21 @@ app.get("/api/pharmacy-stock", requireTenantUser, async (req, res) => {
 app.post("/api/pharmacy-stock", requireTenantUser, async (req, res) => {
   try {
     const { userId, hospitalId } = req.session.user;
-    const { medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel, unitPrice } = req.body;
-    
+    const { medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel, unitPrice, supplierName } = req.body;
+
     if (!medicineName || !category || !batchNumber || !expiryDate || stockQuantity === undefined) {
       return res.status(400).json({ success: false, message: "Missing required fields." });
     }
 
+    // received_quantity is set once here and never mutated again — it's the
+    // batch's original size, kept separate from stock_quantity (which
+    // dispensing/edits move) so "10% of the last-received batch" default
+    // reorder thresholds stay meaningful after the batch has been drawn down.
     await pool.query(
-      `INSERT INTO medisys_pharmacy.pharmacy_stock 
-       (hospital_id, medicine_name, category, batch_number, expiry_date, stock_quantity, min_stock_level, unit_price, added_by) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [hospitalId || 1, medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel || 10, unitPrice || null, userId]
+      `INSERT INTO medisys_pharmacy.pharmacy_stock
+       (hospital_id, medicine_name, category, batch_number, expiry_date, stock_quantity, received_quantity, min_stock_level, unit_price, supplier_name, added_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [hospitalId || 1, medicineName, category, batchNumber, expiryDate, stockQuantity, stockQuantity, minStockLevel || 10, unitPrice || null, supplierName || null, userId]
     );
     broadcast(req, "pharmacy_stock");
     res.json({ success: true, message: "Stock added successfully." });
@@ -2299,14 +2489,20 @@ app.post("/api/pharmacy-stock", requireTenantUser, async (req, res) => {
 // Edit stock
 app.put("/api/pharmacy-stock/:id", requireTenantUser, async (req, res) => {
   try {
-    const { medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel, unitPrice } = req.body;
-    await pool.query(
-      `UPDATE medisys_pharmacy.pharmacy_stock SET 
-       medicine_name = ?, category = ?, batch_number = ?, expiry_date = ?, 
-       stock_quantity = ?, min_stock_level = ?, unit_price = ?
-       WHERE id = ?`,
-      [medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel || 10, unitPrice || null, req.params.id]
+    const { hospitalId } = req.session.user;
+    const { medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel, unitPrice, supplierName } = req.body;
+    // Scoped to hospital_id so staff can't edit another hospital's stock row
+    // by guessing/incrementing an id.
+    const [result] = await pool.query(
+      `UPDATE medisys_pharmacy.pharmacy_stock SET
+       medicine_name = ?, category = ?, batch_number = ?, expiry_date = ?,
+       stock_quantity = ?, min_stock_level = ?, unit_price = ?, supplier_name = ?
+       WHERE id = ? AND hospital_id = ?`,
+      [medicineName, category, batchNumber, expiryDate, stockQuantity, minStockLevel || 10, unitPrice || null, supplierName || null, req.params.id, hospitalId]
     );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Stock entry not found." });
+    }
     broadcast(req, "pharmacy_stock");
     res.json({ success: true, message: "Stock updated." });
   } catch (err) {
@@ -2318,7 +2514,14 @@ app.put("/api/pharmacy-stock/:id", requireTenantUser, async (req, res) => {
 // Delete stock
 app.delete("/api/pharmacy-stock/:id", requireTenantUser, async (req, res) => {
   try {
-    await pool.query(`DELETE FROM medisys_pharmacy.pharmacy_stock WHERE id = ?`, [req.params.id]);
+    const { hospitalId } = req.session.user;
+    const [result] = await pool.query(
+      `DELETE FROM medisys_pharmacy.pharmacy_stock WHERE id = ? AND hospital_id = ?`,
+      [req.params.id, hospitalId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Stock entry not found." });
+    }
     broadcast(req, "pharmacy_stock");
     res.json({ success: true, message: "Stock entry deleted." });
   } catch (err) {
@@ -2327,12 +2530,140 @@ app.delete("/api/pharmacy-stock/:id", requireTenantUser, async (req, res) => {
   }
 });
 
+// ---------- Low Stock Alerts (per-medicine, aggregated across batches) ----------
+//
+// pharmacy_stock has no separate "medicines" table — every batch just repeats
+// the medicine's name as a string, so "per medicine" here means grouping
+// batches by (case-insensitive) medicine_name. A medicine counts as low stock
+// when its total quantity across all *non-expired* batches is at or below its
+// reorder threshold — either a manually-set value (medicine_thresholds table)
+// or, if never set, a live-computed default of 10% of the most recently
+// received batch's original size.
+app.get("/api/pharmacy-stock/low-stock", requireTenantUser, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const [batches] = await pool.query(
+      `SELECT * FROM medisys_pharmacy.pharmacy_stock WHERE hospital_id = ? ORDER BY created_at DESC`,
+      [hospitalId]
+    );
+    const [thresholdRows] = await pool.query(
+      `SELECT medicine_name, reorder_threshold, reorder_threshold_type FROM medisys_pharmacy.medicine_thresholds WHERE hospital_id = ?`,
+      [hospitalId]
+    );
+    const thresholdMap = new Map(thresholdRows.map((r) => [r.medicine_name.trim().toLowerCase(), r]));
+
+    // A medicine with a 'Submitted' PO already covering it shouldn't nag the
+    // pharmacist again on the Low Stock tab — they've already acted on it.
+    // items_summary is just a comma-joined string of medicine names (see
+    // auto-generate/reorder below), so this is a substring match rather than
+    // a proper foreign key — good enough at this scale, matches how dispense
+    // already fuzzy-matches medicine names elsewhere in this file.
+    const [pendingOrders] = await pool.query(
+      `SELECT items_summary FROM medisys_pharmacy.pharmacy_purchase_orders WHERE hospital_id = ? AND status = 'Submitted'`,
+      [hospitalId]
+    );
+    function hasPendingOrderFor(medicineName) {
+      const needle = medicineName.trim().toLowerCase();
+      return pendingOrders.some((po) =>
+        po.items_summary
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .includes(needle)
+      );
+    }
+
+    const byMedicine = new Map();
+    for (const b of batches) {
+      const key = b.medicine_name.trim().toLowerCase();
+      if (!byMedicine.has(key)) {
+        byMedicine.set(key, { medicineName: b.medicine_name, category: b.category, batches: [], lastBatch: b });
+      }
+      const group = byMedicine.get(key);
+      group.batches.push(b);
+      // batches were fetched ORDER BY created_at DESC, so the first one seen
+      // per medicine is already the most recently received.
+    }
+
+    const now = new Date();
+    const DEFAULT_THRESHOLD_PCT = 10;
+    const medicines = [];
+    for (const [key, group] of byMedicine) {
+      const currentStock = group.batches
+        .filter((b) => new Date(b.expiry_date) >= now)
+        .reduce((sum, b) => sum + Number(b.stock_quantity), 0);
+
+      const th = thresholdMap.get(key);
+      const hasCustomThreshold = Boolean(th && th.reorder_threshold !== null);
+      const thresholdType = hasCustomThreshold ? th.reorder_threshold_type : "percentage";
+      const thresholdValue = hasCustomThreshold ? Number(th.reorder_threshold) : DEFAULT_THRESHOLD_PCT;
+      // Older rows added before received_quantity existed fall back to their
+      // current stock_quantity as the closest available approximation.
+      const lastBatchReceivedQty = Number(group.lastBatch.received_quantity ?? group.lastBatch.stock_quantity);
+      const effectiveThreshold =
+        thresholdType === "percentage" ? Math.round((thresholdValue / 100) * lastBatchReceivedQty) : Math.round(thresholdValue);
+
+      medicines.push({
+        medicineName: group.medicineName,
+        category: group.category,
+        currentStock,
+        threshold: effectiveThreshold,
+        reorderThreshold: hasCustomThreshold ? thresholdValue : null,
+        reorderThresholdType: thresholdType,
+        isCustomThreshold: hasCustomThreshold,
+        lastSupplier: group.lastBatch.supplier_name || null,
+        lastBatchAt: group.lastBatch.created_at,
+        isLow: currentStock <= effectiveThreshold,
+        hasPendingOrder: hasPendingOrderFor(group.medicineName),
+      });
+    }
+
+    medicines.sort((a, b) => a.medicineName.localeCompare(b.medicineName));
+    res.json({ success: true, medicines });
+  } catch (err) {
+    console.error("Low stock check error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+app.put("/api/pharmacy-stock/thresholds", requireTenantUser, async (req, res) => {
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const { medicineName, reorderThreshold, reorderThresholdType } = req.body || {};
+    if (!medicineName || !String(medicineName).trim()) {
+      return res.status(400).json({ success: false, message: "Medicine name is required." });
+    }
+    const type = reorderThresholdType === "fixed" ? "fixed" : "percentage";
+    const value = reorderThreshold === "" || reorderThreshold === undefined || reorderThreshold === null ? null : Number(reorderThreshold);
+    if (value !== null && (!Number.isFinite(value) || value < 0)) {
+      return res.status(400).json({ success: false, message: "Threshold must be a non-negative number." });
+    }
+
+    await pool.query(
+      `INSERT INTO medisys_pharmacy.medicine_thresholds (hospital_id, medicine_name, reorder_threshold, reorder_threshold_type, updated_by)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE reorder_threshold = VALUES(reorder_threshold), reorder_threshold_type = VALUES(reorder_threshold_type),
+         updated_by = VALUES(updated_by), updated_at = NOW()`,
+      [hospitalId, String(medicineName).trim(), value, type, userId]
+    );
+    broadcast(req, "pharmacy_stock");
+    res.json({ success: true, message: "Reorder threshold updated." });
+  } catch (err) {
+    console.error("Update medicine threshold error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
 // ---------- Pharmacy Purchase Orders ----------
 
 app.get("/api/pharmacy-purchase-orders", requireTenantUser, async (req, res) => {
   try {
+    // Was missing a hospital_id filter — every hospital's purchase orders
+    // were visible to every other hospital's staff. Found/fixed alongside
+    // the low-stock alert feature on 2026-08-21.
+    const { hospitalId } = req.session.user;
     const [orders] = await pool.query(
-      `SELECT * FROM medisys_pharmacy.pharmacy_purchase_orders ORDER BY created_at DESC`
+      `SELECT * FROM medisys_pharmacy.pharmacy_purchase_orders WHERE hospital_id = ? ORDER BY created_at DESC`,
+      [hospitalId]
     );
     res.json({ success: true, orders });
   } catch (err) {
@@ -2344,10 +2675,13 @@ app.get("/api/pharmacy-purchase-orders", requireTenantUser, async (req, res) => 
 app.post("/api/pharmacy-purchase-orders/auto-generate", requireTenantUser, async (req, res) => {
   try {
     const { userId, hospitalId } = req.session.user;
-    
-    // Find all low/out of stock items
+
+    // Find all low/out of stock items — was missing a hospital_id filter
+    // (would generate a PO listing every hospital's low-stock batches).
+    // Found/fixed alongside the low-stock alert feature on 2026-08-21.
     const [lowStock] = await pool.query(
-      `SELECT * FROM medisys_pharmacy.pharmacy_stock WHERE stock_quantity <= min_stock_level`
+      `SELECT * FROM medisys_pharmacy.pharmacy_stock WHERE hospital_id = ? AND stock_quantity <= min_stock_level`,
+      [hospitalId]
     );
 
     if (lowStock.length === 0) {
@@ -2360,15 +2694,83 @@ app.post("/api/pharmacy-purchase-orders/auto-generate", requireTenantUser, async
     const totalItems = lowStock.length;
 
     await pool.query(
-      `INSERT INTO medisys_pharmacy.pharmacy_purchase_orders 
+      `INSERT INTO medisys_pharmacy.pharmacy_purchase_orders
        (hospital_id, po_number, supplier_name, items_summary, total_items, status, created_by)
        VALUES (?, ?, ?, ?, ?, 'Submitted', ?)`,
       [hospitalId || 1, poNumber, supplierName, itemsSummary, totalItems, userId]
     );
 
+    // "pharmacy_stock" is what drives the Low Stock tab's live refresh
+    // (it re-fetches /api/pharmacy-stock/low-stock, which now excludes
+    // medicines with a pending PO) — without this broadcast, staff would
+    // have to manually reload to see the item drop off the list.
+    broadcast(req, "pharmacy_stock");
+    broadcast(req, "pharmacy_purchase_orders");
     res.json({ success: true, message: `Generated PO #${poNumber} for ${totalItems} item(s).`, poNumber });
   } catch (err) {
     console.error("Auto generate PO error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// Reorder a single medicine from the Low Stock tab — same PO-creation
+// mechanics as auto-generate above, just scoped to one medicine instead of
+// every currently-low batch, per the "Create PO" button on each low-stock row.
+app.post("/api/pharmacy-purchase-orders/reorder", requireTenantUser, async (req, res) => {
+  try {
+    const { userId, hospitalId } = req.session.user;
+    const { medicineName, supplierName } = req.body || {};
+    if (!medicineName || !String(medicineName).trim()) {
+      return res.status(400).json({ success: false, message: "Medicine name is required." });
+    }
+
+    const poNumber = "PO-" + Date.now().toString().slice(-6);
+    const resolvedSupplier = supplierName || "Central Pharma Wholesalers Ltd.";
+
+    await pool.query(
+      `INSERT INTO medisys_pharmacy.pharmacy_purchase_orders
+       (hospital_id, po_number, supplier_name, items_summary, total_items, status, created_by)
+       VALUES (?, ?, ?, ?, 1, 'Submitted', ?)`,
+      [hospitalId, poNumber, resolvedSupplier, String(medicineName).trim(), userId]
+    );
+
+    // Same reasoning as auto-generate above: "pharmacy_stock" makes the Low
+    // Stock tab drop this medicine live (it now has a pending order),
+    // "pharmacy_purchase_orders" makes the new PO appear in the Orders tab.
+    broadcast(req, "pharmacy_stock");
+    broadcast(req, "pharmacy_purchase_orders");
+    res.json({ success: true, message: `Generated PO #${poNumber} for ${medicineName}.`, poNumber });
+  } catch (err) {
+    console.error("Reorder single medicine error:", err.message);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// Mark a PO Received (stock has physically arrived — staff still adds it as
+// a new batch via the normal Add Stock flow separately, this just closes the
+// order) or Cancelled (never came through — the medicine goes back to
+// needing attention on the Low Stock tab immediately, since it's no longer
+// "Submitted" and so no longer suppresses that tab's hasPendingOrder flag).
+app.patch("/api/pharmacy-purchase-orders/:id/status", requireTenantUser, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const { status } = req.body || {};
+    const ALLOWED = ["Received", "Cancelled"];
+    if (!ALLOWED.includes(status)) {
+      return res.status(400).json({ success: false, message: `Status must be one of: ${ALLOWED.join(", ")}.` });
+    }
+    const [result] = await pool.query(
+      `UPDATE medisys_pharmacy.pharmacy_purchase_orders SET status = ? WHERE id = ? AND hospital_id = ?`,
+      [status, req.params.id, hospitalId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Purchase order not found." });
+    }
+    broadcast(req, "pharmacy_stock");
+    broadcast(req, "pharmacy_purchase_orders");
+    res.json({ success: true, message: `Purchase order marked ${status}.` });
+  } catch (err) {
+    console.error("Update purchase order status error:", err.message);
     res.status(500).json({ success: false, message: "Server error." });
   }
 });

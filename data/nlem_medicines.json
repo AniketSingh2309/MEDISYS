@@ -1,0 +1,1922 @@
+[
+  {
+    "id": "MED0001",
+    "genericName": "5-aminosalicylic acid (Mesalazine/Mesalaine)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0002",
+    "genericName": "5-Fluorouracil",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0003",
+    "genericName": "6-Mercaptopurine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0004",
+    "genericName": "Abacavir",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0005",
+    "genericName": "Abacavir (A) + Lamivudine (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0006",
+    "genericName": "Acetazolamide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0007",
+    "genericName": "Acetylsalicylic acid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0008",
+    "genericName": "Actinomycin D",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0009",
+    "genericName": "Activated Charcoal",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0010",
+    "genericName": "Acyclovir",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0011",
+    "genericName": "Adenosine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0012",
+    "genericName": "Adrenaline",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0013",
+    "genericName": "Albendazole",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0014",
+    "genericName": "Allopurinol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0015",
+    "genericName": "All-trans retinoic acid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0016",
+    "genericName": "Alprostadil",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0017",
+    "genericName": "Amikacin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0018",
+    "genericName": "Amiodarone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0019",
+    "genericName": "Amitriptyline",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0020",
+    "genericName": "Amlodipine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0021",
+    "genericName": "Amoxicillin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0022",
+    "genericName": "Amoxicillin (A) + Clavulanic acid (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0023",
+    "genericName": "Amphotericin B",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0024",
+    "genericName": "Ampicillin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0025",
+    "genericName": "Anti-D immunoglobulin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0026",
+    "genericName": "Anti-rabies immunoglobulin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0027",
+    "genericName": "Anti-tetanus immunoglobulin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0028",
+    "genericName": "Arsenic trioxide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0029",
+    "genericName": "Artemether (A) + Lumefantrine (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0030",
+    "genericName": "Artesunate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0031",
+    "genericName": "Artesunate (A) + Sulphadoxine Pyrimethamine (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0032",
+    "genericName": "Ascorbic acid (Vitamin C)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0033",
+    "genericName": "Atazanavir (A) + Ritonavir (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0034",
+    "genericName": "Atorvastatin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0035",
+    "genericName": "Atracurium",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0036",
+    "genericName": "Atropine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0037",
+    "genericName": "Azathioprine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0038",
+    "genericName": "Azithromycin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0039",
+    "genericName": "Baclofen",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0040",
+    "genericName": "Barium sulphate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0041",
+    "genericName": "BCG vaccine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0042",
+    "genericName": "Bedaquiline",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0043",
+    "genericName": "Bendamustine Hydrochloride",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0044",
+    "genericName": "Benzathine benzylpenicillin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0045",
+    "genericName": "Benzoyl peroxide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0046",
+    "genericName": "Benzylpenicillin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0047",
+    "genericName": "Betamethasone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0048",
+    "genericName": "Betamethasone valerate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0049",
+    "genericName": "Bicalutamide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0050",
+    "genericName": "Bisacodyl",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0051",
+    "genericName": "Bleomycin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0052",
+    "genericName": "Bortezomib",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0053",
+    "genericName": "Budesonide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0054",
+    "genericName": "Budesonide (A) + Formoterol (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0055",
+    "genericName": "Bupivacaine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0056",
+    "genericName": "Buprenorphine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0057",
+    "genericName": "Buprenorphine (A) + Naloxone (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0058",
+    "genericName": "Caffeine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0059",
+    "genericName": "Calamine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0060",
+    "genericName": "Calcium carbonate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0061",
+    "genericName": "Calcium folinate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0062",
+    "genericName": "Calcium gluconate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0063",
+    "genericName": "Capecitabine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0064",
+    "genericName": "Carbamazepine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0065",
+    "genericName": "Carbimazole",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0066",
+    "genericName": "Carboplatin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0067",
+    "genericName": "Carboxymethyl cellulose",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0068",
+    "genericName": "Cefadroxil",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0069",
+    "genericName": "Cefazolin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0070",
+    "genericName": "Cefixime",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0071",
+    "genericName": "Cefotaxime",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0072",
+    "genericName": "Ceftazidime",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0073",
+    "genericName": "Ceftriaxone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0074",
+    "genericName": "Cefuroxime",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0075",
+    "genericName": "Cetirizine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0076",
+    "genericName": "Chlorambucil",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0077",
+    "genericName": "Chlorhexidine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0078",
+    "genericName": "Chloroquine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0079",
+    "genericName": "Cholecalciferol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0080",
+    "genericName": "Ciprofloxacin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0081",
+    "genericName": "Cisplatin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0082",
+    "genericName": "Clarithromycin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0083",
+    "genericName": "Clindamycin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0084",
+    "genericName": "Clobazam",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0085",
+    "genericName": "Clofazimine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0086",
+    "genericName": "Clomiphene citrate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0087",
+    "genericName": "Clomipramine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0088",
+    "genericName": "Clonazepam",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0089",
+    "genericName": "Clopidogrel",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0090",
+    "genericName": "Clotrimazole",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0091",
+    "genericName": "Cloxacillin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0092",
+    "genericName": "Clozapine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0093",
+    "genericName": "Coagulation factor IX",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0094",
+    "genericName": "Coagulation factor VIII",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0095",
+    "genericName": "Coal tar (A) + Salicylic Acid (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0096",
+    "genericName": "Colchicine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0097",
+    "genericName": "Condom",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0098",
+    "genericName": "Co-trimoxazole (Sulphamethoxazole + Trimethoprim)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0099",
+    "genericName": "Cryoprecipitate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0100",
+    "genericName": "Cyclophosphamide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0101",
+    "genericName": "Cycloserine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0102",
+    "genericName": "Cyclosporine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0103",
+    "genericName": "Cytosine arabinoside",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0104",
+    "genericName": "D-Penicillamine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0105",
+    "genericName": "Dabigatran",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0106",
+    "genericName": "Dacarbazine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0107",
+    "genericName": "Daclatasvir",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0108",
+    "genericName": "Dapsone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0109",
+    "genericName": "Darunavir",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0110",
+    "genericName": "Darunavir (A) + Ritonavir (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0111",
+    "genericName": "Daunorubicin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0112",
+    "genericName": "Delamanid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0113",
+    "genericName": "Desferrioxamine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0114",
+    "genericName": "Dexamethasone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0115",
+    "genericName": "Dextran-40",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0116",
+    "genericName": "Diazepam",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0117",
+    "genericName": "Diclofenac",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0118",
+    "genericName": "Dicyclomine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0119",
+    "genericName": "Diethylcarbamazine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0120",
+    "genericName": "Digoxin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0121",
+    "genericName": "Diltiazem",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0122",
+    "genericName": "Dinoprostone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0123",
+    "genericName": "Diphtheria antitoxin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0124",
+    "genericName": "Dobutamine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0125",
+    "genericName": "Docetaxel",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0126",
+    "genericName": "Dolutegravir",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0127",
+    "genericName": "Domperidone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0128",
+    "genericName": "Donepezil",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0129",
+    "genericName": "Dopamine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0130",
+    "genericName": "Doxorubicin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0131",
+    "genericName": "Doxycycline",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0132",
+    "genericName": "DPT vaccine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0133",
+    "genericName": "DPT+Hib+Hep B vaccine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0134",
+    "genericName": "Efavirenz",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0135",
+    "genericName": "Enalapril",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0136",
+    "genericName": "Enoxaparin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0137",
+    "genericName": "Entecavir",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0138",
+    "genericName": "Erythropoietin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0139",
+    "genericName": "Escitalopram",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0140",
+    "genericName": "Esmolol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0141",
+    "genericName": "Ethambutol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0142",
+    "genericName": "Ethinylestradiol (A) + Levonorgestrel (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0143",
+    "genericName": "Ethionamide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0144",
+    "genericName": "Ethyl alcohol (Denatured)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0145",
+    "genericName": "Etoposide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0146",
+    "genericName": "Fentanyl",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0147",
+    "genericName": "Ferrous Salts (A) + Folic Acid (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0148",
+    "genericName": "Ferrous salts",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0149",
+    "genericName": "Filgrastim",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0150",
+    "genericName": "Fluconazole",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0151",
+    "genericName": "Fludrocortisone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0152",
+    "genericName": "Flunarizine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0153",
+    "genericName": "Fluorescein",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0154",
+    "genericName": "Fluoxetine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0155",
+    "genericName": "Fluphenazine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0156",
+    "genericName": "Folic Acid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0157",
+    "genericName": "Framycetin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0158",
+    "genericName": "Fresh frozen plasma",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0159",
+    "genericName": "Furosemide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0160",
+    "genericName": "Fusidic acid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0161",
+    "genericName": "Gadobenate dimeglumine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0162",
+    "genericName": "Gefitinib",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0163",
+    "genericName": "Gemcitabine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0164",
+    "genericName": "Gentamicin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0165",
+    "genericName": "Glimepiride",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0166",
+    "genericName": "Glucose",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0167",
+    "genericName": "Glucose (A) + Sodium chloride (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0168",
+    "genericName": "Glutaraldehyde",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0169",
+    "genericName": "Glycerin/glycerol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0170",
+    "genericName": "Glyceryl trinitrate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0171",
+    "genericName": "Glycopyrrolate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0172",
+    "genericName": "Griseofulvin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0173",
+    "genericName": "Haemodialysis fluid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0174",
+    "genericName": "Haloperidol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0175",
+    "genericName": "Halothane",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0176",
+    "genericName": "Heparin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0177",
+    "genericName": "Hepatitis B immunoglobulin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0178",
+    "genericName": "Hepatitis B vaccine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0179",
+    "genericName": "Homatropine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0180",
+    "genericName": "Hormone releasing IUD",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0181",
+    "genericName": "Human chorionic gonadotropin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0182",
+    "genericName": "Human normal immunoglobulin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0183",
+    "genericName": "Hydrochlorothiazide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0184",
+    "genericName": "Hydrocortisone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0185",
+    "genericName": "Hydrogen peroxide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0186",
+    "genericName": "Hydroxocobalamin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0187",
+    "genericName": "Hydroxychloroquine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0188",
+    "genericName": "Hydroxypropyl methylcellulose",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0189",
+    "genericName": "Hydroxyurea",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0190",
+    "genericName": "Hyoscine butylbromide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0191",
+    "genericName": "Ibuprofen",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0192",
+    "genericName": "Ifosfamide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0193",
+    "genericName": "Imatinib",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0194",
+    "genericName": "Insulin (Soluble)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0195",
+    "genericName": "Insulin Glargine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0196",
+    "genericName": "Insulin Intermediate Acting (NPH)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0197",
+    "genericName": "Insulin Premix Injection 30:70",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0198",
+    "genericName": "Iohexol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0199",
+    "genericName": "Ipratropium",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0200",
+    "genericName": "Irinotecan HCl trihydrate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0201",
+    "genericName": "Iron sucrose",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0202",
+    "genericName": "Isoflurane",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0203",
+    "genericName": "Isoniazid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0204",
+    "genericName": "Isosorbide dinitrate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0205",
+    "genericName": "Ispaghula",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0206",
+    "genericName": "Itraconazole",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0207",
+    "genericName": "IUD containing Copper",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0208",
+    "genericName": "Ivermectin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0209",
+    "genericName": "Japanese encephalitis vaccine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0210",
+    "genericName": "Ketamine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0211",
+    "genericName": "Labetalol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0212",
+    "genericName": "Lactulose",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0213",
+    "genericName": "Lamivudine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0214",
+    "genericName": "L-Asparaginase",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0215",
+    "genericName": "Latanoprost",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0216",
+    "genericName": "Lenalidomide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0217",
+    "genericName": "Letrozole",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0218",
+    "genericName": "Leuprolide acetate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0219",
+    "genericName": "Levetiracetam",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0220",
+    "genericName": "Levodopa (A) + Carbidopa (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0221",
+    "genericName": "Levofloxacin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0222",
+    "genericName": "Levonorgestrel",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0223",
+    "genericName": "Levothyroxine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0224",
+    "genericName": "Lignocaine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0225",
+    "genericName": "Lignocaine (A) + Adrenaline (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0226",
+    "genericName": "Linezolid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0227",
+    "genericName": "Lithium",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0228",
+    "genericName": "Loperamide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0229",
+    "genericName": "Lopinavir (A) + Ritonavir (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0230",
+    "genericName": "Lorazepam",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0231",
+    "genericName": "Magnesium sulphate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0232",
+    "genericName": "Mannitol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0233",
+    "genericName": "Measles vaccine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0234",
+    "genericName": "Mebendazole",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0235",
+    "genericName": "Medroxyprogesterone acetate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0236",
+    "genericName": "Mefenamic acid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0237",
+    "genericName": "Mefloquine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0238",
+    "genericName": "Meglumine diatrizoate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0239",
+    "genericName": "Melphalan",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0240",
+    "genericName": "Meropenem",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0241",
+    "genericName": "Mesna",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0242",
+    "genericName": "Metformin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0243",
+    "genericName": "Methotrexate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0244",
+    "genericName": "Methylergometrine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0245",
+    "genericName": "Methylprednisolone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0246",
+    "genericName": "Methylrosanilinium chloride (Gentian Violet)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0247",
+    "genericName": "Methylthioninium chloride (Methylene blue)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0248",
+    "genericName": "Metoclopramide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0249",
+    "genericName": "Metoprolol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0250",
+    "genericName": "Metronidazole",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0251",
+    "genericName": "Midazolam",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0252",
+    "genericName": "Mifepristone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0253",
+    "genericName": "Miltefosine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0254",
+    "genericName": "Misoprostol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0255",
+    "genericName": "Montelukast",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0256",
+    "genericName": "Morphine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0257",
+    "genericName": "Moxifloxacin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0258",
+    "genericName": "Mupirocin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0259",
+    "genericName": "Mycophenolate mofetil",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0260",
+    "genericName": "N-acetylcysteine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0261",
+    "genericName": "Naloxone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0262",
+    "genericName": "Natamycin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0263",
+    "genericName": "Neostigmine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0264",
+    "genericName": "Nevirapine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0265",
+    "genericName": "Nicotine (replacement therapy)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0266",
+    "genericName": "Nifedipine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0267",
+    "genericName": "Nitrofurantoin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0268",
+    "genericName": "Nitrous oxide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0269",
+    "genericName": "Noradrenaline",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0270",
+    "genericName": "Norethisterone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0271",
+    "genericName": "Nystatin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0272",
+    "genericName": "Omeprazole",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0273",
+    "genericName": "Ondansetron",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0274",
+    "genericName": "Oral poliomyelitis vaccine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0275",
+    "genericName": "Oral rehydration salts",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0276",
+    "genericName": "Ormeloxifene (Centchroman)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0277",
+    "genericName": "Oxaliplatin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0278",
+    "genericName": "Oxygen",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0279",
+    "genericName": "Oxytocin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0280",
+    "genericName": "Paclitaxel",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0281",
+    "genericName": "Pantoprazole",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0282",
+    "genericName": "Para-aminosalicylic acid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0283",
+    "genericName": "Paracetamol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0284",
+    "genericName": "Paromomycin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0285",
+    "genericName": "Peritoneal dialysis solution",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0286",
+    "genericName": "Permethrin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0287",
+    "genericName": "Pheniramine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0288",
+    "genericName": "Phenobarbitone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0289",
+    "genericName": "Phenoxymethyl penicillin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0290",
+    "genericName": "Phenylephrine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0291",
+    "genericName": "Phenytoin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0292",
+    "genericName": "Phytomenadione (Vitamin K1)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0293",
+    "genericName": "Pilocarpine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0294",
+    "genericName": "Piperacillin (A) + Tazobactam (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0295",
+    "genericName": "Platelet rich plasma/Platelet concentrates",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0296",
+    "genericName": "Podophyllin resin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0297",
+    "genericName": "Potassium chloride",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0298",
+    "genericName": "Potassium permanganate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0299",
+    "genericName": "Povidone iodine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0300",
+    "genericName": "Pralidoxime chloride (2-PAM)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0301",
+    "genericName": "Praziquantel",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0302",
+    "genericName": "Prednisolone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0303",
+    "genericName": "Primaquine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0304",
+    "genericName": "Procaine Benzylpenicillin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0305",
+    "genericName": "Proparacaine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0306",
+    "genericName": "Propofol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0307",
+    "genericName": "Propranolol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0308",
+    "genericName": "Protamine Sulphate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0309",
+    "genericName": "Pyrazinamide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0310",
+    "genericName": "Pyridoxine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0311",
+    "genericName": "Quinine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0312",
+    "genericName": "Rabies vaccine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0313",
+    "genericName": "Raltegravir",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0314",
+    "genericName": "Ramipril",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0315",
+    "genericName": "Red blood cells/Packed RBCs",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0316",
+    "genericName": "Ribavirin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0317",
+    "genericName": "Riboflavin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0318",
+    "genericName": "Rifampicin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0319",
+    "genericName": "Ringer lactate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0320",
+    "genericName": "Risperidone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0321",
+    "genericName": "Ritonavir",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0322",
+    "genericName": "Rituximab",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0323",
+    "genericName": "Rotavirus vaccine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0324",
+    "genericName": "Salbutamol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0325",
+    "genericName": "Salicylic acid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0326",
+    "genericName": "Sevoflurane",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0327",
+    "genericName": "Silver sulphadiazine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0328",
+    "genericName": "Snake Venom Antiserum",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0329",
+    "genericName": "Sodium bicarbonate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0330",
+    "genericName": "Sodium chloride",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0331",
+    "genericName": "Sodium nitrite",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0332",
+    "genericName": "Sodium nitroprusside",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0333",
+    "genericName": "Sodium thiosulphate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0334",
+    "genericName": "Sodium Valproate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0335",
+    "genericName": "Sofosbuvir",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0336",
+    "genericName": "Somatostatin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0337",
+    "genericName": "Spironolactone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0338",
+    "genericName": "Streptokinase",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0339",
+    "genericName": "Streptomycin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0340",
+    "genericName": "Succinylcholine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0341",
+    "genericName": "Sulfasalazine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0342",
+    "genericName": "Sumatriptan",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0343",
+    "genericName": "Surfactant",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0344",
+    "genericName": "Tacrolimus",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0345",
+    "genericName": "Tamoxifen",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0346",
+    "genericName": "Telmisartan",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0347",
+    "genericName": "Temozolomide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0348",
+    "genericName": "Tenecteplase",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0349",
+    "genericName": "Teneligliptin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0350",
+    "genericName": "Tenofovir Disoproxil Fumarate (A) + Lamivudine (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0351",
+    "genericName": "Tenofovir Disoproxil Fumarate (A) + Lamivudine (B) + Dolutegravir (C)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0352",
+    "genericName": "Tenofovir Disoproxil Fumarate (A) + Lamivudine (B) + Efavirenz (C)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0353",
+    "genericName": "Tenofovir Alafenamide Fumarate (TAF)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0354",
+    "genericName": "Tenofovir Disoproxil Fumarate (TDF)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0355",
+    "genericName": "Terbinafine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0356",
+    "genericName": "Tetanus toxoid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0357",
+    "genericName": "Thalidomide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0358",
+    "genericName": "Thiamine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0359",
+    "genericName": "Thiopentone",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0360",
+    "genericName": "Timolol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0361",
+    "genericName": "Tiotropium",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0362",
+    "genericName": "Tramadol",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0363",
+    "genericName": "Tranexamic acid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0364",
+    "genericName": "Trastuzumab",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0365",
+    "genericName": "Trihexyphenidyl",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0366",
+    "genericName": "Tropicamide",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0367",
+    "genericName": "Tuberculin Purified Protein derivative",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0368",
+    "genericName": "Valganciclovir",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0369",
+    "genericName": "Vancomycin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0370",
+    "genericName": "Vecuronium",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0371",
+    "genericName": "Verapamil",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0372",
+    "genericName": "Vinblastine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0373",
+    "genericName": "Vincristine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0374",
+    "genericName": "Vitamin A",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0375",
+    "genericName": "Warfarin",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0376",
+    "genericName": "Water for Injection",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0377",
+    "genericName": "Whole blood",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0378",
+    "genericName": "Xylometazoline",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0379",
+    "genericName": "Zidovudine",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0380",
+    "genericName": "Zidovudine (A) + Lamivudine (B)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0381",
+    "genericName": "Zidovudine (A) + Lamivudine (B) + Nevirapine (C)",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0382",
+    "genericName": "Zinc Sulphate",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0383",
+    "genericName": "Zoledronic acid",
+    "source": "NLEM 2022 (Govt of India)"
+  },
+  {
+    "id": "MED0384",
+    "genericName": "Zolpidem",
+    "source": "NLEM 2022 (Govt of India)"
+  }
+]

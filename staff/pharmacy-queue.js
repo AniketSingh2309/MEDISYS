@@ -230,16 +230,21 @@
 
   async function dispenseMedicine(orderId) {
     if(!confirm("Are you sure you want to mark this medicine as dispensed?")) return;
-    
+
+    // Grabbed before the dispense call so we still have it even after
+    // loadPharmacyOrders() below refreshes/reorders allOrders.
+    const order = allOrders.find(o => String(o.id) === String(orderId));
+
     try {
-      const res = await fetch(`/api/pharmacy-orders/${orderId}/dispense`, { 
+      const res = await fetch(`/api/pharmacy-orders/${orderId}/dispense`, {
         method: "POST",
-        credentials: "same-origin" 
+        credentials: "same-origin"
       });
       const data = await res.json();
       if(data.success) {
         showToast("Medicine marked as dispensed & stock updated!", "success");
         loadPharmacyOrders();
+        if (order) checkLowStockAfterDispense(order.medicine_name);
       } else {
         showToast("Failed to dispense: " + data.message, "error");
       }
@@ -249,8 +254,27 @@
     }
   }
 
+  // Requirement 6: a toast right when a dispense pushes a medicine below its
+  // reorder threshold, instead of the pharmacist only finding out later from
+  // the Low Stock tab. Delegates the badge/list refresh to loadLowStock() so
+  // this stays consistent with the actionable (isLow && !hasPendingOrder) +
+  // acknowledged-state logic used everywhere else, instead of duplicating it.
+  async function checkLowStockAfterDispense(medicineName) {
+    await loadLowStock();
+    const entry = findLowStockEntry(medicineName);
+    if (entry && entry.isLow && !entry.hasPendingOrder) {
+      showToast(`Low stock alert: ${entry.medicineName} — ${entry.currentStock} left (threshold ${entry.threshold}).`, "error");
+    }
+  }
+
   let allStock = [];
   let stockSearchQuery = '';
+  let allLowStock = []; // per-medicine aggregate, from /api/pharmacy-stock/low-stock
+
+  function findLowStockEntry(medicineName) {
+    const key = (medicineName || '').trim().toLowerCase();
+    return allLowStock.find(m => m.medicineName.trim().toLowerCase() === key) || null;
+  }
 
   async function loadPharmacyStock() {
     try {
@@ -265,6 +289,229 @@
     }
   }
 
+  // The bell badge is "unseen alert count", not "current low-stock count" —
+  // clicking the bell (or the Low Stock tab itself) marks everything
+  // currently actionable as seen, dropping the badge to 0, same as a
+  // notification inbox. A medicine only counts as unseen again once it's
+  // been restocked above threshold and then dips low a *second* time — see
+  // the re-arm logic in loadLowStock() below. Scoped per hospital in
+  // localStorage so switching hospitals on the same browser doesn't leak
+  // acknowledgement state across tenants.
+  function ackStorageKey() {
+    const hid = sessionUser && sessionUser.hospitalId ? sessionUser.hospitalId : "unknown";
+    return `medisys:lowstock:acknowledged:${hid}`;
+  }
+  function getAcknowledgedSet() {
+    try {
+      const raw = localStorage.getItem(ackStorageKey());
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  }
+  function saveAcknowledgedSet(set) {
+    try {
+      localStorage.setItem(ackStorageKey(), JSON.stringify(Array.from(set)));
+    } catch {
+      // localStorage unavailable (private browsing, quota, etc.) — the bell
+      // just won't remember "seen" state across reloads; not worth surfacing.
+    }
+  }
+
+  // Per-medicine aggregate low-stock check (sum across non-expired batches vs.
+  // reorder threshold) — separate from the per-batch min_stock_level check
+  // renderStock() already did. Drives the nav bell badge, the Low Stock tab,
+  // and the extra flag on Medicine Stock rows.
+  async function loadLowStock() {
+    try {
+      const res = await fetch("/api/pharmacy-stock/low-stock", { credentials: "same-origin" });
+      const data = await res.json();
+      if (data.success) {
+        allLowStock = data.medicines || [];
+        const actionable = actionableLowStock();
+
+        // Re-arm: forget "seen" for anything that's no longer actionable
+        // (restocked, or now covered by a PO) so it alerts fresh next time
+        // it genuinely goes low again, instead of staying silently muted.
+        const acked = getAcknowledgedSet();
+        const stillRelevant = new Set(actionable.map(m => m.medicineName.trim().toLowerCase()));
+        let ackChanged = false;
+        for (const name of Array.from(acked)) {
+          if (!stillRelevant.has(name)) {
+            acked.delete(name);
+            ackChanged = true;
+          }
+        }
+        if (ackChanged) saveAcknowledgedSet(acked);
+
+        const unseenCount = actionable.filter(m => !acked.has(m.medicineName.trim().toLowerCase())).length;
+        const bellBadge = document.getElementById("lowStockBellBadge");
+        if (bellBadge) {
+          bellBadge.textContent = unseenCount;
+          bellBadge.hidden = unseenCount === 0;
+        }
+        const tabBadge = document.getElementById("lowStockTabCount");
+        if (tabBadge) tabBadge.textContent = actionable.length;
+        renderLowStock();
+        // The Medicine Stock tab's per-row flags depend on allLowStock too —
+        // re-render it if it's the currently visible section.
+        const stockSection = document.getElementById("sectionStock");
+        if (stockSection && !stockSection.hidden) renderStock();
+      }
+    } catch (err) {
+      console.error("Error loading low stock alerts:", err);
+    }
+  }
+
+  // The "actionable" low-stock set — genuinely low AND not already covered
+  // by a pending PO. Used consistently for the tab list, the nav badge, and
+  // the bell badge, so all three always agree on what still needs attention.
+  function actionableLowStock() {
+    return allLowStock.filter(m => m.isLow && !m.hasPendingOrder);
+  }
+
+  function renderLowStock() {
+    const list = document.getElementById("lowStockList");
+    const emptyState = document.getElementById("lowStockEmptyState");
+    if (!list) return;
+    const lowOnes = actionableLowStock();
+
+    if (lowOnes.length === 0) {
+      list.innerHTML = "";
+      if (emptyState) emptyState.hidden = false;
+      return;
+    }
+    if (emptyState) emptyState.hidden = true;
+
+    list.innerHTML = lowOnes.map(m => `
+      <div class="stock-list-item" style="border-left: 3px solid #b91c1c; background: #fef2f2;">
+        <div class="stock-info" style="flex: 1;">
+          <h4 style="margin-bottom: 4px;">${escapeHtml(m.medicineName)} <span style="font-size: 12px; color: #94a3b8; font-weight: 400;">${escapeHtml(m.category || '')}</span></h4>
+          <div style="font-size: 13px; color: #64748b;">
+            Threshold: ${m.threshold} ${m.reorderThresholdType === 'percentage' ? `(${m.isCustomThreshold ? m.reorderThreshold : 10}% of last batch)` : '(fixed)'}
+            &nbsp;|&nbsp; Last supplier: ${escapeHtml(m.lastSupplier || '—')}
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="text-align: right;">
+            <div style="font-size: 20px; font-weight: 700; font-family: serif; color: #b91c1c; margin-bottom: 2px;">
+              ${m.currentStock} <span style="font-size: 12px; color: #64748b;">left</span>
+            </div>
+            <span style="font-size: 11px; font-weight: 600; color: #b91c1c;">LOW STOCK</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <button onclick="window.__openThresholdModal('${escapeHtml(m.medicineName)}')" style="padding: 4px 10px; font-size: 12px; border: 1px solid #e2e8f0; background: white; border-radius: 6px; cursor: pointer; color: #334155;">Set Threshold</button>
+            <button onclick="window.__reorderMedicine('${escapeHtml(m.medicineName)}', '${escapeHtml(m.lastSupplier || '')}')" style="padding: 4px 10px; font-size: 12px; border: 1px solid #93c5fd; background: #eff6ff; border-radius: 6px; cursor: pointer; color: #1d4ed8; font-weight: 600;">Create PO</button>
+          </div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  // --- REORDER: create a PO for one low-stock medicine (reuses the same PO
+  // mechanics as the "auto-generate" bulk flow, just scoped to one item) ---
+  window.__reorderMedicine = async function(medicineName, supplierName) {
+    try {
+      const res = await fetch("/api/pharmacy-purchase-orders/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ medicineName, supplierName: supplierName || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || `PO created for ${medicineName}.`, "success");
+        // Don't wait on the realtime round-trip for this — refresh both tabs
+        // immediately so the medicine visibly moves from Low Stock to Orders
+        // right away. (The realtime "pharmacy_stock"/"pharmacy_purchase_orders"
+        // broadcasts still fire too, in case another pharmacist has this page
+        // open at the same time.)
+        loadLowStock();
+        loadPurchaseOrders();
+      } else {
+        showToast("Failed to create PO: " + data.message, "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error connecting to server.", "error");
+    }
+  };
+
+  let allOrders_purchase = []; // purchase orders — separate from allOrders (pharmacy_orders/prescriptions)
+
+  async function loadPurchaseOrders() {
+    try {
+      const res = await fetch("/api/pharmacy-purchase-orders", { credentials: "same-origin" });
+      const data = await res.json();
+      if (data.success) {
+        allOrders_purchase = data.orders || [];
+        renderPurchaseOrders();
+      }
+    } catch (err) {
+      console.error("Error loading purchase orders:", err);
+    }
+  }
+
+  function renderPurchaseOrders() {
+    const list = document.getElementById("ordersList");
+    const emptyState = document.getElementById("ordersEmptyState");
+    if (!list) return;
+
+    const submittedCount = allOrders_purchase.filter(o => o.status === 'Submitted').length;
+    const tabBadge = document.getElementById("ordersTabCount");
+    if (tabBadge) tabBadge.textContent = submittedCount;
+
+    if (allOrders_purchase.length === 0) {
+      list.innerHTML = "";
+      if (emptyState) emptyState.hidden = false;
+      return;
+    }
+    if (emptyState) emptyState.hidden = true;
+
+    const statusColor = (status) => status === 'Submitted' ? '#d97706' : status === 'Received' ? '#047857' : '#94a3b8';
+
+    list.innerHTML = allOrders_purchase.map(po => `
+      <div class="stock-list-item">
+        <div class="stock-info" style="flex: 1;">
+          <h4 style="margin-bottom: 4px;">${escapeHtml(po.po_number)} <span style="font-size: 12px; color: #94a3b8; font-weight: 400;">${escapeHtml(po.supplier_name)}</span></h4>
+          <div style="font-size: 13px; color: #64748b;">
+            ${escapeHtml(po.items_summary)} &nbsp;|&nbsp; ${po.total_items} item(s) &nbsp;|&nbsp; ${new Date(po.created_at).toLocaleDateString()}
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 11px; font-weight: 700; color: ${statusColor(po.status)}; text-transform: uppercase;">${escapeHtml(po.status)}</span>
+          ${po.status === 'Submitted' ? `
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <button onclick="window.__setPoStatus(${po.id}, 'Received')" style="padding: 4px 10px; font-size: 12px; border: 1px solid #86efac; background: #f0fdf4; border-radius: 6px; cursor: pointer; color: #047857; font-weight: 600;">Mark Received</button>
+              <button onclick="window.__setPoStatus(${po.id}, 'Cancelled')" style="padding: 4px 10px; font-size: 12px; border: 1px solid #fca5a5; background: #fef2f2; border-radius: 6px; cursor: pointer; color: #b91c1c;">Cancel</button>
+            </div>` : ''}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  window.__setPoStatus = async function (id, status) {
+    try {
+      const res = await fetch(`/api/pharmacy-purchase-orders/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || `Marked ${status}.`, "success");
+        loadPurchaseOrders();
+        loadLowStock(); // Cancelled orders send the medicine back to Low Stock immediately
+      } else {
+        showToast("Failed: " + data.message, "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error connecting to server.", "error");
+    }
+  };
+
   function renderStock() {
     const list = document.getElementById("stockList");
     let filtered = allStock;
@@ -272,19 +519,19 @@
       const q = stockSearchQuery.toLowerCase();
       filtered = filtered.filter(s => s.medicine_name.toLowerCase().includes(q));
     }
-    
+
     const trackedCount = allStock.length;
     const lowCount = allStock.filter(s => s.stock_quantity <= s.min_stock_level).length;
-    
+
     const sixtyDaysFromNow = new Date();
     sixtyDaysFromNow.setDate(sixtyDaysFromNow.getDate() + 60);
     const expiringCount = allStock.filter(s => new Date(s.expiry_date) <= sixtyDaysFromNow).length;
-    
+
     document.getElementById("statTracked").textContent = trackedCount;
     document.getElementById("statLow").textContent = lowCount;
     document.getElementById("statExpiring").textContent = expiringCount;
     document.getElementById("stockCount").textContent = lowCount > 0 ? lowCount : trackedCount;
-    
+
     if (filtered.length === 0) {
       list.innerHTML = `<p style="padding:20px; text-align:center; color:#64748b;">No stock items found.</p>`;
       return;
@@ -296,13 +543,29 @@
       if (item.stock_quantity === 0) { stockColor = '#b91c1c'; statusLabel = 'Out of Stock'; }
       else if (item.stock_quantity <= item.min_stock_level) { stockColor = '#d97706'; statusLabel = 'Low Stock'; }
 
+      // Medicine-wide aggregate check (across all this medicine's batches),
+      // separate from the single-batch statusLabel above. Suppressed once a
+      // PO is already out for this medicine — same "actionable" definition
+      // as the Low Stock tab, so the two views never contradict each other.
+      const aggEntry = findLowStockEntry(item.medicine_name);
+      const aggActionable = aggEntry && aggEntry.isLow && !aggEntry.hasPendingOrder;
+      const aggFlag = aggActionable
+        ? `<div style="margin-top: 4px; font-size: 11px; font-weight: 700; color: #b91c1c; display: flex; align-items: center; gap: 4px;">
+             <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"></path></svg>
+             LOW STOCK across all batches (${aggEntry.currentStock}/${aggEntry.threshold})
+           </div>`
+        : aggEntry && aggEntry.isLow && aggEntry.hasPendingOrder
+        ? `<div style="margin-top: 4px; font-size: 11px; font-weight: 700; color: #1d4ed8;">PO already raised — see Orders tab</div>`
+        : '';
+
       return `
-      <div class="stock-list-item">
+      <div class="stock-list-item"${aggActionable ? ' style="border-left: 3px solid #b91c1c;"' : ''}>
         <div class="stock-info" style="flex: 1;">
           <h4 style="margin-bottom: 4px;">${escapeHtml(item.medicine_name)} <span style="font-size: 12px; color: #94a3b8; font-weight: 400;">${escapeHtml(item.category || '')}</span></h4>
           <div style="font-size: 13px; color: #64748b;">
             Batch: ${escapeHtml(item.batch_number)} &nbsp;|&nbsp; Exp: ${item.expiry_date ? item.expiry_date.split('T')[0] : 'N/A'} &nbsp;|&nbsp; Min: ${item.min_stock_level}
           </div>
+          ${aggFlag}
         </div>
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="text-align: right;">
@@ -312,7 +575,8 @@
             <span style="font-size: 11px; font-weight: 600; color: ${stockColor};">${statusLabel}</span>
           </div>
           <div style="display: flex; flex-direction: column; gap: 6px;">
-            <button onclick="window.__editStock(${item.id}, '${escapeHtml(item.medicine_name)}', '${escapeHtml(item.category)}', '${escapeHtml(item.batch_number)}', '${item.expiry_date ? item.expiry_date.split('T')[0] : ''}', ${item.stock_quantity}, ${item.min_stock_level}, ${item.unit_price || 0})" style="padding: 4px 10px; font-size: 12px; border: 1px solid #e2e8f0; background: white; border-radius: 6px; cursor: pointer; color: #334155;">Edit</button>
+            <button onclick="window.__editStock(${item.id}, '${escapeHtml(item.medicine_name)}', '${escapeHtml(item.category)}', '${escapeHtml(item.batch_number)}', '${item.expiry_date ? item.expiry_date.split('T')[0] : ''}', ${item.stock_quantity}, ${item.min_stock_level}, ${item.unit_price || 0}, '${escapeHtml(item.supplier_name || '')}')" style="padding: 4px 10px; font-size: 12px; border: 1px solid #e2e8f0; background: white; border-radius: 6px; cursor: pointer; color: #334155;">Edit</button>
+            <button onclick="window.__openThresholdModal('${escapeHtml(item.medicine_name)}')" style="padding: 4px 10px; font-size: 12px; border: 1px solid #e2e8f0; background: white; border-radius: 6px; cursor: pointer; color: #334155;">Threshold</button>
             <button onclick="window.__deleteStock(${item.id})" style="padding: 4px 10px; font-size: 12px; border: 1px solid #fca5a5; background: #fef2f2; border-radius: 6px; cursor: pointer; color: #b91c1c;">Delete</button>
           </div>
         </div>
@@ -322,16 +586,18 @@
   }
 
   // --- EDIT STOCK ---
-  window.__editStock = function(id, name, category, batch, expiry, qty, minLevel, price) {
+  window.__editStock = function(id, name, category, batch, expiry, qty, minLevel, price, supplier) {
     document.getElementById('stockMedName').value = name;
     document.getElementById('stockCategory').value = category;
     document.getElementById('stockBatch').value = batch;
     document.getElementById('stockExpiry').value = expiry;
     document.getElementById('stockQty').value = qty;
     document.getElementById('stockPrice').value = price || '';
+    const supplierInput = document.getElementById('stockSupplier');
+    if (supplierInput) supplierInput.value = supplier || '';
     const minInput = document.getElementById('stockMinLevel');
     if (minInput) minInput.value = minLevel;
-    
+
     // Set editing mode
     const form = document.getElementById('addStockForm');
     form.setAttribute('data-edit-id', id);
@@ -392,7 +658,8 @@
         expiryDate: document.getElementById("stockExpiry").value,
         stockQuantity: parseInt(document.getElementById("stockQty").value, 10),
         minStockLevel: minInput ? parseInt(minInput.value, 10) || 10 : 10,
-        unitPrice: parseFloat(document.getElementById("stockPrice").value) || null
+        unitPrice: parseFloat(document.getElementById("stockPrice").value) || null,
+        supplierName: document.getElementById("stockSupplier").value.trim() || null
       };
 
       const url = editId ? `/api/pharmacy-stock/${editId}` : '/api/pharmacy-stock';
@@ -424,6 +691,67 @@
     document.getElementById("stockSearchInput").addEventListener("input", (e) => {
       stockSearchQuery = e.target.value.trim();
       renderStock();
+    });
+  }
+
+  // --- REORDER THRESHOLD: per-medicine, edited from Medicine Stock or Low Stock tab ---
+  window.__openThresholdModal = function (medicineName) {
+    document.getElementById('thresholdMedName').value = medicineName;
+    document.getElementById('thresholdMedLabel').textContent = medicineName;
+
+    const existing = findLowStockEntry(medicineName);
+    const typeSelect = document.getElementById('thresholdType');
+    const valueInput = document.getElementById('thresholdValue');
+    if (existing && existing.isCustomThreshold) {
+      typeSelect.value = existing.reorderThresholdType;
+      valueInput.value = existing.reorderThreshold;
+    } else {
+      // No custom threshold set yet — leave the value blank (placeholder
+      // explains the 10%-of-last-batch default) rather than pre-filling 10,
+      // so an empty save keeps it on the auto-computed default.
+      typeSelect.value = 'percentage';
+      valueInput.value = '';
+    }
+
+    document.getElementById('thresholdModal').classList.add('show');
+  };
+
+  function setupThresholdModal() {
+    const modal = document.getElementById("thresholdModal");
+    function closeModal() { modal.classList.remove("show"); }
+
+    document.getElementById("closeThresholdModal").addEventListener("click", closeModal);
+    const closeBtn2 = document.getElementById("closeThresholdModal2");
+    if (closeBtn2) closeBtn2.addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    document.getElementById("thresholdForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const medicineName = document.getElementById("thresholdMedName").value;
+      const reorderThresholdType = document.getElementById("thresholdType").value;
+      const reorderThreshold = document.getElementById("thresholdValue").value;
+
+      try {
+        const res = await fetch("/api/pharmacy-stock/thresholds", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ medicineName, reorderThreshold, reorderThresholdType }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Reorder threshold saved for ${medicineName}.`, "success");
+          closeModal();
+          loadLowStock();
+        } else {
+          showToast("Failed: " + data.message, "error");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Error connecting to server.", "error");
+      }
     });
   }
 
@@ -524,24 +852,60 @@
     // Wire Main Nav Tabs
     const navPrescriptions = document.getElementById("navPrescriptions");
     const navStock = document.getElementById("navStock");
+    const navLowStock = document.getElementById("navLowStock");
+    const navOrders = document.getElementById("navOrders");
     const navSummary = document.getElementById("navSummary");
     const navBilling = document.getElementById("navBilling");
     const navPatients = document.getElementById("navPatients");
-    
+
     const sectionPrescriptions = document.getElementById("sectionPrescriptions");
     const sectionStock = document.getElementById("sectionStock");
+    const sectionLowStock = document.getElementById("sectionLowStock");
+    const sectionOrders = document.getElementById("sectionOrders");
     const sectionSummary = document.getElementById("sectionSummary");
     const sectionBilling = document.getElementById("sectionBilling");
     const sectionPatients = document.getElementById("sectionPatients");
-    
+
     function hideAllSections() {
       if (sectionPrescriptions) sectionPrescriptions.hidden = true;
       if (sectionStock) sectionStock.hidden = true;
+      if (sectionLowStock) sectionLowStock.hidden = true;
+      if (sectionOrders) sectionOrders.hidden = true;
       if (sectionSummary) sectionSummary.hidden = true;
       if (sectionBilling) sectionBilling.hidden = true;
       if (sectionPatients) sectionPatients.hidden = true;
       document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
     }
+
+    if (navOrders) {
+      navOrders.addEventListener("click", () => {
+        hideAllSections();
+        navOrders.classList.add("active");
+        if (sectionOrders) sectionOrders.hidden = false;
+        loadPurchaseOrders();
+      });
+    }
+    // Exposed so the header bell icon (outside the pharmacy-nav pill row) can
+    // jump straight to the Low Stock tab from any section. Also acknowledges
+    // every currently-actionable alert (bell badge -> 0) since arriving here
+    // — via the bell or the pill tab, either way the pharmacist has now seen
+    // the list. The tab's own content still shows everything low; only the
+    // bell's "unseen count" is affected.
+    window.__showLowStockTab = function () {
+      hideAllSections();
+      if (navLowStock) navLowStock.classList.add("active");
+      if (sectionLowStock) sectionLowStock.hidden = false;
+      loadLowStock().then(() => {
+        const acked = getAcknowledgedSet();
+        actionableLowStock().forEach(m => acked.add(m.medicineName.trim().toLowerCase()));
+        saveAcknowledgedSet(acked);
+        const bellBadge = document.getElementById("lowStockBellBadge");
+        if (bellBadge) {
+          bellBadge.textContent = "0";
+          bellBadge.hidden = true;
+        }
+      });
+    };
 
     if (navPrescriptions) {
       navPrescriptions.addEventListener("click", () => {
@@ -550,7 +914,7 @@
         if (sectionPrescriptions) sectionPrescriptions.hidden = false;
       });
     }
-    
+
     if (navStock) {
       navStock.addEventListener("click", () => {
         hideAllSections();
@@ -559,7 +923,16 @@
         loadPharmacyStock();
       });
     }
-    
+
+    if (navLowStock) {
+      navLowStock.addEventListener("click", () => window.__showLowStockTab());
+    }
+
+    const lowStockBellBtn = document.getElementById("lowStockBellBtn");
+    if (lowStockBellBtn) {
+      lowStockBellBtn.addEventListener("click", () => window.__showLowStockTab());
+    }
+
     if (navSummary) {
       navSummary.addEventListener("click", () => {
         hideAllSections();
@@ -1485,7 +1858,13 @@
   }
 
   setupStockModal();
+  setupThresholdModal();
   setupPayModal();
+
+  // Nav bell badge + Low Stock tab need this from the start, not just when
+  // the Medicine Stock or Low Stock tab is first opened.
+  loadLowStock();
+  loadPurchaseOrders();
 
   // Live push does the real-time work now; this is just a safety-net in case
   // a socket ever silently drops.
@@ -1497,7 +1876,19 @@
       loadReadyToBill();
     });
     MEDISYS_RT.on("pharmacy_invoices", loadBillingSection);
-    MEDISYS_RT.on("pharmacy_stock", loadPharmacyStock);
+    // A dispense, a new/edited/deleted batch, or a threshold change can all
+    // change who's low on stock — re-check on every "pharmacy_stock" push
+    // (server-side, all of those already broadcast this topic).
+    MEDISYS_RT.on("pharmacy_stock", () => {
+      loadPharmacyStock();
+      loadLowStock();
+    });
+    // Another pharmacist creating/cancelling/receiving a PO should update
+    // this session's Orders tab + Low Stock list live too.
+    MEDISYS_RT.on("pharmacy_purchase_orders", () => {
+      loadPurchaseOrders();
+      loadLowStock();
+    });
     MEDISYS_RT.on("patients", () => loadPatientsSection());
   }
 

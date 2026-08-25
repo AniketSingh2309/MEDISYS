@@ -93,6 +93,9 @@ async function ensureSchema(connection) {
     )
   `);
   await ensureColumn(connection, "patients", "blood_group", "VARCHAR(4) NULL");
+  await ensureColumn(connection, "patients", "abha_address", "VARCHAR(100) NULL");
+  await ensureColumn(connection, "patients", "abha_verified", "TINYINT(1) NOT NULL DEFAULT 0");
+  await ensureColumn(connection, "patients", "abha_link_status", "VARCHAR(20) NULL");
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS doctor_schedules (
@@ -415,6 +418,36 @@ async function ensureSchema(connection) {
   // Before Meal / After Meal / With Meal / Empty Stomach — set by the prescribing
   // doctor, shown to pharmacy staff dispensing it and to the patient in their portal.
   await ensureColumnInSchema(connection, "medisys_pharmacy", "pharmacy_orders", "food_instruction", "VARCHAR(20) NULL");
+
+  // Who this batch was bought from — shown as "last supplier" on the low-stock
+  // reorder list. Optional; older rows predating this column stay NULL.
+  await ensureColumnInSchema(connection, "medisys_pharmacy", "pharmacy_stock", "supplier_name", "VARCHAR(150) NULL");
+  // The quantity this batch started with when received, preserved separately
+  // from stock_quantity (which dispensing/edits mutate downward) so the
+  // "10% of the last-received batch" default reorder threshold stays accurate
+  // even after the batch has been partly dispensed. Rows from before this
+  // column existed fall back to their current stock_quantity as a reasonable
+  // approximation (see the low-stock endpoint in server.js).
+  await ensureColumnInSchema(connection, "medisys_pharmacy", "pharmacy_stock", "received_quantity", "INT NULL");
+
+  // Per-medicine (not per-batch) low-stock reorder threshold — set manually by
+  // pharmacist/admin from the Medicine Stock tab, or left unset to fall back to
+  // "10% of the last-received batch" (computed live, see GET
+  // /api/pharmacy-stock/low-stock). Keyed by medicine_name rather than a
+  // medicine ID because pharmacy_stock has no separate medicines table —
+  // every batch just repeats the medicine's name as a string.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS medisys_pharmacy.medicine_thresholds (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      medicine_name VARCHAR(150) NOT NULL,
+      reorder_threshold DECIMAL(10,2) NULL,
+      reorder_threshold_type VARCHAR(20) NOT NULL DEFAULT 'percentage',
+      updated_by VARCHAR(50) NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_hospital_medicine (hospital_id, medicine_name)
+    )
+  `);
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS nurse_shift_roster (
