@@ -83,14 +83,42 @@
       .join("");
   }
 
+  function renderAbhaStatus(abha) {
+    const el = document.getElementById("abhaStatusCard");
+    if (!el) return;
+
+    if (abha && abha.abhaId) {
+      el.innerHTML = `
+        <div class="portal-card abha-fetch-card">
+          <h3 class="abha-fetch-title">🆔 ${t("dashboard.abha_linked_title", "Your ABHA Health Account")}</h3>
+          <p class="wizard-hint">
+            ${t("dashboard.abha_number_label", "ABHA Number")}: <b>${escapeHtml(abha.abhaId)}</b>
+            ${abha.abhaAddress ? `<br>${t("dashboard.abha_address_label", "ABHA Address")}: <b>${escapeHtml(abha.abhaAddress)}</b>` : ""}
+          </p>
+          ${abha.verified ? `<div class="abha-verified-badge">&#10003; ${t("dashboard.abha_verified", "Verified via ABHA")}</div>` : ""}
+        </div>`;
+    } else {
+      el.innerHTML = `
+        <div class="portal-card abha-fetch-card">
+          <h3 class="abha-fetch-title">🆔 ${t("dashboard.abha_unlinked_title", "No ABHA Linked Yet")}</h3>
+          <p class="wizard-hint">${t(
+            "dashboard.abha_unlinked_hint",
+            "Ask the front desk to link your Ayushman Bharat Health Account (ABHA) on your next visit so your records can be shared across ABDM-connected hospitals."
+          )}</p>
+        </div>`;
+    }
+  }
+
   async function loadProfile() {
     const res = await fetch("/api/me", { credentials: "same-origin" });
     const data = await res.json();
     if (!data.success) return;
 
-    const { fullName, hospitalName } = data.profile;
+    const { fullName, hospitalName, abha } = data.profile;
     document.getElementById("welcomeHeading").textContent = `${t("dashboard.welcome", "Welcome")}, ${fullName}`;
     document.getElementById("patientSubtitle").textContent = `${t("dashboard.patient_at", "Patient at")} ${hospitalName}`;
+
+    renderAbhaStatus(abha);
 
     document.getElementById("patientActionCards").innerHTML =
       actionCard("records.html", ICONS.records, t("records.title", "Your Medical Records"), t("dashboard.card_patient_records_hint", "Consultations, admissions, vitals, and lab/radiology results")) +

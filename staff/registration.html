@@ -31,6 +31,53 @@
     </div>
 
     <h2 class="portal-section-title" data-i18n="registration.new_patient">+ New Patient</h2>
+
+    <div class="portal-card abha-fetch-card">
+      <h3 class="abha-fetch-title">🆔 Fetch via ABHA</h3>
+      <p class="wizard-hint">Look up the patient's existing ABHA (Ayushman Bharat Health Account) to auto-fill their details below, or create a new ABHA if they don't have one yet.</p>
+
+      <div class="abha-toggle-row" role="radiogroup" aria-label="ABHA lookup identifier type">
+        <label class="abha-toggle-option">
+          <input type="radio" name="abhaIdType" value="mobile" id="abhaTypeMobile" checked />
+          Mobile Number
+        </label>
+        <label class="abha-toggle-option">
+          <input type="radio" name="abhaIdType" value="aadhaar" id="abhaTypeAadhaar" />
+          Aadhaar Number
+        </label>
+      </div>
+
+      <div class="wizard-suggest-row">
+        <input type="text" id="abhaIdentifierInput" placeholder="Enter mobile number" inputmode="numeric" />
+        <button type="button" class="wizard-suggest-btn" id="abhaFetchBtn">Fetch Details</button>
+      </div>
+
+      <div id="abhaOtpSection" class="abha-otp-section" hidden>
+        <label for="abhaOtpInput">Enter the OTP sent to the registered mobile</label>
+        <div class="wizard-suggest-row">
+          <input type="text" id="abhaOtpInput" maxlength="6" inputmode="numeric" placeholder="6-digit OTP" />
+          <button type="button" class="wizard-suggest-btn" id="abhaVerifyBtn">Verify</button>
+        </div>
+      </div>
+
+      <p class="form-error" id="abhaError" role="alert" aria-live="polite"></p>
+
+      <div id="abhaVerifiedBadge" class="abha-verified-badge" hidden>&#10003; Verified via ABHA</div>
+
+      <div id="abhaNotFound" class="abha-fallback" hidden>
+        <p><strong>No ABHA found for this identifier.</strong> MEDISYS does not create ABHA accounts on a patient's behalf &mdash; ask them to create their own, free, in a couple of minutes via the official ABHA app (Play Store / App Store) or <a href="https://abha.abdm.gov.in" target="_blank" rel="noopener">abha.abdm.gov.in</a>, using their mobile number or Aadhaar. Once they have it, either click "Fetch Details" again to pull it automatically, or type it straight into the ABHA Number / ABHA Address fields below.</p>
+        <button type="button" class="wizard-back-btn" id="abhaSandboxEnrollToggle">Sandbox testing only: create a test ABHA &#9662;</button>
+        <div id="abhaEnrollSection" class="abha-otp-section" hidden>
+          <p class="wizard-hint" style="color:#a15c00;">&#9888; For sandbox/dev testing only &mdash; never use this for a real patient. It creates a brand-new test ABHA, which would duplicate a person's real ABHA if they already have one.</p>
+          <label for="abhaEnrollAadhaarInput">Aadhaar Number (for new test ABHA creation)</label>
+          <div class="wizard-suggest-row">
+            <input type="text" id="abhaEnrollAadhaarInput" maxlength="12" inputmode="numeric" placeholder="12-digit Aadhaar number" />
+            <button type="button" class="wizard-suggest-btn" id="abhaEnrollFetchBtn">Send OTP</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="portal-card">
       <form id="patientForm" class="wizard-step" novalidate>
         <label for="fullName" data-i18n="patient.full_name">Full Name *</label>
@@ -80,9 +127,17 @@
           </div>
         </div>
 
-        <label for="abhaId" data-i18n="registration.abha_id">ABHA ID</label>
-        <input type="text" id="abhaId" name="abhaId" placeholder="Optional" data-i18n-placeholder="common.optional" />
-        <p class="wizard-hint" data-i18n="registration.abha_hint">Manual entry only for now &mdash; not yet verified against the real ABDM system.</p>
+        <div class="wizard-grid">
+          <div>
+            <label for="abhaId">ABHA Number</label>
+            <input type="text" id="abhaId" name="abhaId" placeholder="Optional &mdash; fetch above, or type it if the patient already has one" />
+          </div>
+          <div>
+            <label for="abhaAddress">ABHA Address</label>
+            <input type="text" id="abhaAddress" name="abhaAddress" placeholder="e.g. patient@abdm" />
+          </div>
+        </div>
+        <p class="wizard-hint" id="abhaFieldsHint">Auto-filled by "Fetch via ABHA" above, or type it directly if the patient can show you their existing ABHA card/app. Manually typed ABHA numbers are saved as unverified until fetched via OTP.</p>
 
         <label for="category" data-i18n="registration.category">Patient Category</label>
         <select id="category" name="category">
