@@ -63,7 +63,11 @@ function imgFilter(ps) {
 async function guardSession() {
   const res = await fetch("/api/session", { credentials: "same-origin" });
   const data = await res.json();
-  if (!data.user || data.user.role !== "pathology_staff") {
+  // hospital_admin gets read/oversight access too, mirroring the backend
+  // routes (GET /api/lab-orders etc. already allow hospital_admin) — staff-
+  // only mutation endpoints still enforce pathology_staff server-side, so an
+  // admin viewing this page can't silently act as the technician.
+  if (!data.user || (data.user.role !== "pathology_staff" && data.user.role !== "hospital_admin")) {
     window.location.href = "../index.html";
     return null;
   }

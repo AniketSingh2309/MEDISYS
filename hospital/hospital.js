@@ -19,6 +19,23 @@
     ipd: "module.ipd",
   };
 
+  // These link to module-overview.html — a read-only oversight dashboard
+  // (patients, doctors, statuses) built for the hospital admin, not the
+  // staff operational tool (which has claim/dispense/verify actions meant
+  // for the specific staff role, not the admin). See module-overview.js for
+  // the per-module data mapping. Modules without an entry here (e.g. "ipd",
+  // split across separate doctor/nurse pages with no single admin view yet,
+  // and "blood_bank", which has no read API wired up for this page yet)
+  // still fall back to the old readonly/coming-soon card.
+  const MODULE_PAGES = {
+    opd: "module-overview.html?module=opd",
+    radiology: "module-overview.html?module=radiology",
+    billing: "module-overview.html?module=billing",
+    pharmacy: "module-overview.html?module=pharmacy",
+    pathology: "module-overview.html?module=pathology",
+    laboratory: "module-overview.html?module=laboratory",
+  };
+
   function getModuleLabel(m) {
     const key = MODULE_LABELS[m] || `module.${m}`;
     const fallbacks = {
@@ -185,14 +202,26 @@
       }
     })();
 
+    function tOr(key, fallback) {
+      if (window.i18n && typeof window.i18n.t === "function") {
+        const res = window.i18n.t(key);
+        if (res && res !== key) return res;
+      }
+      return fallback;
+    }
+    const openLabel = tOr("hospital_page.open_module", "Open");
+    const soonLabel = tOr("hospital_page.coming_soon", "Coming soon");
+
     grid.innerHTML = modules
-      .map(
-        (m) => `
-        <div class="module-card readonly">
-          <span class="module-card-icon">${MODULE_ICONS[m] || ""}</span>
-          <span class="module-card-label">${getModuleLabel(m)}</span>
-        </div>`
-      )
+      .map((m) => {
+        const href = MODULE_PAGES[m];
+        const icon = `<span class="module-card-icon">${MODULE_ICONS[m] || ""}</span>`;
+        const label = `<span class="module-card-label">${getModuleLabel(m)}</span>`;
+        if (href) {
+          return `<a class="module-card" href="${href}">${icon}${label}<span class="module-card-open">${openLabel}</span></a>`;
+        }
+        return `<div class="module-card readonly">${icon}${label}<span class="module-card-soon">${soonLabel}</span></div>`;
+      })
       .join("");
   }
 

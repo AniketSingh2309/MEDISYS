@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MEDISYS - Module Overview</title>
+<link rel="stylesheet" href="../style.css" />
+<link rel="stylesheet" href="../admin/admin.css" />
+<style>
+  .overview-toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  .overview-toolbar input[type="date"], .overview-toolbar input[type="search"] {
+    padding: 9px 12px; border: 1px solid #c7d0da; border-radius: var(--radius-sm, 8px); font-size: 13px;
+  }
+  .overview-count { font-size: 13px; color: var(--slate, #64748b); margin-left: auto; }
+  .overview-table-wrap { overflow-x: auto; }
+  table.overview-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 14px; }
+  table.overview-table th {
+    text-align: left; padding: 10px 12px; background: var(--navy); color: #fff;
+    position: sticky; top: 0; white-space: nowrap;
+  }
+  table.overview-table th:first-child { border-radius: 6px 0 0 0; }
+  table.overview-table th:last-child { border-radius: 0 6px 0 0; }
+  table.overview-table td { padding: 10px 12px; border-bottom: 1px solid var(--line, #e4e9f2); white-space: nowrap; }
+  table.overview-table tbody tr:nth-child(even) { background: #f7f9fb; }
+  table.overview-table tbody tr:hover { background: #eefaf6; }
+  .ov-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    text-transform: capitalize; background: #eef1f6; color: var(--navy);
+  }
+  .ov-badge.status-completed, .ov-badge.status-verified, .ov-badge.status-paid, .ov-badge.status-dispensed { background: #e2f8ea; color: #1a7d3f; }
+  .ov-badge.status-pending, .ov-badge.status-pending_pharmacy, .ov-badge.status-partial { background: #fdf1dc; color: #a15c00; }
+  .ov-badge.status-urgent, .ov-badge.status-cancelled { background: #fbe3e3; color: #b03434; }
+  .ov-empty { padding: 32px; text-align: center; color: var(--slate, #64748b); font-size: 14px; }
+  .ov-error { padding: 32px; text-align: center; color: #b03434; font-size: 14px; }
+</style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="brand">
+      <img src="../logo.png" alt="Core5 MEDISYS" class="brand-logo" />
+    </div>
+    <div class="portal-header-right">
+      <span class="portal-user" id="portalUser"></span>
+      <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <main class="portal-main">
+    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
+    <h1 id="overviewTitle">Module Overview</h1>
+    <p class="portal-subtitle" id="overviewSubtitle"></p>
+
+    <div class="portal-card">
+      <div class="overview-toolbar" id="overviewToolbar"></div>
+      <div class="overview-table-wrap">
+        <table class="overview-table" id="overviewTable" hidden>
+          <thead><tr id="overviewHeadRow"></tr></thead>
+          <tbody id="overviewBody"></tbody>
+        </table>
+        <div class="ov-empty" id="overviewEmpty" hidden>Nothing to show yet.</div>
+        <div class="ov-error" id="overviewError" hidden></div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-left">
+      <span class="footer-brand">CORE5 <strong>MEDISYS</strong></span>
+      <small>HOSPITAL PORTAL</small>
+    </div>
+    <div class="footer-right">&copy;2026 Core5. All rights reserved.</div>
+  </footer>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="../realtime-client.js"></script>
+  <script src="../portal-ui.js"></script>
+<script src="module-overview.js"></script>
+</body>
+</html>

@@ -18,7 +18,10 @@ let currentBillsFilter = 'all';
 async function guardSession() {
   const res = await fetch('/api/session', { credentials: 'same-origin' });
   const data = await res.json();
-  if (!data.user || data.user.role !== 'billing_staff') {
+  // hospital_admin gets read/oversight access too, mirroring the backend
+  // (several billing routes already allow role === 'hospital_admin') —
+  // staff-only mutation endpoints still enforce billing_staff server-side.
+  if (!data.user || (data.user.role !== 'billing_staff' && data.user.role !== 'hospital_admin')) {
     window.location.href = '../index.html';
     return null;
   }
