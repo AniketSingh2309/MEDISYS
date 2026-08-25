@@ -61,6 +61,109 @@ function parseDateStrUTC(dateStr) {
   return new Date(`${dateStr}T12:00:00Z`);
 }
 
+// ---------- Disease outbreak detection ----------
+//
+// Doctors pick a diagnosis from this fixed list during an OPD consultation
+// (see POST /api/opd/visits/:id/consultation below); free-text symptoms/notes
+// aren't reliable enough to aggregate on. Kept in sync by hand with the
+// <select> in staff/doctor-queue.html, the same duplication pattern already
+// used for role lists between server and client (e.g. hospital.js ROLE_LABELS).
+const DISEASE_WATCHLIST = [
+  "Dengue",
+  "Malaria",
+  "Chikungunya",
+  "Typhoid",
+  "Cholera",
+  "Influenza / Flu",
+  "COVID-19",
+  "Measles",
+  "Diarrheal Disease",
+  "Viral Hepatitis / Jaundice",
+  "Tuberculosis",
+];
+
+// If this many-or-more cases of the same diagnosis land at one hospital within
+// this many days, it's treated as a possible outbreak.
+const OUTBREAK_CASE_THRESHOLD = 2;
+const OUTBREAK_WINDOW_DAYS = 7;
+
+// No real SMS gateway is wired in anywhere in this app (see the existing OPD
+// booking confirmation below) — sending real SMS in India also legally
+// requires DLT sender/template registration, independent of which provider
+// you'd use. This logs one summary line and is recorded in disease_alerts as
+// "notified" so the rest of the feature (detection, admin portal, counts) is
+// fully wired; swapping in a real provider later only means replacing this
+// one function.
+function simulateOutbreakSms(recipientCount, areaLabel, message) {
+  console.log(`[stub] SMS: "${message}" sent to ${recipientCount} patient(s) in ${areaLabel}.`);
+}
+
+// Runs after every consultation that records a watchlisted diagnosis. Counts
+// cases of that diagnosis at this hospital in the trailing window; if the
+// count crosses the threshold and no alert has already fired for this
+// hospital+diagnosis within the window (so it doesn't re-fire on every
+// subsequent case), it (a) simulates an SMS fan-out to the hospital's own
+// patients and to patients of *other* hospitals in the same city ("nearby
+// areas" — this app has no patient-level geocoding, so city match is the
+// closest available proxy), (b) records the alert, and (c) pushes it to the
+// hospital admin's portal in real time via the existing broadcast() — scoped
+// to this hospital's room only, per hospitalId, so it is never visible to
+// any other hospital's admin. Only aggregate counts are ever stored/sent —
+// never another hospital's patient list — so this can't leak cross-tenant PII.
+async function checkDiseaseOutbreak(req, hospitalId, diagnosis) {
+  if (!diagnosis || !DISEASE_WATCHLIST.includes(diagnosis)) return null;
+
+  const [[{ caseCount }]] = await pool.query(
+    `SELECT COUNT(*) AS caseCount FROM consultations
+     WHERE hospital_id = ? AND diagnosis = ? AND created_at >= NOW() - INTERVAL ? DAY`,
+    [hospitalId, diagnosis, OUTBREAK_WINDOW_DAYS]
+  );
+  if (caseCount < OUTBREAK_CASE_THRESHOLD) return null;
+
+  const [alreadyAlerted] = await pool.query(
+    `SELECT id FROM disease_alerts
+     WHERE hospital_id = ? AND diagnosis = ? AND created_at >= NOW() - INTERVAL ? DAY LIMIT 1`,
+    [hospitalId, diagnosis, OUTBREAK_WINDOW_DAYS]
+  );
+  if (alreadyAlerted.length > 0) return null;
+
+  const [[hospitalRow]] = await pool.query(`SELECT name, city FROM hospitals WHERE id = ? LIMIT 1`, [hospitalId]);
+  const hospitalName = hospitalRow?.name || "your hospital";
+  const city = hospitalRow?.city || null;
+
+  const [hospitalPatients] = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM patients WHERE hospital_id = ? AND phone IS NOT NULL AND phone <> ''`,
+    [hospitalId]
+  );
+  const hospitalPatientsNotified = hospitalPatients[0].cnt;
+
+  let nearbyPatientsNotified = 0;
+  if (city) {
+    const [nearbyPatients] = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM patients p
+       JOIN hospitals h ON h.id = p.hospital_id
+       WHERE p.hospital_id != ? AND h.city = ? AND p.phone IS NOT NULL AND p.phone <> ''`,
+      [hospitalId, city]
+    );
+    nearbyPatientsNotified = nearbyPatients[0].cnt;
+  }
+
+  const message = `MEDISYS ALERT: A rise in ${diagnosis} cases has been reported near ${hospitalName}. If you notice symptoms, please consult a doctor promptly.`;
+  if (hospitalPatientsNotified > 0) simulateOutbreakSms(hospitalPatientsNotified, `${hospitalName}`, message);
+  if (nearbyPatientsNotified > 0) simulateOutbreakSms(nearbyPatientsNotified, `nearby areas (${city})`, message);
+
+  await pool.query(
+    `INSERT INTO disease_alerts
+       (hospital_id, diagnosis, case_count, window_days, hospital_patients_notified, nearby_patients_notified)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [hospitalId, diagnosis, caseCount, OUTBREAK_WINDOW_DAYS, hospitalPatientsNotified, nearbyPatientsNotified]
+  );
+
+  broadcast(req, "disease_alerts", { diagnosis, caseCount });
+
+  return { diagnosis, caseCount, hospitalPatientsNotified, nearbyPatientsNotified };
+}
+
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
@@ -364,6 +467,24 @@ app.patch("/api/hospital/settings", requireHospitalAdmin, async (req, res) => {
     res.json({ success: true, nurseAssignmentMode });
   } catch (err) {
     console.error("Update hospital settings error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Outbreak alerts already raised for this hospital — see checkDiseaseOutbreak() above.
+// requireHospitalAdmin (not requireTenantUser) so this stays admin-only, per hospital,
+// exactly as intended: never visible to another hospital's admin or to patients/staff.
+app.get("/api/hospital/disease-alerts", requireHospitalAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, diagnosis, case_count, window_days, hospital_patients_notified,
+              nearby_patients_notified, created_at
+       FROM disease_alerts WHERE hospital_id = ? ORDER BY created_at DESC LIMIT 50`,
+      [req.session.user.hospitalId]
+    );
+    res.json({ success: true, alerts: rows });
+  } catch (err) {
+    console.error("List disease alerts error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
@@ -1214,6 +1335,32 @@ app.get("/api/patients/me/bills", requireRole("patient"), async (req, res) => {
   }
 });
 
+// Outbreak alerts a patient should see: raised at their own hospital, or at any other
+// hospital in the same city ("nearby areas" — same proxy used when the alert was first
+// raised, see checkDiseaseOutbreak above). Only ever exposes diagnosis/city/hospital name
+// and aggregate counts, never another hospital's patient data.
+app.get("/api/patients/me/disease-alerts", requireRole("patient"), async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const [[ownHospital]] = await pool.query(`SELECT city FROM hospitals WHERE id = ? LIMIT 1`, [hospitalId]);
+    const city = ownHospital?.city || null;
+
+    const [rows] = await pool.query(
+      `SELECT da.id, da.diagnosis, da.case_count, da.window_days, da.created_at,
+              h.name AS hospital_name, h.city, (da.hospital_id = ?) AS is_own_hospital
+       FROM disease_alerts da
+       JOIN hospitals h ON h.id = da.hospital_id
+       WHERE da.hospital_id = ? OR (? IS NOT NULL AND h.city = ?)
+       ORDER BY da.created_at DESC LIMIT 20`,
+      [hospitalId, hospitalId, city, city]
+    );
+    res.json({ success: true, alerts: rows });
+  } catch (err) {
+    console.error("List patient disease alerts error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
 // ---------- Pathology / Radiology test catalog ----------
 
 app.get("/api/tests/search", requireTenantUser, async (req, res) => {
@@ -1235,7 +1382,7 @@ app.get("/api/tests/search", requireTenantUser, async (req, res) => {
 // ---------- Consultation (doctor decision point) ----------
 
 app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, res) => {
-  const { symptoms, notes, testIds, admit } = req.body || {};
+  const { symptoms, notes, diagnosis, testIds, admit } = req.body || {};
   const prescriptions = Array.isArray(req.body?.prescriptions) ? req.body.prescriptions : [];
   const tests = Array.isArray(testIds) ? testIds : [];
   const wantsAdmit = admit === true;
@@ -1271,10 +1418,11 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
     if (wantsAdmit) actions.push("admit");
     const decision = actions.join(",");
 
+    const diagnosisValue = DISEASE_WATCHLIST.includes(diagnosis) ? diagnosis : null;
     await pool.query(
-      `INSERT INTO consultations (hospital_id, opd_visit_id, patient_uhid, doctor_user_id, symptoms, notes, decision)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [hospitalId, req.params.id, patientUhid, userId, symptoms || null, notes || null, decision]
+      `INSERT INTO consultations (hospital_id, opd_visit_id, patient_uhid, doctor_user_id, symptoms, notes, decision, diagnosis)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [hospitalId, req.params.id, patientUhid, userId, symptoms || null, notes || null, decision, diagnosisValue]
     );
     await pool.query(`UPDATE opd_visits SET status = 'completed' WHERE id = ? AND hospital_id = ?`, [
       req.params.id,
@@ -1337,12 +1485,24 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
     if (prescriptions.length > 0) broadcast(req, "pharmacy_orders");
     if (tests.length > 0) broadcast(req, "lab_orders");
     if (wantsAdmit) broadcast(req, "ipd_admissions");
+
+    let outbreakAlert = null;
+    if (diagnosisValue) {
+      try {
+        outbreakAlert = await checkDiseaseOutbreak(req, hospitalId, diagnosisValue);
+      } catch (err) {
+        // An outbreak-alert failure should never fail the consultation save itself.
+        console.error("Disease outbreak check error:", err.message);
+      }
+    }
+
     res.json({
       success: true,
       admissionId,
       admissionAlreadyExisted,
       prescriptionCount: prescriptions.length,
       testCount: tests.length,
+      outbreakAlert,
     });
   } catch (err) {
     console.error("Record consultation error:", err.message);

@@ -195,6 +195,28 @@ async function ensureSchema(connection) {
   // admit), stored as a comma-joined list (e.g. "prescribe,order_tests,admit") — widen
   // from the original single-decision VARCHAR(20). MODIFY is idempotent, safe to re-run.
   await connection.query(`ALTER TABLE consultations MODIFY COLUMN decision VARCHAR(60) NOT NULL`);
+  // Structured diagnosis (picked from a fixed notifiable-disease list, see DISEASE_WATCHLIST
+  // in server.js) — separate from the free-text symptoms/notes above so case counts per
+  // hospital/disease can actually be aggregated for outbreak detection.
+  await ensureColumn(connection, "consultations", "diagnosis", "VARCHAR(100) NULL");
+
+  // One row per outbreak alert actually raised (case count for some diagnosis crossed the
+  // threshold at some hospital within the rolling window). Drives both the hospital admin's
+  // "Outbreak Alerts" panel and the simulated SMS fan-out — see checkDiseaseOutbreak() in
+  // server.js. Only aggregate counts are stored here, never other hospitals' patient lists,
+  // so an alert never leaks cross-tenant patient data into a hospital admin's portal.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS disease_alerts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      diagnosis VARCHAR(100) NOT NULL,
+      case_count INT NOT NULL,
+      window_days INT NOT NULL,
+      hospital_patients_notified INT NOT NULL DEFAULT 0,
+      nearby_patients_notified INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS ipd_admissions (

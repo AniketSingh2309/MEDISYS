@@ -232,6 +232,12 @@
     "welcome": "Welcome",
     "at": "at",
     "coming_soon": "Coming soon",
+    "alert_at_your_hospital": "at your hospital",
+    "alert_nearby_at": "nearby, at",
+    "alert_cases_reported": "cases reported",
+    "alert_cases_in_last": "cases in the last",
+    "alert_days": "days",
+    "alert_advice": "If you notice symptoms, please consult a doctor promptly.",
     "card_reg_hint": "Search existing patients or register a new one",
     "card_opd_hint": "Book an appointment, issue a walk-in token, view today's queue",
     "card_adm_hint": "Start a direct IPD admission for a patient",
@@ -320,6 +326,7 @@
   "hospital_page": {
     "dashboard_title": "Hospital Portal",
     "modules_enabled_subtitle": "Modules enabled for your hospital.",
+    "outbreak_alerts_title": "Outbreak Alerts",
     "staff_management": "Staff Management",
     "add_staff_label": "Add Staff",
     "add_staff_hint": "Register a doctor, nurse, or other department staff",
@@ -329,7 +336,7 @@
     "departments_hint": "Manage specializations doctors belong to",
     "nurse_assignment_label": "Nurse Assignment",
     "nurse_assignment_hint": "Configure auto-assignment of nurses to admitted patients",
-    "modules_title": "Modules",
+    "modules_title": "Modules under your plan",
     "add_staff_title": "Add Staff",
     "choose_dept_subtitle": "Choose a department, then fill in their details.",
     "add_staff_member_btn": "Add Staff Member",
@@ -500,7 +507,11 @@
     "prescriptions": "Prescriptions",
     "pathology_queue": "pathology_queue",
     "ward_setup": "ward_setup",
-    "billing_desk": "billing_desk"
+    "billing_desk": "billing_desk",
+    "add_staff": "Add Staff",
+    "existing_staff": "Existing Staff",
+    "departments": "Departments",
+    "nurse_assignment": "Nurse Assignment"
   },
   "notification": {
     "patient_registered": "Patient registered successfully",

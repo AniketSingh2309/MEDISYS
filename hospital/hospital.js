@@ -191,9 +191,37 @@
         <div class="module-card readonly">
           <span class="module-card-icon">${MODULE_ICONS[m] || ""}</span>
           <span class="module-card-label">${getModuleLabel(m)}</span>
-          <span class="module-card-soon">${window.i18n ? window.i18n.t("hospital_page.coming_soon") : "Coming soon"}</span>
         </div>`
       )
+      .join("");
+  }
+
+  async function loadOutbreakAlerts() {
+    const section = document.getElementById("outbreakAlertsSection");
+    const list = document.getElementById("outbreakAlertsList");
+    if (!section || !list) return;
+
+    const res = await fetch("/api/hospital/disease-alerts", { credentials: "same-origin" });
+    const data = await res.json();
+    if (!data.success || data.alerts.length === 0) {
+      section.hidden = true;
+      return;
+    }
+
+    section.hidden = false;
+    list.innerHTML = data.alerts
+      .map((a) => {
+        const when = new Date(a.created_at).toLocaleString();
+        return `
+        <div class="outbreak-alert-card">
+          <span class="outbreak-alert-icon">&#9888;</span>
+          <div>
+            <p class="outbreak-alert-title">${escapeHtml(a.diagnosis)} — possible outbreak</p>
+            <p class="outbreak-alert-detail">${a.case_count} cases recorded in the last ${a.window_days} days. SMS alert sent to ${a.hospital_patients_notified} patient(s) at your hospital and ${a.nearby_patients_notified} patient(s) in nearby areas.</p>
+            <p class="outbreak-alert-meta">Raised ${escapeHtml(when)}</p>
+          </div>
+        </div>`;
+      })
       .join("");
   }
 
@@ -687,6 +715,7 @@
     wireLogout();
     loadHospital();
     loadStaffCount();
+    loadOutbreakAlerts();
     initAddStaff();
     initStaffList();
     initDepartments();
@@ -695,6 +724,12 @@
     if (window.MEDISYS_RT) {
       MEDISYS_RT.on("staff", loadStaffCount);
       MEDISYS_RT.on("hospitals", loadHospital);
+      MEDISYS_RT.on("disease_alerts", (payload) => {
+        loadOutbreakAlerts();
+        if (window.showToast) {
+          showToast(`⚠ Outbreak alert: ${payload.diagnosis} — ${payload.caseCount} recent cases.`, "error");
+        }
+      });
     }
 
     window.addEventListener("i18n:languageChanged", () => {

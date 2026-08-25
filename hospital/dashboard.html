@@ -23,6 +23,13 @@
     <h1 id="hospitalName" data-i18n="hospital_page.dashboard_title">Hospital Portal</h1>
     <p class="portal-subtitle" id="hospitalSubtitle" data-i18n="hospital_page.modules_enabled_subtitle">Modules enabled for your hospital.</p>
 
+    <div id="outbreakAlertsSection" hidden>
+      <h2 class="portal-section-title" data-i18n="hospital_page.outbreak_alerts_title">Outbreak Alerts</h2>
+      <div class="portal-card" id="outbreakAlertsCard">
+        <div id="outbreakAlertsList"></div>
+      </div>
+    </div>
+
     <h2 class="portal-section-title" data-i18n="hospital_page.staff_management">Staff Management</h2>
     <div class="portal-toolbar-cards">
       <a href="add-staff.html" class="staff-action-card">
@@ -55,7 +62,7 @@
       </a>
     </div>
 
-    <h2 class="portal-section-title" data-i18n="hospital_page.modules_title">Modules</h2>
+    <h2 class="portal-section-title" data-i18n="hospital_page.modules_title">Modules under your plan</h2>
     <div class="portal-card">
       <div class="module-card-grid" id="hospitalModuleGrid"></div>
     </div>

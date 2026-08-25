@@ -9,6 +9,21 @@
     }[c]));
   }
 
+  // Kept in sync by hand with DISEASE_WATCHLIST in server/server.js.
+  const DISEASE_WATCHLIST = [
+    "Dengue",
+    "Malaria",
+    "Chikungunya",
+    "Typhoid",
+    "Cholera",
+    "Influenza / Flu",
+    "COVID-19",
+    "Measles",
+    "Diarrheal Disease",
+    "Viral Hepatitis / Jaundice",
+    "Tuberculosis",
+  ];
+
   const DECISION_KEYS = { prescribe: "doctor_queue.prescription", order_tests: "doctor_queue.tests_ordered", admit: "doctor_queue.admission_requested" };
   const DECISION_LABELS = { prescribe: "Prescription", order_tests: "Tests Ordered", admit: "Admission Requested" };
 
@@ -339,6 +354,7 @@
     document.getElementById("consultError").textContent = "";
     document.getElementById("symptoms").value = "";
     document.getElementById("consultNotes").value = "";
+    document.getElementById("diagnosisSelect").value = "";
     document.getElementById("medName").value = "";
     document.getElementById("medDosage").value = "";
     document.getElementById("medDuration").value = "";
@@ -535,6 +551,7 @@
           body: JSON.stringify({
             symptoms: document.getElementById("symptoms").value.trim(),
             notes: document.getElementById("consultNotes").value.trim(),
+            diagnosis: document.getElementById("diagnosisSelect").value,
             prescriptions: selectedMeds,
             testIds: selectedTests.map((t) => t.id),
             admit,
@@ -559,6 +576,13 @@
         document.getElementById("consultConfirmation").textContent = `Consultation recorded — ${summary}.`;
         if (window.showToast) showToast(`Consultation saved: ${summary}.`, "success");
 
+        if (data.outbreakAlert && window.showToast) {
+          showToast(
+            `⚠ Outbreak alert raised for ${data.outbreakAlert.diagnosis} (${data.outbreakAlert.caseCount} recent cases) — hospital admin notified.`,
+            "error"
+          );
+        }
+
         activeVisit = null;
         loadQueue();
 
@@ -572,10 +596,22 @@
     });
   }
 
+  function populateDiagnosisSelect() {
+    const select = document.getElementById("diagnosisSelect");
+    if (!select) return;
+    DISEASE_WATCHLIST.forEach((d) => {
+      const opt = document.createElement("option");
+      opt.value = d;
+      opt.textContent = d;
+      select.appendChild(opt);
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", async () => {
     const user = await guardSession();
     if (!user) return;
     wireLogout();
+    populateDiagnosisSelect();
     wireConsultForm();
     wireTestOrderWidget();
     wireAddMedButton();

@@ -155,6 +155,9 @@
     records: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M8 13h2l1.5-3 2 6 1.5-3H16"/></svg>',
     prescription: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(45 12 12)"><rect x="4" y="9" width="16" height="6" rx="3"/><line x1="12" y1="9" x2="12" y2="15"/></g></svg>',
     bill: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17H6V2z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
+    add_person: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c0-3.6 2.9-6 5.5-6s5.5 2.4 5.5 6"/><path d="M18 8v6M15 11h6"/></svg>',
+    departments: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="7" rx="1.5"/><rect x="14" y="15" width="7" height="7" rx="1.5"/></svg>',
+    nurse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3.2"/><path d="M5.5 21c0-3.6 2.9-6.2 6.5-6.2S18.5 17.4 18.5 21"/><path d="M12 11.8v3.2M10.4 13.4h3.2"/></svg>',
   };
 
   var ROLE_NAV_ITEMS = {
@@ -179,6 +182,12 @@
     ],
     pharmacist: [{ href: '/staff/pharmacy-queue.html', icon: 'queue', label: 'Pharmacy Queue', i18nKey: 'navigation.pharmacy_queue' }],
     blood_bank_staff: [{ href: '/staff/blood-bank-queue.html', icon: 'bloodbank', label: 'Blood Bank', i18nKey: 'navigation.blood_bank' }],
+    hospital_admin: [
+      { href: '/hospital/add-staff.html', icon: 'add_person', label: 'Add Staff', i18nKey: 'navigation.add_staff' },
+      { href: '/hospital/staff.html', icon: 'queue', label: 'Existing Staff', i18nKey: 'navigation.existing_staff' },
+      { href: '/hospital/departments.html', icon: 'departments', label: 'Departments', i18nKey: 'navigation.departments' },
+      { href: '/hospital/nurse-assignment.html', icon: 'nurse', label: 'Nurse Assignment', i18nKey: 'navigation.nurse_assignment' },
+    ],
     patient: [
       { href: '/patient/records.html', icon: 'records', label: 'Medical Records', i18nKey: 'navigation.medical_records' },
       { href: '/patient/appointments.html', icon: 'calendar', label: 'Appointments', i18nKey: 'navigation.appointments' },
@@ -187,7 +196,7 @@
     ],
   };
 
-  var ROLE_DASHBOARD = { patient: '/patient/dashboard.html' };
+  var ROLE_DASHBOARD = { patient: '/patient/dashboard.html', hospital_admin: '/hospital/dashboard.html' };
 
   function navItemsForRole(role, details) {
     var dash = { href: ROLE_DASHBOARD[role] || '/staff/dashboard.html', icon: 'dashboard', label: 'Dashboard', i18nKey: 'navigation.dashboard' };
@@ -207,7 +216,7 @@
     var main = document.querySelector('.portal-main');
     if (!main || document.querySelector('.app-sidebar')) return;
 
-    var KNOWN_ROLES = ['receptionist', 'nurse', 'doctor', 'pathology_staff', 'pharmacist', 'blood_bank_staff', 'patient'];
+    var KNOWN_ROLES = ['receptionist', 'nurse', 'doctor', 'pathology_staff', 'pharmacist', 'blood_bank_staff', 'patient', 'hospital_admin'];
     fetch('/api/session', { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (sessionData) {

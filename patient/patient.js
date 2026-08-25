@@ -42,6 +42,47 @@
     bill: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17H6V2z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>`,
   };
 
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[c]));
+  }
+
+  async function loadDiseaseAlerts() {
+    const section = document.getElementById("diseaseAlertsSection");
+    if (!section) return;
+
+    const res = await fetch("/api/patients/me/disease-alerts", { credentials: "same-origin" });
+    const data = await res.json();
+    if (!data.success || data.alerts.length === 0) {
+      section.hidden = true;
+      return;
+    }
+
+    section.hidden = false;
+    section.innerHTML = data.alerts
+      .map((a) => {
+        const when = new Date(a.created_at).toLocaleDateString();
+        const where = a.is_own_hospital
+          ? t("dashboard.alert_at_your_hospital", "at your hospital")
+          : `${t("dashboard.alert_nearby_at", "nearby, at")} ${escapeHtml(a.hospital_name)}`;
+        return `
+        <div class="outbreak-alert-card">
+          <span class="outbreak-alert-icon">&#9888;</span>
+          <div>
+            <p class="outbreak-alert-title">${escapeHtml(a.diagnosis)} ${t("dashboard.alert_cases_reported", "cases reported")} ${where}</p>
+            <p class="outbreak-alert-detail">${a.case_count} ${t("dashboard.alert_cases_in_last", "cases in the last")} ${a.window_days} ${t("dashboard.alert_days", "days")} (${escapeHtml(a.city)}). ${t("dashboard.alert_advice", "If you notice symptoms, please consult a doctor promptly.")}</p>
+            <p class="outbreak-alert-meta">${escapeHtml(when)}</p>
+          </div>
+        </div>`;
+      })
+      .join("");
+  }
+
   async function loadProfile() {
     const res = await fetch("/api/me", { credentials: "same-origin" });
     const data = await res.json();
@@ -63,9 +104,18 @@
     if (!user) return;
     wireLogout();
     loadProfile();
+    loadDiseaseAlerts();
+
+    if (window.MEDISYS_RT) {
+      // Reaches this patient live only when the alert was raised at their own
+      // hospital (same realtime room) — a nearby-hospital alert still shows up
+      // on next load/refresh via the REST fetch above.
+      MEDISYS_RT.on("disease_alerts", loadDiseaseAlerts);
+    }
 
     window.addEventListener("i18n:languageChanged", () => {
       loadProfile();
+      loadDiseaseAlerts();
     });
   });
 })();
