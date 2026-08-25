@@ -1,4 +1,17 @@
 (function () {
+  // Was missing entirely — every t(...) call below was throwing
+  // "ReferenceError: t is not defined", which silently broke both the
+  // success toast and the loadSchedule() refresh right after it (the throw
+  // happened before loadSchedule() could run), and also broke rendering any
+  // existing schedule rows on page load. Found/fixed 2026-08-21.
+  function t(key, fallback) {
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key);
+      if (res && res !== key) return res;
+    }
+    return fallback || key;
+  }
+
   const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   function formatDate(dateStr) {
