@@ -191,6 +191,10 @@ body {
   text-decoration: underline;
 }
 
+.lp-options-row-center {
+  justify-content: center;
+}
+
 .lp-submit-btn {
   width: 100%;
   background: var(--navy);

@@ -8,6 +8,11 @@
   const togglePasswordBtn = document.getElementById("togglePassword");
   const passwordInput = document.getElementById("password");
 
+  const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+  const backToLoginLink = document.getElementById("backToLoginLink");
+  const forgotPasswordForm = document.getElementById("forgotPasswordForm");
+  const resetError = document.getElementById("resetError");
+
   let currentCaptcha = "";
 
   function generateCaptcha(length = 6) {
@@ -93,4 +98,87 @@
   });
 
   renderCaptcha();
+
+  // ---------- Forgot password ----------
+
+  function showForgotPassword() {
+    form.hidden = true;
+    forgotPasswordForm.hidden = false;
+    resetError.textContent = "";
+    forgotPasswordForm.reset();
+  }
+
+  function showLogin() {
+    forgotPasswordForm.hidden = true;
+    form.hidden = false;
+    renderCaptcha();
+  }
+
+  forgotPasswordLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    showForgotPassword();
+  });
+
+  backToLoginLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    showLogin();
+  });
+
+  forgotPasswordForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    resetError.style.color = "";
+    resetError.textContent = "";
+
+    const userId = document.getElementById("resetUserId").value.trim();
+    const newPassword = document.getElementById("newPassword").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
+
+    if (!userId || !newPassword || !confirmPassword) {
+      resetError.textContent = window.i18n
+        ? window.i18n.t("login.error_reset_empty")
+        : "Please fill in all fields.";
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      resetError.textContent = window.i18n
+        ? window.i18n.t("login.error_password_length")
+        : "Password must be at least 6 characters.";
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      resetError.textContent = window.i18n
+        ? window.i18n.t("login.error_password_mismatch")
+        : "Passwords do not match.";
+      return;
+    }
+
+    const submitBtn = forgotPasswordForm.querySelector(".lp-submit-btn");
+    submitBtn.disabled = true;
+
+    try {
+      const response = await fetch("/api/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, newPassword }),
+        credentials: "same-origin",
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        resetError.style.color = "green";
+        resetError.textContent = window.i18n
+          ? window.i18n.t("login.reset_success")
+          : "Password updated. You can now log in with your new password.";
+        setTimeout(showLogin, 1500);
+      } else {
+        resetError.textContent = data.message || (window.i18n ? window.i18n.t("login.error_reset_generic") : "Could not reset password.");
+      }
+    } catch (err) {
+      resetError.textContent = window.i18n ? window.i18n.t("login.error_network") : "Unable to reach the server. Please try again.";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
 })();

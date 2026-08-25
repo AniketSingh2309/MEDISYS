@@ -53,12 +53,53 @@
 
         <div class="lp-options-row">
           <label class="lp-remember"><input type="checkbox" id="rememberMe" /> <span data-i18n="login.remember_me">Remember me</span></label>
-          <a href="#" class="lp-forgot-link" data-i18n="login.forgot_password">Forgot Password?</a>
+          <a href="#" class="lp-forgot-link" id="forgotPasswordLink" data-i18n="login.forgot_password">Forgot Password?</a>
         </div>
 
         <p class="form-error" id="formError" role="alert" aria-live="polite"></p>
 
         <button type="submit" class="lp-submit-btn" data-i18n="login.submit">LOGIN</button>
+      </form>
+
+      <form class="lp-card" id="forgotPasswordForm" novalidate hidden>
+        <div class="lp-card-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        </div>
+
+        <h2 data-i18n="login.reset_title">Reset Password</h2>
+        <p class="lp-card-subtitle" data-i18n="login.reset_subtitle">Set a new password for your account</p>
+
+        <label class="lp-field-label" for="resetUserId" data-i18n="login.user_id">User ID</label>
+        <div class="lp-input-wrap">
+          <span class="lp-input-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 21c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2"/></svg>
+          </span>
+          <input type="text" id="resetUserId" name="resetUserId" placeholder="Enter User ID" data-i18n-placeholder="login.enter_user_id" autocomplete="username" required />
+        </div>
+
+        <label class="lp-field-label" for="newPassword" data-i18n="login.new_password">New Password</label>
+        <div class="lp-input-wrap">
+          <span class="lp-input-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          </span>
+          <input type="password" id="newPassword" name="newPassword" placeholder="Enter new password" data-i18n-placeholder="login.enter_new_password" autocomplete="new-password" minlength="6" required />
+        </div>
+
+        <label class="lp-field-label" for="confirmPassword" data-i18n="login.confirm_password">Confirm Password</label>
+        <div class="lp-input-wrap">
+          <span class="lp-input-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          </span>
+          <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Re-enter new password" data-i18n-placeholder="login.enter_confirm_password" autocomplete="new-password" minlength="6" required />
+        </div>
+
+        <p class="form-error" id="resetError" role="alert" aria-live="polite"></p>
+
+        <button type="submit" class="lp-submit-btn" data-i18n="login.reset_submit">SET NEW PASSWORD</button>
+
+        <div class="lp-options-row lp-options-row-center">
+          <a href="#" class="lp-forgot-link" id="backToLoginLink" data-i18n="login.back_to_login">&larr; Back to Login</a>
+        </div>
       </form>
     </div>
   </div>

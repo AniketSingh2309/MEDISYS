@@ -7,17 +7,19 @@
   margin: 0 4px;
 }
 
-.medisys-lang-flag-img {
+.medisys-lang-globe-icon {
   position: absolute;
   left: 10px;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
-  width: 18px;
-  height: 12px;
-  border-radius: 2px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  display: inline-flex;
+  color: #64748b;
   z-index: 2;
+}
+
+.medisys-lang-globe-icon svg {
+  display: block;
 }
 
 .medisys-lang-select {
@@ -76,7 +78,9 @@
 }
 
 .portal-header-right .medisys-lang-icon,
-.topbar-right .medisys-lang-icon {
+.topbar-right .medisys-lang-icon,
+.portal-header-right .medisys-lang-globe-icon,
+.topbar-right .medisys-lang-globe-icon {
   color: rgba(255, 255, 255, 0.8);
 }
 

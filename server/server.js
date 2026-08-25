@@ -236,6 +236,64 @@ app.post("/api/logout", (req, res) => {
   });
 });
 
+// Self-service password reset — looks a User ID up the same way /api/login does
+// (user_directory first, then the standalone superadmin row) and overwrites that
+// account's password_hash. No prior password or extra verification is required by
+// design, so anyone who knows/guesses a valid User ID can reset it — see README/
+// commit notes before relying on this for real patient data.
+app.post("/api/forgot-password", async (req, res) => {
+  const { userId, newPassword } = req.body || {};
+
+  if (!userId || !newPassword) {
+    return res.status(400).json({ success: false, message: "User ID and new password are required." });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: "Password must be at least 6 characters." });
+  }
+
+  try {
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    const [directoryRows] = await pool.query(
+      "SELECT hospital_id, account_type FROM user_directory WHERE user_id = ? LIMIT 1",
+      [userId]
+    );
+
+    if (directoryRows.length > 0) {
+      const { hospital_id: hospitalId, account_type: accountType } = directoryRows[0];
+      const [result] =
+        accountType === "patient"
+          ? await pool.query("UPDATE patients SET password_hash = ? WHERE uhid = ? AND hospital_id = ?", [
+              passwordHash,
+              userId,
+              hospitalId,
+            ])
+          : await pool.query("UPDATE users SET password_hash = ? WHERE user_id = ? AND hospital_id = ?", [
+              passwordHash,
+              userId,
+              hospitalId,
+            ]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: "User ID not found." });
+      }
+      return res.json({ success: true });
+    }
+
+    const [result] = await pool.query(
+      "UPDATE users SET password_hash = ? WHERE user_id = ? AND role = 'superadmin'",
+      [passwordHash, userId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "User ID not found." });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Forgot password error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
 app.get("/api/session", (req, res) => {
   res.json({ user: req.session.user || null });
 });

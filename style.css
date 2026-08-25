@@ -47,6 +47,21 @@ body {
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   position: relative;
+  /* Sticky footer: body is a full-height column so .site-footer is pushed to
+     the bottom of the viewport on short pages, and to the bottom of the
+     content (not squished) once content grows past viewport height. */
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* The direct child that should absorb all the extra vertical space so the
+   footer never floats mid-page. Covers plain pages (.portal-main is a direct
+   body child) and staff pages, where portal-ui.js wraps .portal-main in
+   .app-shell (sidebar + main) — .app-shell then becomes the direct child. */
+.portal-main,
+.app-shell {
+  flex: 1 0 auto;
 }
 
 /* Ambient colour glow — soft, blurred, fixed to the viewport so it reads as
@@ -396,6 +411,7 @@ button, input, select, textarea {
   gap: 12px;
   font-size: 13px;
   margin-top: 40px;
+  flex-shrink: 0;
 }
 
 .footer-left {
