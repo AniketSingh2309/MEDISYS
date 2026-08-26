@@ -1447,6 +1447,98 @@ app.get("/api/patients/me/appointments", requireRole("patient"), async (req, res
   }
 });
 
+app.post("/api/patients/me/appointments", requireRole("patient"), async (req, res) => {
+  const { doctorUserId, visitDate, slotTime, source, symptoms, confirmDuplicate } = req.body || {};
+  if (!doctorUserId || !visitDate) {
+    return res.status(400).json({ success: false, message: "Doctor and date are required." });
+  }
+
+  const today = todayLocalDateStr();
+  if (visitDate < today) {
+    return res.status(400).json({
+      success: false,
+      message: `${visitDate} is in the past. Pick today (${today}) or a later date.`,
+    });
+  }
+
+  try {
+    const { hospitalId, userId: patientUhid } = req.session.user;
+
+    if (slotTime) {
+      const [conflict] = await pool.query(
+        `SELECT id FROM opd_visits WHERE hospital_id = ? AND doctor_user_id = ? AND visit_date = ? AND slot_time = ?`,
+        [hospitalId, doctorUserId, visitDate, slotTime]
+      );
+      if (conflict.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "That time slot has already been booked. Please select another slot.",
+        });
+      }
+    }
+
+    if (!confirmDuplicate) {
+      const [pending] = await pool.query(
+        `SELECT v.id, v.visit_date, v.slot_time, u.full_name AS doctor_name
+         FROM opd_visits v LEFT JOIN users u ON u.user_id = v.doctor_user_id
+         WHERE v.hospital_id = ? AND v.patient_uhid = ? AND v.status IN ('waiting', 'in-consultation')`,
+        [hospitalId, patientUhid]
+      );
+      if (pending.length > 0) {
+        return res.status(409).json({
+          success: false,
+          duplicateWarning: true,
+          message: `You already have ${pending.length} unresolved appointment(s).`,
+          existingVisits: pending.map((v) => ({
+            id: v.id,
+            visitDate: v.visit_date,
+            slotTime: v.slot_time,
+            doctorName: v.doctor_name || v.doctor_user_id,
+          })),
+        });
+      }
+    }
+
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM opd_visits WHERE hospital_id = ? AND visit_date = ?`,
+      [hospitalId, visitDate]
+    );
+    const tokenNumber = countRows[0].cnt + 1;
+
+    const [patientRows] = await pool.query(
+      `SELECT phone FROM patients WHERE uhid = ? AND hospital_id = ? LIMIT 1`,
+      [patientUhid, hospitalId]
+    );
+    const patientPhone = patientRows[0]?.phone;
+    const visitSource = source === "telemedicine" ? "telemedicine" : (slotTime ? "appointment" : "walk-in");
+
+    const [result] = await pool.query(
+      `INSERT INTO opd_visits
+        (hospital_id, token_number, patient_uhid, doctor_user_id, visit_date, slot_time, source, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
+      [hospitalId, tokenNumber, patientUhid, doctorUserId, visitDate, slotTime || null, visitSource, patientUhid]
+    );
+
+    const confirmation = patientPhone
+      ? `[stub] SMS/WhatsApp confirmation sent to ${patientPhone}: token #${tokenNumber} on ${visitDate}${
+          slotTime ? ` at ${slotTime}` : ""
+        }.`
+      : "[stub] No phone on file — confirmation not sent.";
+
+    broadcast(req, "opd_queue");
+    broadcast(req, "patients");
+    res.json({
+      success: true,
+      visit: { id: result.insertId, tokenNumber, visitDate, slotTime: slotTime || null, source: visitSource },
+      confirmation,
+    });
+  } catch (err) {
+    console.error("Patient book appointment error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+
 app.get("/api/patients/me/prescriptions", requireRole("patient"), async (req, res) => {
   try {
     const { hospitalId, userId } = req.session.user;
