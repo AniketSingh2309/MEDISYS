@@ -42,13 +42,13 @@
     </div>
     <div class="portal-header-right">
       <span class="portal-user" id="portalUser"></span>
-      <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+      <button type="button" class="portal-logout-btn" id="logoutBtn" data-i18n="common.logout">Logout</button>
     </div>
   </header>
 
   <main class="portal-main">
-    <a href="dashboard.html" class="forgot-link portal-back-link">&larr; Back to Dashboard</a>
-    <h1 id="overviewTitle">Module Overview</h1>
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 id="overviewTitle" data-i18n="hospital_page.overview_default_title">Module Overview</h1>
     <p class="portal-subtitle" id="overviewSubtitle"></p>
 
     <div class="portal-card">
@@ -58,7 +58,7 @@
           <thead><tr id="overviewHeadRow"></tr></thead>
           <tbody id="overviewBody"></tbody>
         </table>
-        <div class="ov-empty" id="overviewEmpty" hidden>Nothing to show yet.</div>
+        <div class="ov-empty" id="overviewEmpty" hidden data-i18n="hospital_page.ov_nothing_to_show">Nothing to show yet.</div>
         <div class="ov-error" id="overviewError" hidden></div>
       </div>
     </div>

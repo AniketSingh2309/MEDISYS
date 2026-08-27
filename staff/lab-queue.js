@@ -34,12 +34,14 @@
     });
   }
 
-  function t(key, fallback) {
+  function t(key, fallback, params) {
     if (window.i18n && typeof window.i18n.t === 'function') {
-      const res = window.i18n.t(key);
+      const res = window.i18n.t(key, params);
       if (res && res !== key) return res;
     }
-    return fallback || key;
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
   }
 
   async function configureForDesignation() {
@@ -91,7 +93,7 @@
         });
         const data = await res.json();
         if (!data.success) {
-          alert(data.message || "Could not claim this order.");
+          alert(data.message || t('lab_queue.could_not_claim_order', 'Could not claim this order.'));
           return;
         }
         loadUnclaimed();
@@ -208,7 +210,7 @@
       });
       const data = await res.json();
       if (!data.success) {
-        errorEl.textContent = data.message || "Could not complete this order.";
+        errorEl.textContent = data.message || t('lab_queue.could_not_complete_order', 'Could not complete this order.');
         return;
       }
 

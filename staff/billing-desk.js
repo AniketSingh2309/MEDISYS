@@ -42,12 +42,14 @@ async function api(url, options) {
   return res.json();
 }
 
-function t(key, fallback) {
+function t(key, fallback, params) {
   if (window.i18n && typeof window.i18n.t === 'function') {
-    const res = window.i18n.t(key);
+    const res = window.i18n.t(key, params);
     if (res && res !== key) return res;
   }
-  return fallback || key;
+  const text = fallback || key;
+  if (!params) return text;
+  return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
 }
 
 function toast(msg, isError) {
@@ -360,7 +362,7 @@ window.collectSelectedCharges = collectSelectedCharges;
 // Reuses Pharmacy's own generate+pay endpoints so a payment taken from Billing Desk is
 // identical to one taken from the Pharmacy portal — one invoice, one source of truth.
 async function payPharmacyOrder(uhid, orderId, medName, amount) {
-  if (!confirm(`Collect ${inr(amount)} for ${medName} now?`)) return;
+  if (!confirm(t('billing_desk.confirm_collect', 'Collect {amount} for {medName} now?', { amount: inr(amount), medName }))) return;
   const genData = await api('/api/pharmacy-invoices/generate', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderIds: [orderId] }),
   });
@@ -749,7 +751,7 @@ async function saveTariffEdit(id) {
 }
 
 async function deleteTariff(id) {
-  if (!confirm('Remove this charge head? It will disappear from the Create Bill presets, but any bills already created stay unaffected.')) return;
+  if (!confirm(t('billing_desk.confirm_remove_charge_head', 'Remove this charge head? It will disappear from the Create Bill presets, but any bills already created stay unaffected.'))) return;
   const data = await api(`/api/billing/tariff/${id}`, { method: 'DELETE' });
   if (!data.success) return toast(data.message || 'Could not delete tariff.', true);
   toast('Tariff item removed.');
@@ -934,7 +936,7 @@ async function init() {
     patients.forEach((p) => {
       if (!knownPatientUhids.has(p.uhid)) {
         knownPatientUhids.add(p.uhid);
-        if (previousCount > 0) showToast(`New patient: ${p.fullName || p.uhid}`, 'success');
+        if (previousCount > 0) showToast(t('billing_desk.new_patient_toast', 'New patient: {name}', { name: p.fullName || p.uhid }), 'success');
       }
     });
     const activeView = document.querySelector('.nav-item.active');

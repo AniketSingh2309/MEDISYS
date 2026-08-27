@@ -9,6 +9,16 @@
     }[c]));
   }
 
+  function t(key, fallback, params) {
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key, params);
+      if (res && res !== key) return res;
+    }
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
+  }
+
   const DECISION_LABELS = { prescribe: "Prescription", order_tests: "Tests Ordered", admit: "Admission Requested" };
   function formatDecisionLabel(decision) {
     return String(decision || "")
@@ -123,7 +133,7 @@
       errorEl.textContent = "";
       const fullName = document.getElementById("editFullName").value.trim();
       if (!fullName) {
-        errorEl.textContent = "Patient name is required.";
+        errorEl.textContent = t('doctor_patients.name_required', 'Patient name is required.');
         return;
       }
       const btn = document.getElementById("savePatientBtn");
@@ -147,14 +157,14 @@
         });
         const data = await res.json();
         if (!data.success) {
-          errorEl.textContent = data.message || "Could not save patient details.";
+          errorEl.textContent = data.message || t('doctor_patients.could_not_save', 'Could not save patient details.');
           return;
         }
         document.getElementById("patientDetailsForm").hidden = true;
         document.getElementById("patientDetailsView").hidden = false;
         document.getElementById("editPatientBtn").hidden = false;
         document.getElementById("detailHeading").textContent = `Patient Chart — ${fullName}`;
-        if (window.showToast) showToast(`Patient details updated for ${fullName}.`, "success");
+        if (window.showToast) showToast(t('doctor_patients.updated_toast', 'Patient details updated for {name}.', { name: fullName }), "success");
         loadChart(currentPatientUhid, fullName);
         loadPatients();
       } finally {

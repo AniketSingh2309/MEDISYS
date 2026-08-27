@@ -16,6 +16,13 @@
 
 let io = null;
 
+// Telemedicine calls no longer use this socket for signaling — they're
+// embedded Jitsi Meet iframes (see telemedicine-jitsi.js), which handle their
+// own media/signaling entirely on Jitsi's infrastructure. Access control for
+// those calls is a random per-visit room token minted server-side (see
+// POST /api/telemedicine/verify-payment and
+// GET /api/opd/visits/:id/meeting-room in server.js), not anything socket-based.
+
 function initRealtime(httpServer, sessionMiddleware) {
   const { Server } = require("socket.io");
   io = new Server(httpServer, {

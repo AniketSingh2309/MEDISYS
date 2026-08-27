@@ -168,12 +168,14 @@
     return "Routine";
   }
 
-  function t(key, fallback) {
+  function t(key, fallback, params) {
     if (window.i18n && typeof window.i18n.t === 'function') {
-      const res = window.i18n.t(key);
+      const res = window.i18n.t(key, params);
       if (res && res !== key) return res;
     }
-    return fallback || key;
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
   }
 
   // ---------- Triage & metrics ----------
@@ -415,7 +417,7 @@
     const data = await api(`/api/bloodbank/requests/${id}/assign`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ staffId: staffId || "Unassigned" }),
     });
-    if (!data.success) return toast(data.message || "Could not assign.", true);
+    if (!data.success) return toast(data.message || t('blood_bank.could_not_assign', 'Could not assign.'), true);
     await loadAll(); renderAll();
     toast(`Assigned ${staffId ? staffName(staffId) : "Unassigned"}`);
   }
@@ -424,7 +426,7 @@
     const data = await api(`/api/bloodbank/requests/${id}/crossmatch`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ field, value: val }),
     });
-    if (!data.success) return toast(data.message || "Could not update.", true);
+    if (!data.success) return toast(data.message || t('blood_bank.could_not_update', 'Could not update.'), true);
     await loadAll(); renderPanel(); renderWorklist();
   }
 
@@ -433,20 +435,20 @@
     const data = await api(`/api/bloodbank/requests/${id}/notes`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes }),
     });
-    if (!data.success) return toast(data.message || "Could not save.", true);
+    if (!data.success) return toast(data.message || t('common.could_not_save', 'Could not save.'), true);
     toast("Notes saved");
   }
 
   async function issueUnits(id) {
     const data = await api(`/api/bloodbank/requests/${id}/issue`, { method: "POST" });
-    if (!data.success) return toast(data.message || "Could not issue.", true);
+    if (!data.success) return toast(data.message || t('blood_bank.could_not_issue', 'Could not issue.'), true);
     await loadAll(); renderAll();
     toast(`Issued ${data.unitsIssued.length} unit(s) — added to billing`);
   }
 
   async function rejectRequest(id) {
     const data = await api(`/api/bloodbank/requests/${id}/reject`, { method: "POST" });
-    if (!data.success) return toast(data.message || "Could not reject.", true);
+    if (!data.success) return toast(data.message || t('blood_bank.could_not_reject', 'Could not reject.'), true);
     await loadAll(); renderAll();
     toast("Request rejected", true);
   }
@@ -564,7 +566,7 @@
       };
       if (!payload.patientName) return toast("Patient name is required.", true);
       const data = await api("/api/bloodbank/requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!data.success) return toast(data.message || "Could not create request.", true);
+      if (!data.success) return toast(data.message || t('blood_bank.could_not_create_request', 'Could not create request.'), true);
       backdrop.classList.remove("open");
       await loadAll(); renderAll();
       selectRequest(data.id);
@@ -611,7 +613,7 @@
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ donorId: Number(donorId), component: document.getElementById("donComponent").value, units: Number(document.getElementById("donUnits").value) || 1 }),
       });
-      if (!data.success) return toast(data.message || "Could not record donation.", true);
+      if (!data.success) return toast(data.message || t('blood_bank.could_not_record_donation', 'Could not record donation.'), true);
       backdrop.classList.remove("open");
       await loadAll(); renderAll();
       toast(`${data.unitsAdded} unit(s) added to stock`);
@@ -635,7 +637,7 @@
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, bloodGroup: document.getElementById("dGroup").value, phone: document.getElementById("dPhone").value.trim(), lastDonationDate: document.getElementById("dDate").value || null }),
       });
-      if (!data.success) return toast(data.message || "Could not add donor.", true);
+      if (!data.success) return toast(data.message || t('blood_bank.could_not_add_donor', 'Could not add donor.'), true);
       ["dName", "dPhone", "dDate"].forEach((id) => (document.getElementById(id).value = ""));
       await loadAll(); renderAll();
       toast(`${name} added to donor register`);
@@ -706,7 +708,7 @@
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(collectScreening()),
       });
       const el = document.getElementById("pdEligibilityResult");
-      if (!data.success) { el.className = "empty"; el.textContent = data.message || "Could not check eligibility."; return; }
+      if (!data.success) { el.className = "empty"; el.textContent = data.message || t('blood_bank.could_not_check_eligibility', 'Could not check eligibility.'); return; }
       if (data.eligible) {
         el.className = ""; el.innerHTML = `<div class="eligible">&#10003; Eligible to donate</div><p style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">All screening values are within the safe donation range.</p>`;
       } else {
@@ -731,9 +733,9 @@
       });
       if (!data.success) {
         const el = document.getElementById("pdEligibilityResult");
-        el.className = ""; el.innerHTML = `<div class="not-eligible">&#10007; ${escapeHtml(data.message || "Could not record donation.")}</div>` +
+        el.className = ""; el.innerHTML = `<div class="not-eligible">&#10007; ${escapeHtml(data.message || t('blood_bank.could_not_record_donation', 'Could not record donation.'))}</div>` +
           (data.reasons ? `<ul style="font-size:12.5px; color:var(--ink-soft); margin-top:8px; padding-left:18px;">${data.reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>` : "");
-        return toast(data.message || "Could not record donation.", true);
+        return toast(data.message || t('blood_bank.could_not_record_donation', 'Could not record donation.'), true);
       }
       await loadAll(); renderAll();
       toast(`Donation recorded — ${data.unitsAdded} unit(s) added to stock`);
@@ -779,7 +781,7 @@
     document.querySelectorAll(".pay-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const data = await api(`/api/bloodbank/billing/${btn.dataset.id}/pay`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentType: "Cash" }) });
-        if (!data.success) return toast(data.message || "Could not mark as paid.", true);
+        if (!data.success) return toast(data.message || t('blood_bank.could_not_mark_paid', 'Could not mark as paid.'), true);
         await loadAll(); renderAll();
         toast("Marked as Paid");
       });
@@ -1029,7 +1031,7 @@
       requests.forEach((r) => {
         if (!knownRequestIds.has(r.id)) {
           knownRequestIds.add(r.id);
-          if (hadRequestsBefore) showToast(`New blood request: ${r.request_code || "#" + r.id} (${r.blood_group} ${r.component})`, "success");
+          if (hadRequestsBefore) showToast(t('blood_bank.new_request_toast', 'New blood request: {code} ({group} {component})', { code: r.request_code || "#" + r.id, group: r.blood_group, component: r.component }), "success");
         }
       });
       renderAll();

@@ -78,6 +78,16 @@
     }[c]));
   }
 
+  function t(key, fallback, params) {
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key, params);
+      if (res && res !== key) return res;
+    }
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
+  }
+
   const TRASH_ICON = `<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M9 3h6a1 1 0 0 1 1 1v1h4v2H4V5h4V4a1 1 0 0 1 1-1zm-2 6h2v9H7V9zm4 0h2v9h-2V9zm4 0h2v9h-2V9zM6 7h12l-1 14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 7z"/></svg>`;
 
   async function deleteHospital(id, name) {
@@ -94,7 +104,7 @@
     const data = await res.json();
 
     if (!data.success) {
-      alert(data.message || "Could not delete hospital. Please try again.");
+      alert(data.message || t('admin.could_not_delete_hospital', 'Could not delete hospital. Please try again.'));
       return false;
     }
     return true;
@@ -311,7 +321,7 @@
       const required = stepEl.querySelectorAll("[required]");
       for (const field of required) {
         if (field.type === "checkbox" ? !field.checked : !field.value.trim()) {
-          errorEl.textContent = "Please fill in all required fields before continuing.";
+          errorEl.textContent = t('admin.fill_required_fields', 'Please fill in all required fields before continuing.');
           field.focus();
           return false;
         }
@@ -401,7 +411,7 @@
         const data = await res.json();
 
         if (!data.success) {
-          errorEl.textContent = data.message || "Could not register hospital. Please try again.";
+          errorEl.textContent = data.message || t('admin.could_not_register_hospital', 'Could not register hospital. Please try again.');
           return;
         }
 
@@ -415,7 +425,7 @@
         document.getElementById("adminPasswordOutput").value = data.admin.password;
         resultPanel.hidden = false;
       } catch (err) {
-        errorEl.textContent = "Unable to reach the server. Please try again.";
+        errorEl.textContent = t('common.unable_to_reach_server', 'Unable to reach the server. Please try again.');
       } finally {
         activateBtn.disabled = false;
       }

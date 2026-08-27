@@ -164,6 +164,36 @@ async function ensureSchema(connection) {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Random, unguessable Jitsi room slug for telemedicine visits (see
+  // POST /api/telemedicine/verify-payment) — never the visit id or anything
+  // derivable, since meet.jit.si is a public server with no access control
+  // of its own; knowing the room name is the only thing that gates entry.
+  await ensureColumn(connection, "opd_visits", "meeting_room", "VARCHAR(64) NULL");
+
+  // One row per telemedicine booking attempt, created the moment the Razorpay order
+  // is created and updated once the payment is verified (see POST /api/telemedicine/*
+  // in server.js). The opd_visits row itself is only ever inserted after verification
+  // succeeds — status stays 'created' (never became a real visit) for anything the
+  // patient abandoned or that failed, so the doctor's queue never sees an unpaid booking.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS telemedicine_payments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      patient_uhid VARCHAR(30) NOT NULL,
+      doctor_user_id VARCHAR(50) NOT NULL,
+      visit_date DATE NOT NULL,
+      slot_time TIME NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      razorpay_order_id VARCHAR(64) NOT NULL,
+      razorpay_payment_id VARCHAR(64) NULL,
+      razorpay_signature VARCHAR(128) NULL,
+      status ENUM('created','paid','failed') NOT NULL DEFAULT 'created',
+      opd_visit_id INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      paid_at TIMESTAMP NULL,
+      UNIQUE KEY uniq_razorpay_order (razorpay_order_id)
+    )
+  `);
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS vitals (

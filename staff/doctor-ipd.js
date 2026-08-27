@@ -29,12 +29,14 @@
     });
   }
 
-  function t(key, fallback) {
+  function t(key, fallback, params) {
     if (window.i18n && typeof window.i18n.t === 'function') {
-      const res = window.i18n.t(key);
+      const res = window.i18n.t(key, params);
       if (res && res !== key) return res;
     }
-    return fallback || key;
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
   }
 
   async function loadAdmissions() {

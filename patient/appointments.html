@@ -6,6 +6,7 @@
 <title>MEDISYS - My Appointments</title>
 <link rel="stylesheet" href="../style.css" />
 <link rel="stylesheet" href="../admin/admin.css" />
+<link rel="stylesheet" href="../telemedicine-jitsi.css" />
 </head>
 <body>
 
@@ -24,9 +25,34 @@
     <h1 data-i18n="appointments.title">Appointments</h1>
     <p class="portal-subtitle" data-i18n="appointments.subtitle">Every OPD visit you've booked, past and upcoming.</p>
 
+    <h2 class="portal-section-title" data-i18n="tele.book_title">Book a Telemedicine Appointment</h2>
+    <div class="portal-card wizard-step">
+      <p class="wizard-hint" data-i18n="tele.book_hint">Pick a doctor and an available slot, pay the consultation fee online, and the appointment is booked instantly — join the video call from the list below once it's confirmed.</p>
+
+      <div class="wizard-grid">
+        <div>
+          <label for="teleDoctorSelect" data-i18n="common.doctor">Doctor</label>
+          <select id="teleDoctorSelect"><option value="" data-i18n="tele.loading_doctors">Loading doctors…</option></select>
+        </div>
+        <div>
+          <label for="teleDateInput" data-i18n="common.date">Date</label>
+          <input type="date" id="teleDateInput" />
+        </div>
+      </div>
+
+      <p class="wizard-hint" id="teleFeeHint"></p>
+      <div class="slot-grid" id="teleSlotGrid"></div>
+
+      <p class="form-error" id="teleBookError" role="alert" aria-live="polite"></p>
+
+      <div class="wizard-nav">
+        <button type="button" class="login-btn wizard-next-btn" id="teleBookBtn" disabled data-i18n="tele.pay_and_book">Pay &amp; Book Appointment</button>
+      </div>
+    </div>
+
     <div class="portal-card">
       <table class="portal-table" id="appointmentsTable">
-        <thead><tr><th data-i18n="common.date">Date</th><th data-i18n="common.time">Time</th><th data-i18n="common.doctor">Doctor</th><th data-i18n="appointments.type">Type</th><th data-i18n="common.status">Status</th></tr></thead>
+        <thead><tr><th data-i18n="common.date">Date</th><th data-i18n="common.time">Time</th><th data-i18n="common.doctor">Doctor</th><th data-i18n="appointments.type">Type</th><th data-i18n="common.status">Status</th><th></th></tr></thead>
         <tbody id="appointmentsTableBody"></tbody>
       </table>
       <p class="portal-empty" id="appointmentsEmptyState" hidden data-i18n="appointments.no_appointments">No appointments on file yet.</p>
@@ -44,6 +70,8 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="../realtime-client.js"></script>
   <script src="../portal-ui.js"></script>
+  <script src="../telemedicine-jitsi.js"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="appointments.js"></script>
 </body>
 </html>

@@ -38,7 +38,7 @@
 
   async function downloadLabReportPdf(order) {
     if (!window.jspdf) {
-      alert("PDF library still loading — try again in a moment.");
+      alert(t('lab_queue.pdf_loading', 'PDF library still loading — try again in a moment.'));
       return;
     }
     const { jsPDF } = window.jspdf;

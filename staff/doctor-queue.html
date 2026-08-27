@@ -6,6 +6,7 @@
 <title>MEDISYS - My Queue</title>
 <link rel="stylesheet" href="../style.css" />
 <link rel="stylesheet" href="../admin/admin.css" />
+<link rel="stylesheet" href="../telemedicine-jitsi.css" />
 </head>
 <body>
 
@@ -35,6 +36,10 @@
     <div id="consultSection" class="portal-card" hidden>
       <h2 id="consultTitle">Consultation</h2>
 
+      <div class="consult-split">
+        <div class="call-video-pane" id="consultVideoPane" hidden></div>
+
+        <div class="consult-form-pane">
       <div class="chart-section">
         <h2 class="chart-section-title">Patient History</h2>
         <div id="historyFeed"></div>
@@ -57,6 +62,7 @@
         <select id="diagnosisSelect">
           <option value="">— None / not on watchlist —</option>
         </select>
+        <input type="text" id="diagnosisOtherInput" placeholder="Type the disease name" hidden style="margin-top: 8px;" />
 
         <p class="wizard-hint" style="margin: 16px 0 4px;">Add any combination below — prescribe medicine, order tests/X-rays, and/or admit, all in the same consultation.</p>
 
@@ -122,6 +128,8 @@
           <button type="button" class="wizard-suggest-btn" id="downloadConsultPdfBtn">⬇️ Download Consultation PDF</button>
         </div>
       </div>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -138,6 +146,7 @@
   <script src="../portal-ui.js"></script>
   <script src="../language/voice-widget.js"></script>
   <script src="../medicine-autocomplete.js"></script>
+  <script src="../telemedicine-jitsi.js"></script>
 <script src="doctor-queue.js"></script>
 </body>
 </html>

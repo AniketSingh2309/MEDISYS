@@ -1,10 +1,12 @@
 (function () {
-  function t(key, fallback) {
+  function t(key, fallback, params) {
     if (window.i18n && typeof window.i18n.t === 'function') {
-      const res = window.i18n.t(key);
+      const res = window.i18n.t(key, params);
       if (res && res !== key) return res;
     }
-    return fallback || key;
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
   }
 
   function escapeHtml(value) {
@@ -229,7 +231,7 @@
   }
 
   async function dispenseMedicine(orderId) {
-    if(!confirm("Are you sure you want to mark this medicine as dispensed?")) return;
+    if (!confirm(t('pharmacy_toast.confirm_dispense', 'Are you sure you want to mark this medicine as dispensed?'))) return;
 
     // Grabbed before the dispense call so we still have it even after
     // loadPharmacyOrders() below refreshes/reorders allOrders.
@@ -242,15 +244,15 @@
       });
       const data = await res.json();
       if(data.success) {
-        showToast("Medicine marked as dispensed & stock updated!", "success");
+        showToast(t('pharmacy_toast.dispensed', 'Medicine marked as dispensed & stock updated!'), "success");
         loadPharmacyOrders();
         if (order) checkLowStockAfterDispense(order.medicine_name);
       } else {
-        showToast("Failed to dispense: " + data.message, "error");
+        showToast(t('pharmacy_toast.failed_dispense_prefix', 'Failed to dispense: ') + data.message, "error");
       }
     } catch (err) {
       console.error("Error dispensing medicine:", err);
-      showToast("Error connecting to server.", "error");
+      showToast(t('pharmacy_toast.error_connecting', 'Error connecting to server.'), "error");
     }
   }
 
@@ -263,7 +265,7 @@
     await loadLowStock();
     const entry = findLowStockEntry(medicineName);
     if (entry && entry.isLow && !entry.hasPendingOrder) {
-      showToast(`Low stock alert: ${entry.medicineName} — ${entry.currentStock} left (threshold ${entry.threshold}).`, "error");
+      showToast(t('pharmacy_toast.low_stock_alert', 'Low stock alert: {medicineName} — {currentStock} left (threshold {threshold}).', { medicineName: entry.medicineName, currentStock: entry.currentStock, threshold: entry.threshold }), "error");
     }
   }
 
@@ -420,7 +422,7 @@
       });
       const data = await res.json();
       if (data.success) {
-        showToast(data.message || `PO created for ${medicineName}.`, "success");
+        showToast(data.message || t('pharmacy_toast.po_created', 'PO created for {medicineName}.', { medicineName }), "success");
         // Don't wait on the realtime round-trip for this — refresh both tabs
         // immediately so the medicine visibly moves from Low Stock to Orders
         // right away. (The realtime "pharmacy_stock"/"pharmacy_purchase_orders"
@@ -429,11 +431,11 @@
         loadLowStock();
         loadPurchaseOrders();
       } else {
-        showToast("Failed to create PO: " + data.message, "error");
+        showToast(t('pharmacy_toast.failed_create_po_prefix', 'Failed to create PO: ') + data.message, "error");
       }
     } catch (err) {
       console.error(err);
-      showToast("Error connecting to server.", "error");
+      showToast(t('pharmacy_toast.error_connecting', 'Error connecting to server.'), "error");
     }
   };
 
@@ -500,15 +502,15 @@
       });
       const data = await res.json();
       if (data.success) {
-        showToast(data.message || `Marked ${status}.`, "success");
+        showToast(data.message || t('pharmacy_toast.marked_status', 'Marked {status}.', { status }), "success");
         loadPurchaseOrders();
         loadLowStock(); // Cancelled orders send the medicine back to Low Stock immediately
       } else {
-        showToast("Failed: " + data.message, "error");
+        showToast(t('pharmacy_toast.failed_prefix', 'Failed: ') + data.message, "error");
       }
     } catch (err) {
       console.error(err);
-      showToast("Error connecting to server.", "error");
+      showToast(t('pharmacy_toast.error_connecting', 'Error connecting to server.'), "error");
     }
   };
 
@@ -608,18 +610,18 @@
 
   // --- DELETE STOCK ---
   window.__deleteStock = async function(id) {
-    if (!confirm('Are you sure you want to delete this stock entry?')) return;
+    if (!confirm(t('pharmacy_toast.confirm_delete_stock', 'Are you sure you want to delete this stock entry?'))) return;
     try {
       const res = await fetch(`/api/pharmacy-stock/${id}`, { method: 'DELETE', credentials: 'same-origin' });
       const data = await res.json();
       if (data.success) {
         loadPharmacyStock();
       } else {
-        alert('Failed: ' + data.message);
+        alert(t('pharmacy_toast.failed_prefix', 'Failed: ') + data.message);
       }
     } catch (err) {
       console.error(err);
-      alert('Server error');
+      alert(t('pharmacy_toast.server_error_short', 'Server error'));
     }
   };
 
@@ -674,17 +676,17 @@
         });
         const data = await res.json();
         if (data.success) {
-          alert(editId ? "Stock updated successfully" : "Stock added successfully");
+          alert(editId ? t('pharmacy_toast.stock_updated_success', 'Stock updated successfully') : t('pharmacy_toast.stock_added_success', 'Stock added successfully'));
           closeModal();
           form.reset();
           form.removeAttribute('data-edit-id');
           loadPharmacyStock();
         } else {
-          alert("Failed: " + data.message);
+          alert(t('pharmacy_toast.failed_prefix', 'Failed: ') + data.message);
         }
       } catch (err) {
         console.error(err);
-        alert("Server error");
+        alert(t('pharmacy_toast.server_error_short', 'Server error'));
       }
     });
     
@@ -742,15 +744,15 @@
         });
         const data = await res.json();
         if (data.success) {
-          showToast(`Reorder threshold saved for ${medicineName}.`, "success");
+          showToast(t('pharmacy_toast.reorder_threshold_saved', 'Reorder threshold saved for {medicineName}.', { medicineName }), "success");
           closeModal();
           loadLowStock();
         } else {
-          showToast("Failed: " + data.message, "error");
+          showToast(t('pharmacy_toast.failed_prefix', 'Failed: ') + data.message, "error");
         }
       } catch (err) {
         console.error(err);
-        showToast("Error connecting to server.", "error");
+        showToast(t('pharmacy_toast.error_connecting', 'Error connecting to server.'), "error");
       }
     });
   }
@@ -1031,7 +1033,7 @@
       });
       const genData = await genRes.json();
       if (!genData.success) {
-        showToast(genData.message || "Could not generate bill.", "error");
+        showToast(genData.message || t('pharmacy_toast.could_not_generate_bill', 'Could not generate bill.'), "error");
         if (triggerBtn) triggerBtn.disabled = false;
         return;
       }
@@ -1044,17 +1046,17 @@
       });
       const payData = await payRes.json();
       if (!payData.success) {
-        showToast(payData.message || "Bill generated but payment could not be recorded.", "error");
+        showToast(payData.message || t('pharmacy_toast.bill_generated_payment_failed', 'Bill generated but payment could not be recorded.'), "error");
         if (triggerBtn) triggerBtn.disabled = false;
         return;
       }
 
-      showToast(`Paid — bill ${genData.invoiceNumber} for ₹${genData.totalAmount.toFixed(2)}.`, "success");
+      showToast(t('pharmacy_toast.paid_bill', 'Paid — bill {invoiceNumber} for ₹{amount}.', { invoiceNumber: genData.invoiceNumber, amount: genData.totalAmount.toFixed(2) }), "success");
       await Promise.all([loadReadyToBill(), loadBillingSection()]);
       window.__printInvoiceSlip(genData.invoiceId);
     } catch (err) {
       console.error("Pay & generate bill error:", err);
-      showToast("Server error generating bill.", "error");
+      showToast(t('pharmacy_toast.server_error_generating_bill', 'Server error generating bill.'), "error");
       if (triggerBtn) triggerBtn.disabled = false;
     }
   }
@@ -1211,11 +1213,11 @@
           })
         )
       );
-      showToast("Marked as Paid.", "success");
+      showToast(t('pharmacy_toast.marked_as_paid', 'Marked as Paid.'), "success");
       loadBillingSection();
     } catch (err) {
       console.error("Mark remaining paid error:", err);
-      showToast("Server error.", "error");
+      showToast(t('pharmacy_toast.server_error_period', 'Server error.'), "error");
     }
   }
 
@@ -1223,7 +1225,7 @@
   window.__printCombinedBill = async function (invoiceIds) {
     try {
       const invoicesForPatient = allInvoices.filter((i) => invoiceIds.includes(i.id));
-      if (invoicesForPatient.length === 0) return alert("Invoice not found.");
+      if (invoicesForPatient.length === 0) return alert(t('pharmacy_toast.invoice_not_found', 'Invoice not found.'));
 
       const itemsResults = await Promise.all(
         invoiceIds.map((id) => fetch(`/api/pharmacy-invoices/${id}/items`, { credentials: "same-origin" }).then((r) => r.json()))
@@ -1271,13 +1273,13 @@
       });
     } catch (err) {
       console.error(err);
-      alert("Print error.");
+      alert(t('pharmacy_toast.print_error', 'Print error.'));
     }
   };
 
   // --- CSV EXPORT FOR SALES REPORT ---
   function exportBillingCSV() {
-    if (allInvoices.length === 0) return showToast("No invoices available to export.", "info");
+    if (allInvoices.length === 0) return showToast(t('pharmacy_toast.no_invoices_export', 'No invoices available to export.'), "info");
 
     let csvContent = "data:text/csv;charset=utf-8,";
     csvContent += "Invoice Number,Patient Name,UHID,Payment Type,Items Count,Total Amount,Status,Date\n";
@@ -1419,7 +1421,7 @@
   // --- PRINT SLIP UTILITIES ---
   window.__printPrescriptionSlip = function(orderId) {
     const order = allOrders.find(o => o.id === orderId);
-    if (!order) return alert("Order details not found.");
+    if (!order) return alert(t('pharmacy_toast.order_not_found', 'Order details not found.'));
     
     const now = new Date();
     const dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
@@ -1447,10 +1449,10 @@
       ]);
       const data = await invRes.json();
       const itemsData = await itemsRes.json();
-      if (!data.success) return alert("Error fetching invoice.");
+      if (!data.success) return alert(t('pharmacy_toast.error_fetching_invoice', 'Error fetching invoice.'));
 
       const inv = data.invoices.find(i => i.id === invoiceId);
-      if (!inv) return alert("Invoice not found.");
+      if (!inv) return alert(t('pharmacy_toast.invoice_not_found', 'Invoice not found.'));
 
       const items = (itemsData.success && itemsData.items.length > 0)
         ? itemsData.items.map(it => ({
@@ -1477,7 +1479,7 @@
       });
     } catch (err) {
       console.error(err);
-      alert("Print error.");
+      alert(t('pharmacy_toast.print_error', 'Print error.'));
     }
   };
 
@@ -1500,7 +1502,7 @@
       </tr>`).join("");
 
     const printWin = window.open('', '_blank', 'width=650,height=700');
-    if (!printWin) return alert("Please allow popups to print the receipt.");
+    if (!printWin) return alert(t('pharmacy_toast.allow_popups', 'Please allow popups to print the receipt.'));
 
     printWin.document.write(`
       <!DOCTYPE html>
@@ -1594,14 +1596,14 @@
       });
       const data = await res.json();
       if (data.success) {
-        showToast("Payment collected! Invoice marked as Paid.", "success");
+        showToast(t('pharmacy_toast.payment_collected', 'Payment collected! Invoice marked as Paid.'), "success");
         loadBillingSection();
       } else {
-        showToast("Failed to mark as paid: " + data.message, "error");
+        showToast(t('pharmacy_toast.failed_mark_paid_prefix', 'Failed to mark as paid: ') + data.message, "error");
       }
     } catch (err) {
       console.error("Mark paid error:", err);
-      showToast("Server error. Please try again.", "error");
+      showToast(t('pharmacy_toast.server_error_retry', 'Server error. Please try again.'), "error");
     }
   };
 
@@ -1674,8 +1676,8 @@
       const patientName = document.getElementById("dsPatientName").value;
       const phone = document.getElementById("dsPhone").value;
 
-      if (!stockId) return showToast("Please select a medicine from stock.", "error");
-      if (!quantity || quantity <= 0) return showToast("Please enter a valid quantity.", "error");
+      if (!stockId) return showToast(t('pharmacy_toast.select_medicine_stock', 'Please select a medicine from stock.'), "error");
+      if (!quantity || quantity <= 0) return showToast(t('pharmacy_toast.valid_quantity', 'Please enter a valid quantity.'), "error");
 
       try {
         const res = await fetch("/api/pharmacy-direct-sale", {
@@ -1686,7 +1688,7 @@
         });
         const data = await res.json();
         if (data.success) {
-          showToast(data.message + " Bill sent to Billing tab.", "success");
+          showToast(data.message + t('pharmacy_toast.bill_sent_billing_suffix', ' Bill sent to Billing tab.'), "success");
           
           directSaleForm.reset();
           
@@ -1695,11 +1697,11 @@
           populateDirectSaleStockSelect();
           loadBillingSection();
         } else {
-          showToast("Failed: " + data.message, "error");
+          showToast(t('pharmacy_toast.failed_prefix', 'Failed: ') + data.message, "error");
         }
       } catch (err) {
         console.error("Direct sale error:", err);
-        showToast("Server error. Please try again.", "error");
+        showToast(t('pharmacy_toast.server_error_retry', 'Server error. Please try again.'), "error");
       }
     });
   }

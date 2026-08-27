@@ -4,12 +4,14 @@
   // success toast and the loadSchedule() refresh right after it (the throw
   // happened before loadSchedule() could run), and also broke rendering any
   // existing schedule rows on page load. Found/fixed 2026-08-21.
-  function t(key, fallback) {
-    if (window.i18n && typeof window.i18n.t === "function") {
-      const res = window.i18n.t(key);
+  function t(key, fallback, params) {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const res = window.i18n.t(key, params);
       if (res && res !== key) return res;
     }
-    return fallback || key;
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
   }
 
   const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

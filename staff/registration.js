@@ -29,12 +29,14 @@
     });
   }
 
-  function t(key, fallback) {
+  function t(key, fallback, params) {
     if (window.i18n && typeof window.i18n.t === 'function') {
-      const res = window.i18n.t(key);
+      const res = window.i18n.t(key, params);
       if (res && res !== key) return res;
     }
-    return fallback || key;
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
   }
 
   function wireSearch() {
@@ -144,7 +146,7 @@
       errorEl.textContent = "";
       if (window.showToast) {
         showToast(
-          profile.mock ? "ABHA details fetched (mock data — configure ABDM_PROVIDER for live lookups)." : "ABHA details fetched and applied.",
+          profile.mock ? t('registration.abha_mock_fetched', 'ABHA details fetched (mock data — configure ABDM_PROVIDER for live lookups).') : t('registration.abha_fetched', 'ABHA details fetched and applied.'),
           "success"
         );
       }
@@ -175,7 +177,7 @@
             return;
           }
           if (data.providerDown) abhaLinkStatus = "pending";
-          errorEl.textContent = data.message || "Could not send OTP. Please try again.";
+          errorEl.textContent = data.message || t('registration.could_not_send_otp', 'Could not send OTP. Please try again.');
           return;
         }
         currentTxnId = data.txnId;
@@ -183,11 +185,11 @@
         otpSection.hidden = false;
         otpInput.focus();
         if (window.showToast) {
-          showToast(data.mock ? "Mock OTP sent — use 111111." : "OTP sent to the registered mobile.", "success");
+          showToast(data.mock ? t('registration.mock_otp_sent', 'Mock OTP sent — use 111111.') : t('registration.otp_sent_mobile', 'OTP sent to the registered mobile.'), "success");
         }
       } catch (err) {
         abhaLinkStatus = "pending";
-        errorEl.textContent = "Unable to reach the server. You can continue with manual registration below.";
+        errorEl.textContent = t('registration.unable_reach_server_manual', 'Unable to reach the server. You can continue with manual registration below.');
       } finally {
         fetchBtn.disabled = false;
       }
@@ -211,14 +213,14 @@
             notFoundEl.hidden = false;
           } else {
             if (data.providerDown) abhaLinkStatus = "pending";
-            errorEl.textContent = data.message || "Verification failed. Please try again.";
+            errorEl.textContent = data.message || t('registration.verification_failed', 'Verification failed. Please try again.');
           }
           return;
         }
         applyProfile(data.profile);
       } catch (err) {
         abhaLinkStatus = "pending";
-        errorEl.textContent = "Unable to reach the server. You can continue with manual registration below.";
+        errorEl.textContent = t('registration.unable_reach_server_manual', 'Unable to reach the server. You can continue with manual registration below.');
       } finally {
         verifyBtn.disabled = false;
       }
@@ -227,11 +229,11 @@
     verifyBtn.addEventListener("click", () => {
       const otp = otpInput.value.trim();
       if (!otp) {
-        errorEl.textContent = "Enter the OTP first.";
+        errorEl.textContent = t('registration.enter_otp_first', 'Enter the OTP first.');
         return;
       }
       if (!currentTxnId) {
-        errorEl.textContent = "Please fetch details again — this OTP request has expired.";
+        errorEl.textContent = t('registration.otp_expired', 'Please fetch details again — this OTP request has expired.');
         return;
       }
       if (currentKind === "enroll") {
@@ -258,7 +260,7 @@
     enrollFetchBtn.addEventListener("click", async () => {
       const aadhaar = enrollAadhaarInput.value.trim();
       if (!aadhaar) {
-        errorEl.textContent = "Enter the Aadhaar number first.";
+        errorEl.textContent = t('registration.enter_aadhaar_first', 'Enter the Aadhaar number first.');
         return;
       }
       enrollFetchBtn.disabled = true;
@@ -273,7 +275,7 @@
         const data = await res.json();
         if (!data.success) {
           if (data.providerDown) abhaLinkStatus = "pending";
-          errorEl.textContent = data.message || "Could not send OTP. Please try again.";
+          errorEl.textContent = data.message || t('registration.could_not_send_otp', 'Could not send OTP. Please try again.');
           return;
         }
         currentTxnId = data.txnId;
@@ -283,11 +285,11 @@
         otpInput.value = "";
         otpInput.focus();
         if (window.showToast) {
-          showToast(data.mock ? "Mock OTP sent — use 111111." : "OTP sent to the Aadhaar-linked mobile.", "success");
+          showToast(data.mock ? t('registration.mock_otp_sent', 'Mock OTP sent — use 111111.') : t('registration.otp_sent_aadhaar', 'OTP sent to the Aadhaar-linked mobile.'), "success");
         }
       } catch (err) {
         abhaLinkStatus = "pending";
-        errorEl.textContent = "Unable to reach the server. You can continue with manual registration below.";
+        errorEl.textContent = t('registration.unable_reach_server_manual', 'Unable to reach the server. You can continue with manual registration below.');
       } finally {
         enrollFetchBtn.disabled = false;
       }
@@ -361,7 +363,7 @@
         document.getElementById("uhidOutput").value = data.patient.uhid;
         document.getElementById("patientPasswordOutput").value = data.patient.password;
         document.getElementById("patientResult").hidden = false;
-        if (window.showToast) showToast(`${t('registration.patient', 'Patient')} ${fullName} ${t('registration.registered_uhid', 'registered — UHID')} ${data.patient.uhid}`, "success");
+        if (window.showToast) showToast(t('registration.patient_registered_toast', '{patient} {name} {registeredLabel} {uhid}', { patient: t('registration.patient', 'Patient'), name: fullName, registeredLabel: t('registration.registered_uhid', 'registered — UHID'), uhid: data.patient.uhid }), "success");
       } catch (err) {
         errorEl.textContent = t('common.server_error', 'Unable to reach the server. Please try again.');
       } finally {

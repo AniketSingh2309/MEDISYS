@@ -1,5 +1,6 @@
 require("dotenv").config({ quiet: true });
 const fs = require("fs");
+const crypto = require("crypto");
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
@@ -14,6 +15,7 @@ const { computeAvailableSlots } = require("./slots");
 const { assignNurseForAdmission } = require("./nurseAssignment");
 const { initRealtime, broadcast, broadcastGlobal } = require("./realtime");
 const abdmService = require("./abdmService");
+const razorpay = require("./razorpay");
 
 const UPLOADS_DIR = path.join(__dirname, "uploads", "lab-results");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -65,10 +67,12 @@ function parseDateStrUTC(dateStr) {
 // ---------- Disease outbreak detection ----------
 //
 // Doctors pick a diagnosis from this fixed list during an OPD consultation
-// (see POST /api/opd/visits/:id/consultation below); free-text symptoms/notes
-// aren't reliable enough to aggregate on. Kept in sync by hand with the
-// <select> in staff/doctor-queue.html, the same duplication pattern already
-// used for role lists between server and client (e.g. hospital.js ROLE_LABELS).
+// (see POST /api/opd/visits/:id/consultation below) — or "Other" plus free
+// text for anything not on it (see MAX_DIAGNOSIS_LENGTH below), since a real
+// outbreak isn't guaranteed to be one of these eleven. Kept in sync by hand
+// with the <select> in staff/doctor-queue.html, the same duplication pattern
+// already used for role lists between server and client (e.g. hospital.js
+// ROLE_LABELS).
 const DISEASE_WATCHLIST = [
   "Dengue",
   "Malaria",
@@ -87,6 +91,9 @@ const DISEASE_WATCHLIST = [
 // this many days, it's treated as a possible outbreak.
 const OUTBREAK_CASE_THRESHOLD = 2;
 const OUTBREAK_WINDOW_DAYS = 7;
+// Matches consultations.diagnosis's column width — a free-text "Other"
+// diagnosis is truncated to this rather than rejected outright.
+const MAX_DIAGNOSIS_LENGTH = 100;
 
 // No real SMS gateway is wired in anywhere in this app (see the existing OPD
 // booking confirmation below) — sending real SMS in India also legally
@@ -99,9 +106,13 @@ function simulateOutbreakSms(recipientCount, areaLabel, message) {
   console.log(`[stub] SMS: "${message}" sent to ${recipientCount} patient(s) in ${areaLabel}.`);
 }
 
-// Runs after every consultation that records a watchlisted diagnosis. Counts
-// cases of that diagnosis at this hospital in the trailing window; if the
-// count crosses the threshold and no alert has already fired for this
+// Runs after every consultation that records a diagnosis — a watchlist pick
+// or free "Other" text alike, matched as plain equality (MySQL's default
+// utf8mb4_0900_ai_ci collation is already case/accent-insensitive, so
+// "Zika Fever" from one doctor and "zika fever" from another count as the
+// same disease with no extra normalization needed here). Counts cases of
+// that diagnosis at this hospital in the trailing window; if the count
+// crosses the threshold and no alert has already fired for this
 // hospital+diagnosis within the window (so it doesn't re-fire on every
 // subsequent case), it (a) simulates an SMS fan-out to the hospital's own
 // patients and to patients of *other* hospitals in the same city ("nearby
@@ -112,7 +123,7 @@ function simulateOutbreakSms(recipientCount, areaLabel, message) {
 // any other hospital's admin. Only aggregate counts are ever stored/sent —
 // never another hospital's patient list — so this can't leak cross-tenant PII.
 async function checkDiseaseOutbreak(req, hospitalId, diagnosis) {
-  if (!diagnosis || !DISEASE_WATCHLIST.includes(diagnosis)) return null;
+  if (!diagnosis) return null;
 
   const [[{ caseCount }]] = await pool.query(
     `SELECT COUNT(*) AS caseCount FROM consultations
@@ -625,6 +636,47 @@ app.post("/api/hospital/staff", requireHospitalAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("Create staff error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Sets/updates one doctor's telemedicine consultation fee (stored in users.details,
+// same JSON blob as specialization/qualification/etc.) — shown to a patient before
+// they pay for a telemedicine booking (see POST /api/telemedicine/create-order).
+app.patch("/api/hospital/staff/:userId/fee", requireHospitalAdmin, async (req, res) => {
+  const { consultationFee } = req.body || {};
+  const fee = Number(consultationFee);
+  if (!Number.isFinite(fee) || fee <= 0) {
+    return res.status(400).json({ success: false, message: "A consultation fee greater than 0 is required." });
+  }
+
+  try {
+    const { hospitalId } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT details FROM users WHERE user_id = ? AND hospital_id = ? AND role = 'doctor' LIMIT 1`,
+      [req.params.userId, hospitalId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Doctor not found." });
+    }
+    const details = (() => {
+      try {
+        return typeof rows[0].details === "string" ? JSON.parse(rows[0].details) : rows[0].details || {};
+      } catch {
+        return {};
+      }
+    })();
+    details.consultationFee = fee;
+
+    await pool.query(`UPDATE users SET details = ? WHERE user_id = ? AND hospital_id = ?`, [
+      JSON.stringify(details),
+      req.params.userId,
+      hospitalId,
+    ]);
+    broadcast(req, "staff");
+    res.json({ success: true, consultationFee: fee });
+  } catch (err) {
+    console.error("Set doctor fee error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
@@ -1313,6 +1365,40 @@ app.get("/api/opd/queue", requireTenantUser, async (req, res) => {
   }
 });
 
+// Deliberately its own endpoint rather than a column on the shared
+// GET /api/opd/queue listing — that listing is also used by receptionists/
+// admins viewing a whole day's queue, and the Jitsi room slug is the only
+// thing gating entry to a video consultation (meet.jit.si has no access
+// control of its own), so it must only ever go to the exact patient or
+// doctor on that one visit — never anyone else browsing the queue.
+app.get("/api/opd/visits/:id/meeting-room", requireTenantUser, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT patient_uhid, doctor_user_id, source, meeting_room FROM opd_visits WHERE id = ? AND hospital_id = ? LIMIT 1`,
+      [req.params.id, req.session.user.hospitalId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Visit not found." });
+    }
+    const visit = rows[0];
+    if (visit.source !== "telemedicine" || !visit.meeting_room) {
+      return res.status(400).json({ success: false, message: "This is not a telemedicine visit." });
+    }
+    const { userId } = req.session.user;
+    if (userId !== visit.patient_uhid && userId !== visit.doctor_user_id) {
+      return res.status(403).json({ success: false, message: "Not authorized for this visit." });
+    }
+    res.json({
+      success: true,
+      meetingRoom: visit.meeting_room,
+      subject: `MEDISYS TELE VISIT ${req.params.id}`,
+    });
+  } catch (err) {
+    console.error("Get meeting room error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
 app.patch("/api/opd/visits/:id/status", requireRole("doctor", "hospital_admin"), async (req, res) => {
   const { status } = req.body || {};
   if (!["waiting", "in-consultation", "completed"].includes(status)) {
@@ -1452,6 +1538,15 @@ app.post("/api/patients/me/appointments", requireRole("patient"), async (req, re
   if (!doctorUserId || !visitDate) {
     return res.status(400).json({ success: false, message: "Doctor and date are required." });
   }
+  // Telemedicine bookings must go through POST /api/telemedicine/create-order +
+  // verify-payment instead — this endpoint has no payment gate, so a telemedicine
+  // visit created here would reach the doctor's queue without the patient ever paying.
+  if (source === "telemedicine") {
+    return res.status(400).json({
+      success: false,
+      message: "Telemedicine appointments require payment — use the telemedicine booking flow.",
+    });
+  }
 
   const today = todayLocalDateStr();
   if (visitDate < today) {
@@ -1538,6 +1633,191 @@ app.post("/api/patients/me/appointments", requireRole("patient"), async (req, re
   }
 });
 
+
+// ---------- Telemedicine booking + payment (Razorpay) ----------
+//
+// Two-step flow, mirroring how Razorpay Checkout is meant to be used:
+//   1. create-order: server creates a Razorpay order for the doctor's fee and
+//      records a 'created' telemedicine_payments row. No opd_visits row exists
+//      yet — the doctor's queue can't see this booking.
+//   2. verify-payment: the browser only reaches this after Razorpay Checkout
+//      reports success. The server independently verifies the HMAC signature
+//      Razorpay returned (never trusting the client's "it succeeded" claim) and
+//      only then inserts the real opd_visits row, making it visible to the
+//      doctor. A failed/skipped/tampered payment never produces a visit.
+
+app.post("/api/telemedicine/create-order", requireRole("patient"), async (req, res) => {
+  const { doctorUserId, visitDate, slotTime } = req.body || {};
+  if (!doctorUserId || !visitDate) {
+    return res.status(400).json({ success: false, message: "Doctor and date are required." });
+  }
+
+  const today = todayLocalDateStr();
+  if (visitDate < today) {
+    return res.status(400).json({
+      success: false,
+      message: `${visitDate} is in the past. Pick today (${today}) or a later date.`,
+    });
+  }
+
+  if (!razorpay.isConfigured()) {
+    return res.status(503).json({
+      success: false,
+      message: "Online payment isn't configured on this server yet. Please contact the hospital.",
+    });
+  }
+
+  try {
+    const { hospitalId, userId: patientUhid } = req.session.user;
+
+    const [doctorRows] = await pool.query(
+      `SELECT full_name, details FROM users WHERE user_id = ? AND hospital_id = ? AND role = 'doctor' LIMIT 1`,
+      [doctorUserId, hospitalId]
+    );
+    if (doctorRows.length === 0) {
+      return res.status(404).json({ success: false, message: "Doctor not found." });
+    }
+    const details = (() => {
+      try {
+        return typeof doctorRows[0].details === "string" ? JSON.parse(doctorRows[0].details) : doctorRows[0].details || {};
+      } catch {
+        return {};
+      }
+    })();
+    const fee = Number(details.consultationFee);
+    if (!Number.isFinite(fee) || fee <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "This doctor hasn't set a telemedicine consultation fee yet. Please choose another doctor.",
+      });
+    }
+
+    if (slotTime) {
+      const [conflict] = await pool.query(
+        `SELECT id FROM opd_visits WHERE hospital_id = ? AND doctor_user_id = ? AND visit_date = ? AND slot_time = ?`,
+        [hospitalId, doctorUserId, visitDate, slotTime]
+      );
+      if (conflict.length > 0) {
+        return res.status(409).json({ success: false, message: "That time slot has already been booked. Please select another slot." });
+      }
+    }
+
+    const receipt = `tele_${hospitalId}_${Date.now()}`;
+    const order = await razorpay.createOrder(fee, receipt, {
+      hospitalId: String(hospitalId),
+      patientUhid,
+      doctorUserId,
+      visitDate,
+    });
+
+    await pool.query(
+      `INSERT INTO telemedicine_payments
+        (hospital_id, patient_uhid, doctor_user_id, visit_date, slot_time, amount, razorpay_order_id, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'created')`,
+      [hospitalId, patientUhid, doctorUserId, visitDate, slotTime || null, fee, order.id]
+    );
+
+    res.json({
+      success: true,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: process.env.RAZORPAY_KEY_ID,
+      doctorName: doctorRows[0].full_name,
+      fee,
+    });
+  } catch (err) {
+    console.error("Create telemedicine order error:", err.message);
+    res.status(500).json({ success: false, message: err.message || "Server error. Please try again." });
+  }
+});
+
+app.post("/api/telemedicine/verify-payment", requireRole("patient"), async (req, res) => {
+  const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    return res.status(400).json({ success: false, message: "Incomplete payment response." });
+  }
+
+  try {
+    const { hospitalId, userId: patientUhid } = req.session.user;
+
+    const [paymentRows] = await pool.query(
+      `SELECT * FROM telemedicine_payments
+       WHERE razorpay_order_id = ? AND hospital_id = ? AND patient_uhid = ? AND status = 'created' LIMIT 1`,
+      [razorpayOrderId, hospitalId, patientUhid]
+    );
+    if (paymentRows.length === 0) {
+      return res.status(404).json({ success: false, message: "No pending payment found for this order." });
+    }
+    const payment = paymentRows[0];
+
+    const isValid = razorpay.verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+    if (!isValid) {
+      await pool.query(
+        `UPDATE telemedicine_payments SET status = 'failed', razorpay_payment_id = ?, razorpay_signature = ? WHERE id = ?`,
+        [razorpayPaymentId, razorpaySignature, payment.id]
+      );
+      return res.status(400).json({ success: false, message: "Payment verification failed. If money was deducted, it will be refunded automatically by Razorpay." });
+    }
+
+    // Slot could have been taken by someone else between order creation and now —
+    // re-check before minting the visit rather than silently double-booking it.
+    if (payment.slot_time) {
+      const [conflict] = await pool.query(
+        `SELECT id FROM opd_visits WHERE hospital_id = ? AND doctor_user_id = ? AND visit_date = ? AND slot_time = ?`,
+        [hospitalId, payment.doctor_user_id, payment.visit_date, payment.slot_time]
+      );
+      if (conflict.length > 0) {
+        await pool.query(`UPDATE telemedicine_payments SET status = 'failed' WHERE id = ?`, [payment.id]);
+        return res.status(409).json({
+          success: false,
+          message: "That slot was just booked by someone else. Your payment was verified but not charged again — please contact the hospital for a refund and pick another slot.",
+        });
+      }
+    }
+
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM opd_visits WHERE hospital_id = ? AND visit_date = ?`,
+      [hospitalId, payment.visit_date]
+    );
+    const tokenNumber = countRows[0].cnt + 1;
+    // Jitsi (meet.jit.si) has no access control of its own — the room slug IS
+    // the access credential, so it must be unguessable, never derived from
+    // the visit id or any other public value.
+    const meetingRoom = "medisys-" + crypto.randomBytes(16).toString("hex");
+
+    const [visitResult] = await pool.query(
+      `INSERT INTO opd_visits
+        (hospital_id, token_number, patient_uhid, doctor_user_id, visit_date, slot_time, source, status, created_by, meeting_room)
+       VALUES (?, ?, ?, ?, ?, ?, 'telemedicine', 'waiting', ?, ?)`,
+      [hospitalId, tokenNumber, patientUhid, payment.doctor_user_id, payment.visit_date, payment.slot_time, patientUhid, meetingRoom]
+    );
+
+    await pool.query(
+      `UPDATE telemedicine_payments
+       SET status = 'paid', razorpay_payment_id = ?, razorpay_signature = ?, opd_visit_id = ?, paid_at = NOW()
+       WHERE id = ?`,
+      [razorpayPaymentId, razorpaySignature, visitResult.insertId, payment.id]
+    );
+
+    broadcast(req, "opd_queue");
+    broadcast(req, "patients");
+    res.json({
+      success: true,
+      visit: {
+        id: visitResult.insertId,
+        tokenNumber,
+        visitDate: payment.visit_date,
+        slotTime: payment.slot_time,
+        source: "telemedicine",
+        meetingRoom,
+      },
+    });
+  } catch (err) {
+    console.error("Verify telemedicine payment error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
 
 app.get("/api/patients/me/prescriptions", requireRole("patient"), async (req, res) => {
   try {
@@ -1682,7 +1962,12 @@ app.post("/api/opd/visits/:id/consultation", requireRole("doctor"), async (req, 
     if (wantsAdmit) actions.push("admit");
     const decision = actions.join(",");
 
-    const diagnosisValue = DISEASE_WATCHLIST.includes(diagnosis) ? diagnosis : null;
+    // Either a watchlist pick or free text typed under "Other" on the client —
+    // both are accepted here and fed into outbreak monitoring the same way;
+    // see checkDiseaseOutbreak's collation note on why differently-cased
+    // duplicates of a custom name still count as the same disease.
+    const trimmedDiagnosis = typeof diagnosis === "string" ? diagnosis.trim().slice(0, MAX_DIAGNOSIS_LENGTH) : "";
+    const diagnosisValue = trimmedDiagnosis || null;
     await pool.query(
       `INSERT INTO consultations (hospital_id, opd_visit_id, patient_uhid, doctor_user_id, symptoms, notes, decision, diagnosis)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

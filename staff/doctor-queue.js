@@ -9,6 +9,16 @@
     }[c]));
   }
 
+  function t(key, fallback, params) {
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key, params);
+      if (res && res !== key) return res;
+    }
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
+  }
+
   // Kept in sync by hand with DISEASE_WATCHLIST in server/server.js.
   const DISEASE_WATCHLIST = [
     "Dengue",
@@ -72,6 +82,41 @@
   let selectedMeds = [];
   let searchDebounce = null;
 
+  // ---------- Telemedicine video call (inline, alongside the consultation form) ----------
+  // Jitsi Meet embed via the shared window.MedisysTelemedicine helper
+  // (telemedicine-jitsi.js) — same room the patient joins from their
+  // appointments page. See that file for the security note on room tokens.
+  let activeCallPromise = null; // openTelemedicineCall() is async — resolves to { close }
+  let activeCallVisitId = null;
+
+  function startTelemedicineCall(visitId) {
+    const pane = document.getElementById("consultVideoPane");
+    if (!pane) return;
+    pane.hidden = false;
+    activeCallVisitId = visitId;
+    activeCallPromise = window.MedisysTelemedicine.openTelemedicineCall({
+      visitId,
+      containerEl: pane,
+      displayName: (sessionUser && (sessionUser.fullName || sessionUser.userId)) || "",
+    });
+  }
+
+  async function stopTelemedicineCall() {
+    const pane = document.getElementById("consultVideoPane");
+    if (activeCallPromise) {
+      const call = await activeCallPromise;
+      if (call) call.close();
+    }
+    activeCallPromise = null;
+    activeCallVisitId = null;
+    if (pane) {
+      pane.hidden = true;
+      pane.innerHTML = "";
+    }
+  }
+
+  window.addEventListener("beforeunload", stopTelemedicineCall);
+
   async function guardSession() {
     const res = await fetch("/api/session", { credentials: "same-origin" });
     const data = await res.json();
@@ -112,15 +157,17 @@
 
     tbody.innerHTML = data.queue
       .map((v) => {
+        const isTele = v.source === "telemedicine";
         let actionBtn = "";
         if (v.status === "waiting") {
           actionBtn = `<button type="button" class="wizard-suggest-btn call-btn" data-id="${v.id}" data-uhid="${escapeHtml(v.patient_uhid)}" data-name="${escapeHtml(v.patient_name || v.patient_uhid)}">${escapeHtml(callLabel)}</button>`;
         } else if (v.status === "in-consultation") {
-          actionBtn = `<button type="button" class="wizard-suggest-btn consult-btn" data-id="${v.id}" data-uhid="${escapeHtml(v.patient_uhid)}" data-name="${escapeHtml(v.patient_name || v.patient_uhid)}">${escapeHtml(consultLabel)}</button>`;
+          const label = isTele ? `📹 ${consultLabel}` : consultLabel;
+          actionBtn = `<button type="button" class="wizard-suggest-btn consult-btn" data-id="${v.id}" data-uhid="${escapeHtml(v.patient_uhid)}" data-name="${escapeHtml(v.patient_name || v.patient_uhid)}" data-source="${escapeHtml(v.source)}">${escapeHtml(label)}</button>`;
         }
         return `<tr>
           <td>#${v.token_number}</td>
-          <td>${escapeHtml(v.patient_name || v.patient_uhid)}</td>
+          <td>${escapeHtml(v.patient_name || v.patient_uhid)}${isTele ? ` <span class="queue-status waiting" style="margin-left:4px;">${escapeHtml(window.i18n ? window.i18n.t("appointments.telemedicine") : "Telemedicine")}</span>` : ""}</td>
           <td>${escapeHtml(v.slot_time || walkInLabel)}</td>
           <td><span class="queue-status ${escapeHtml(v.status)}">${escapeHtml(getStatusDisplay(v.status))}</span></td>
           <td>${actionBtn}</td>
@@ -141,7 +188,7 @@
     });
 
     tbody.querySelectorAll(".consult-btn").forEach((btn) => {
-      btn.addEventListener("click", () => openConsultation(btn.dataset.id, btn.dataset.uhid, btn.dataset.name));
+      btn.addEventListener("click", () => openConsultation(btn.dataset.id, btn.dataset.uhid, btn.dataset.name, btn.dataset.source));
     });
   }
 
@@ -367,15 +414,23 @@
     });
   }
 
-  async function openConsultation(visitId, patientUhid, patientName) {
-    activeVisit = { id: visitId, patientUhid, patientName };
+  async function openConsultation(visitId, patientUhid, patientName, source) {
+    if (activeCallVisitId && activeCallVisitId !== visitId) stopTelemedicineCall();
+    activeVisit = { id: visitId, patientUhid, patientName, source };
     const titlePrefix = window.i18n ? window.i18n.t("doctor_queue.consultation") : "Consultation";
     document.getElementById("consultTitle").textContent = `${titlePrefix} — ${patientName}`;
     document.getElementById("consultSection").hidden = false;
+    if (source === "telemedicine") {
+      startTelemedicineCall(visitId);
+    } else {
+      document.getElementById("consultVideoPane").hidden = true;
+    }
     document.getElementById("consultConfirmation").textContent = "";
     document.getElementById("consultError").textContent = "";
     document.getElementById("symptoms").value = "";
     document.getElementById("diagnosisSelect").value = "";
+    document.getElementById("diagnosisOtherInput").value = "";
+    document.getElementById("diagnosisOtherInput").hidden = true;
     document.getElementById("medName").value = "";
     document.getElementById("medDosage").value = "";
     document.getElementById("medDuration").value = "";
@@ -527,12 +582,12 @@
     document.getElementById("downloadConsultPdfBtn").addEventListener("click", () => {
       const errorEl = document.getElementById("consultError");
       if (!activeVisit) {
-        errorEl.textContent = "Open a consultation before downloading its document.";
+        errorEl.textContent = t('doctor_queue.open_consult_before_download', 'Open a consultation before downloading its document.');
         return;
       }
       const printWindow = window.open("", "_blank");
       if (!printWindow) {
-        errorEl.textContent = "Could not open the print window — check your browser's popup blocker.";
+        errorEl.textContent = t('doctor_queue.popup_blocked', "Could not open the print window — check your browser's popup blocker.");
         return;
       }
       printWindow.document.write(buildConsultationPdfHtml());
@@ -558,6 +613,13 @@
         return;
       }
 
+      if (document.getElementById("diagnosisSelect").value === "Other" && !document.getElementById("diagnosisOtherInput").value.trim()) {
+        errorEl.textContent = window.i18n
+          ? window.i18n.t("doctor_queue.diagnosis_other_required")
+          : "Type the disease name, or pick a different diagnosis option.";
+        return;
+      }
+
       const btn = document.getElementById("completeConsultBtn");
       btn.disabled = true;
       try {
@@ -572,7 +634,7 @@
             // /api/opd/visits/:id/consultation), so nothing downstream that
             // reads consultation.notes on older records breaks.
             symptoms: document.getElementById("symptoms").value.trim(),
-            diagnosis: document.getElementById("diagnosisSelect").value,
+            diagnosis: resolveDiagnosisValue(),
             prescriptions: selectedMeds,
             testIds: selectedTests.map((t) => t.id),
             admit,
@@ -581,25 +643,25 @@
         const data = await res.json();
 
         if (!data.success) {
-          errorEl.textContent = data.message || "Could not record consultation.";
+          errorEl.textContent = data.message || t('doctor_queue.could_not_record_consultation', 'Could not record consultation.');
           return;
         }
 
         const parts = [];
-        if (data.prescriptionCount > 0) parts.push(`${data.prescriptionCount} medicine(s) sent to Pharmacy`);
-        if (data.testCount > 0) parts.push(`${data.testCount} test(s) ordered`);
+        if (data.prescriptionCount > 0) parts.push(t('doctor_queue.medicines_sent_pharmacy', '{count} medicine(s) sent to Pharmacy', { count: data.prescriptionCount }));
+        if (data.testCount > 0) parts.push(t('doctor_queue.tests_ordered_count', '{count} test(s) ordered', { count: data.testCount }));
         if (data.admissionId && data.admissionAlreadyExisted) {
-          parts.push(`admission already active (#${data.admissionId})`);
+          parts.push(t('doctor_queue.admission_already_active', 'admission already active (#{id})', { id: data.admissionId }));
         } else if (data.admissionId) {
-          parts.push(`admission #${data.admissionId} requested`);
+          parts.push(t('doctor_queue.admission_requested_id', 'admission #{id} requested', { id: data.admissionId }));
         }
-        const summary = parts.length ? parts.join(" · ") : "Consultation recorded.";
-        document.getElementById("consultConfirmation").textContent = `Consultation recorded — ${summary}.`;
-        if (window.showToast) showToast(`Consultation saved: ${summary}.`, "success");
+        const summary = parts.length ? parts.join(" · ") : t('doctor_queue.consultation_recorded', 'Consultation recorded.');
+        document.getElementById("consultConfirmation").textContent = t('doctor_queue.consultation_recorded_summary', 'Consultation recorded — {summary}.', { summary });
+        if (window.showToast) showToast(t('doctor_queue.consultation_saved_toast', 'Consultation saved: {summary}.', { summary }), "success");
 
         if (data.outbreakAlert && window.showToast) {
           showToast(
-            `⚠ Outbreak alert raised for ${data.outbreakAlert.diagnosis} (${data.outbreakAlert.caseCount} recent cases) — hospital admin notified.`,
+            t('doctor_queue.outbreak_alert_toast', '⚠ Outbreak alert raised for {diagnosis} ({caseCount} recent cases) — hospital admin notified.', { diagnosis: data.outbreakAlert.diagnosis, caseCount: data.outbreakAlert.caseCount }),
             "error"
           );
         }
@@ -610,6 +672,7 @@
         // Hide the form after 2.5 seconds so they can read the confirmation
         setTimeout(() => {
           document.getElementById("consultSection").hidden = true;
+          stopTelemedicineCall();
         }, 2500);
       } finally {
         btn.disabled = false;
@@ -626,6 +689,29 @@
       opt.textContent = d;
       select.appendChild(opt);
     });
+    const otherOpt = document.createElement("option");
+    otherOpt.value = "Other";
+    otherOpt.textContent = window.i18n ? window.i18n.t("doctor_queue.diagnosis_other") : "Other";
+    select.appendChild(otherOpt);
+
+    const otherInput = document.getElementById("diagnosisOtherInput");
+    select.addEventListener("change", () => {
+      otherInput.hidden = select.value !== "Other";
+      if (select.value !== "Other") otherInput.value = "";
+    });
+  }
+
+  // The value actually sent to the backend: the watchlist selection as-is, or
+  // the doctor's typed text when "Other" is picked — this is also what feeds
+  // outbreak monitoring, so a handful of doctors independently typing the same
+  // (case-insensitive) custom disease name will still trigger an alert exactly
+  // like a watchlist disease would. See checkDiseaseOutbreak in server.js.
+  function resolveDiagnosisValue() {
+    const select = document.getElementById("diagnosisSelect");
+    if (select.value === "Other") {
+      return document.getElementById("diagnosisOtherInput").value.trim();
+    }
+    return select.value;
   }
 
   document.addEventListener("DOMContentLoaded", async () => {

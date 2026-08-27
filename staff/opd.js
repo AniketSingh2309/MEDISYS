@@ -9,6 +9,16 @@
     }[c]));
   }
 
+  function t(key, fallback, params) {
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key, params);
+      if (res && res !== key) return res;
+    }
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
+  }
+
   const STATUS_MAP = {
     waiting: "opd.status_waiting",
     in_consultation: "opd.status_in_consultation",
@@ -175,14 +185,14 @@
     errorEl.textContent = "";
 
     if (!selectedPatient) {
-      errorEl.textContent = "Please search for and select a patient first.";
+      errorEl.textContent = t('opd.select_patient_first', 'Please search for and select a patient first.');
       return;
     }
 
     const doctorUserId = document.getElementById("doctorSelect").value;
     const visitDate = document.getElementById("visitDate").value;
     if (!doctorUserId || !visitDate) {
-      errorEl.textContent = "Please pick a doctor and date.";
+      errorEl.textContent = t('opd.pick_doctor_date', 'Please pick a doctor and date.');
       return;
     }
 
@@ -208,10 +218,10 @@
       if (!data.success) {
         if (data.duplicateWarning) {
           const list = data.existingVisits
-            .map((v) => `  • ${v.doctorName} — ${v.visitDate}${v.slotTime ? " at " + v.slotTime : " (walk-in)"}`)
+            .map((v) => `  • ${v.doctorName} — ${v.visitDate}${v.slotTime ? " " + t('opd.at_time', 'at') + " " + v.slotTime : " (" + t('appointments.walk_in', 'walk-in') + ")"}`)
             .join("\n");
           const proceed = confirm(
-            `${selectedPatient.fullName} already has ${data.existingVisits.length} unresolved booking(s):\n\n${list}\n\nBook another one anyway?`
+            t('opd.duplicate_booking_confirm', '{name} already has {count} unresolved booking(s):\n\n{list}\n\nBook another one anyway?', { name: selectedPatient.fullName, count: data.existingVisits.length, list })
           );
           if (proceed) {
             bookBtn.disabled = false;
@@ -225,8 +235,8 @@
         return;
       }
 
-      document.getElementById("bookingConfirmation").textContent = `Token #${data.visit.tokenNumber} issued. ${data.confirmation}`;
-      if (window.showToast) showToast(`Token #${data.visit.tokenNumber} booked for ${selectedPatient.fullName}.`, "success");
+      document.getElementById("bookingConfirmation").textContent = t('opd.token_issued', 'Token #{token} issued. {confirmation}', { token: data.visit.tokenNumber, confirmation: data.confirmation });
+      if (window.showToast) showToast(t('opd.token_booked_toast', 'Token #{token} booked for {name}.', { token: data.visit.tokenNumber, name: selectedPatient.fullName }), "success");
       loadSlots();
       loadQueue();
     } catch (err) {

@@ -28,6 +28,16 @@ function escapeHtml(value) {
   }[c]));
 }
 
+function t(key, fallback, params) {
+  if (window.i18n && typeof window.i18n.t === "function") {
+    const res = window.i18n.t(key, params);
+    if (res && res !== key) return res;
+  }
+  const text = fallback || key;
+  if (!params) return text;
+  return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
+}
+
 function initials(name) {
   return (
     (name || "")
@@ -403,7 +413,7 @@ async function handleUpload(evt, id) {
   });
   const data = await res.json();
   if (!data.success) {
-    alert(data.message || "Could not upload images.");
+    alert(data.message || t('lab_queue.could_not_upload_images', 'Could not upload images.'));
     return;
   }
   await refresh(id);
@@ -423,7 +433,7 @@ async function assignRad(id, value) {
   });
   const data = await res.json();
   if (!data.success) {
-    alert(data.message || "Could not reassign this study.");
+    alert(data.message || t('lab_queue.could_not_reassign_study', 'Could not reassign this study.'));
     return;
   }
   await refresh(id);
@@ -438,7 +448,7 @@ async function setPriority(id, value) {
   });
   const data = await res.json();
   if (!data.success) {
-    alert(data.message || "Could not update priority.");
+    alert(data.message || t('lab_queue.could_not_update_priority', 'Could not update priority.'));
     return;
   }
   await refresh(id);
@@ -460,7 +470,7 @@ async function saveDraft(id) {
   });
   const data = await res.json();
   if (!data.success) {
-    alert(data.message || "Could not save draft.");
+    alert(data.message || t('lab_queue.could_not_save_draft', 'Could not save draft.'));
     return;
   }
   await refresh(id);
@@ -468,7 +478,7 @@ async function saveDraft(id) {
 
 async function signVerify(id) {
   const text = document.getElementById("reportArea").value;
-  if (!text.trim() && !confirm("Sign & verify with an empty report?")) return;
+  if (!text.trim() && !confirm(t('lab_queue.confirm_sign_empty_report', 'Sign & verify with an empty report?'))) return;
   const s = studies.find((x) => x.id === id);
   const res = await fetch(`/api/lab-orders/${id}/verify`, {
     method: "POST",
@@ -478,19 +488,19 @@ async function signVerify(id) {
   });
   const data = await res.json();
   if (!data.success) {
-    if (window.showToast) showToast(data.message || "Could not sign & verify.", "error");
-    else alert(data.message || "Could not sign & verify.");
+    if (window.showToast) showToast(data.message || t('lab_queue.could_not_sign_verify', 'Could not sign & verify.'), "error");
+    else alert(data.message || t('lab_queue.could_not_sign_verify', 'Could not sign & verify.'));
     return;
   }
   if (window.showToast) {
-    showToast(`Report signed & sent to Dr. ${s ? s.ref : "the ordering physician"} — visible on their portal now.`, "success");
+    showToast(t('lab_queue.signed_sent_report_toast', 'Report signed & sent to Dr. {doctor} — visible on their portal now.', { doctor: s ? s.ref : t('lab_queue.ordering_physician', 'the ordering physician') }), "success");
   }
   await refresh(id);
 }
 
 function logCriticalCallback(name) {
   // UI acknowledgment only — not persisted to the database.
-  alert(`Critical result callback logged for ${name}. (Not stored — verbally confirm with the referring physician.)`);
+  alert(t('lab_queue.critical_result_callback', 'Critical result callback logged for {name}. (Not stored — verbally confirm with the referring physician.)', { name }));
 }
 
 async function imageUrlToDataUrl(url) {
@@ -510,7 +520,7 @@ async function downloadReport(id) {
   const area = document.getElementById("reportArea");
   if (area && !area.readOnly) s.report = area.value;
   if (!window.jspdf) {
-    alert("PDF library still loading — try again in a moment.");
+    alert(t('lab_queue.pdf_loading', 'PDF library still loading — try again in a moment.'));
     return;
   }
   const { jsPDF } = window.jspdf;
@@ -687,7 +697,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       studies.forEach((s) => {
         if (!knownStudyIds.has(s.id)) {
           knownStudyIds.add(s.id);
-          if (hadStudiesBefore && s.status === "pending") showToast(`New order: ${s.test_name || "study"} for ${s.patient_name || s.patient_uhid}`, "success");
+          if (hadStudiesBefore && s.status === "pending") showToast(t('lab_queue.new_order_toast', 'New order: {test} for {patient}', { test: s.test_name || t('lab_queue.study_fallback', 'study'), patient: s.patient_name || s.patient_uhid }), "success");
         }
       });
       renderAll();

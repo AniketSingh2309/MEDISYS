@@ -18,12 +18,14 @@
     return "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  function t(key, fallback) {
+  function t(key, fallback, params) {
     if (window.i18n && typeof window.i18n.t === 'function') {
-      const res = window.i18n.t(key);
+      const res = window.i18n.t(key, params);
       if (res && res !== key) return res;
     }
-    return fallback || key;
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
   }
 
   async function guardSession() {
@@ -123,7 +125,7 @@
 
   function downloadBillPdf(bill) {
     if (!window.jspdf) {
-      alert("PDF library still loading — try again in a moment.");
+      alert(t('lab_queue.pdf_loading', 'PDF library still loading — try again in a moment.'));
       return;
     }
     const { jsPDF } = window.jspdf;
@@ -193,7 +195,7 @@
 
   function downloadPharmacyInvoicePdf(inv) {
     if (!window.jspdf) {
-      alert("PDF library still loading — try again in a moment.");
+      alert(t('lab_queue.pdf_loading', 'PDF library still loading — try again in a moment.'));
       return;
     }
     const { jsPDF } = window.jspdf;
@@ -248,7 +250,7 @@
 
   function downloadOutstandingStatement(charges, total) {
     if (!window.jspdf) {
-      alert("PDF library still loading — try again in a moment.");
+      alert(t('lab_queue.pdf_loading', 'PDF library still loading — try again in a moment.'));
       return;
     }
     const { jsPDF } = window.jspdf;

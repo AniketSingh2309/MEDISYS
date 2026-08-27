@@ -18,6 +18,16 @@
   const MIC_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>`;
   const STOP_ICON = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`;
 
+  function t(key, fallback, params) {
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key, params);
+      if (res && res !== key) return res;
+    }
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
+  }
+
   /**
    * Renders a "language select + dictate button" control into `container`
    * and calls `onResult(data)` with the service's JSON response once a
@@ -27,7 +37,7 @@
     container.classList.add("voice-dictate-widget");
     container.innerHTML = `
       <select class="voice-dictate-lang"></select>
-      <button type="button" class="wizard-suggest-btn voice-dictate-btn">${MIC_ICON}<span>Dictate (AI)</span></button>
+      <button type="button" class="wizard-suggest-btn voice-dictate-btn">${MIC_ICON}<span>${t('voice.dictate_ai', 'Dictate (AI)')}</span></button>
       <span class="voice-dictate-status" aria-live="polite"></span>
     `;
     const select = container.querySelector(".voice-dictate-lang");
@@ -56,14 +66,14 @@
       };
       recorder.start();
       recording = true;
-      button.innerHTML = `${STOP_ICON}<span>Stop &amp; Transcribe</span>`;
+      button.innerHTML = `${STOP_ICON}<span>${t('voice.stop_and_transcribe', 'Stop &amp; Transcribe')}</span>`;
       button.classList.add("voice-mic-recording");
-      status.textContent = "Recording…";
+      status.textContent = t('voice.recording', 'Recording…');
       if (onStart) onStart();
     }
 
     async function submitRecording(blob) {
-      status.textContent = "Transcribing…";
+      status.textContent = t('voice.transcribing', 'Transcribing…');
       button.disabled = true;
       try {
         const body = new FormData();
@@ -72,16 +82,16 @@
         const res = await fetch("/api/voice/prescribe", { method: "POST", credentials: "same-origin", body });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          throw new Error(data.message || "Transcription failed.");
+          throw new Error(data.message || t('voice.transcription_failed', 'Transcription failed.'));
         }
-        status.textContent = "Applied to form — please review.";
+        status.textContent = t('voice.applied_review', 'Applied to form — please review.');
         if (onResult) onResult(data);
       } catch (err) {
         status.textContent = "";
-        if (onError) onError(err.message || "Voice dictation failed.");
+        if (onError) onError(err.message || t('voice.dictation_failed', 'Voice dictation failed.'));
       } finally {
         button.disabled = false;
-        button.innerHTML = `${MIC_ICON}<span>Dictate (AI)</span>`;
+        button.innerHTML = `${MIC_ICON}<span>${t('voice.dictate_ai', 'Dictate (AI)')}</span>`;
         button.classList.remove("voice-mic-recording");
         recording = false;
         if (onStop) onStop();
@@ -94,7 +104,7 @@
       } else {
         startRecording().catch((err) => {
           status.textContent = "";
-          if (onError) onError(err.message || "Microphone access denied.");
+          if (onError) onError(err.message || t('voice.mic_access_denied', 'Microphone access denied.'));
         });
       }
     });
@@ -154,12 +164,12 @@
       recorder.start();
       recording = true;
       button.classList.add("voice-mic-recording");
-      button.setAttribute("aria-label", (button.getAttribute("aria-label") || "Dictate") + " (recording — click to stop)");
-      setStatus("Recording…");
+      button.setAttribute("aria-label", (button.getAttribute("aria-label") || t('voice.dictate', 'Dictate')) + t('voice.recording_suffix', ' (recording — click to stop)'));
+      setStatus(t('voice.recording', 'Recording…'));
     }
 
     async function submitRecording(blob) {
-      setStatus("Transcribing…");
+      setStatus(t('voice.transcribing', 'Transcribing…'));
       button.disabled = true;
       try {
         const body = new FormData();
@@ -168,17 +178,17 @@
         const res = await fetch("/api/voice/prescribe", { method: "POST", credentials: "same-origin", body });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          throw new Error(data.message || "Transcription failed.");
+          throw new Error(data.message || t('voice.transcription_failed', 'Transcription failed.'));
         }
         setStatus("");
         if (onResult) onResult(data);
       } catch (err) {
         setStatus("");
-        if (onError) onError(err.message || "Voice dictation failed.");
+        if (onError) onError(err.message || t('voice.dictation_failed', 'Voice dictation failed.'));
       } finally {
         button.disabled = false;
         button.classList.remove("voice-mic-recording");
-        button.setAttribute("aria-label", (button.getAttribute("aria-label") || "Dictate").replace(" (recording — click to stop)", ""));
+        button.setAttribute("aria-label", (button.getAttribute("aria-label") || t('voice.dictate', 'Dictate')).replace(t('voice.recording_suffix', ' (recording — click to stop)'), ""));
         recording = false;
       }
     }
@@ -189,7 +199,7 @@
       } else {
         startRecording().catch((err) => {
           setStatus("");
-          if (onError) onError(err.message || "Microphone access denied.");
+          if (onError) onError(err.message || t('voice.mic_access_denied', 'Microphone access denied.'));
         });
       }
     });

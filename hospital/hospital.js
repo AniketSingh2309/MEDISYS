@@ -108,6 +108,7 @@
       { key: "specialization", label: "Specialization", type: "text" },
       { key: "qualification", label: "Qualification", type: "text" },
       { key: "licenseNumber", label: "Medical License No.", type: "text" },
+      { key: "consultationFee", label: "Telemedicine Consultation Fee (₹)", type: "text" },
     ],
     nurse: [
       { key: "qualification", label: "Qualification", type: "text" },
@@ -161,6 +162,16 @@
       '"': "&quot;",
       "'": "&#39;",
     }[c]));
+  }
+
+  function t(key, fallback, params) {
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key, params);
+      if (res && res !== key) return res;
+    }
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
   }
 
   async function guardSession() {
@@ -245,9 +256,9 @@
         <div class="outbreak-alert-card">
           <span class="outbreak-alert-icon">&#9888;</span>
           <div>
-            <p class="outbreak-alert-title">${escapeHtml(a.diagnosis)} — possible outbreak</p>
-            <p class="outbreak-alert-detail">${a.case_count} cases recorded in the last ${a.window_days} days. SMS alert sent to ${a.hospital_patients_notified} patient(s) at your hospital and ${a.nearby_patients_notified} patient(s) in nearby areas.</p>
-            <p class="outbreak-alert-meta">Raised ${escapeHtml(when)}</p>
+            <p class="outbreak-alert-title">${escapeHtml(a.diagnosis)} — ${t('hospital_page.possible_outbreak', 'possible outbreak')}</p>
+            <p class="outbreak-alert-detail">${t('hospital_page.outbreak_detail', '{caseCount} cases recorded in the last {windowDays} days. SMS alert sent to {hospitalNotified} patient(s) at your hospital and {nearbyNotified} patient(s) in nearby areas.', { caseCount: a.case_count, windowDays: a.window_days, hospitalNotified: a.hospital_patients_notified, nearbyNotified: a.nearby_patients_notified })}</p>
+            <p class="outbreak-alert-meta">${t('hospital_page.raised_at', 'Raised {when}', { when: escapeHtml(when) })}</p>
           </div>
         </div>`;
       })
@@ -403,7 +414,7 @@
         const data = await res.json();
 
         if (!data.success) {
-          errorEl.textContent = data.message || "Could not add staff member. Please try again.";
+          errorEl.textContent = data.message || t('hospital_page.could_not_add_staff', 'Could not add staff member. Please try again.');
           return;
         }
 
@@ -413,7 +424,7 @@
         document.getElementById("staffPasswordOutput").value = data.staff.password;
         document.getElementById("staffResult").hidden = false;
       } catch (err) {
-        errorEl.textContent = "Unable to reach the server. Please try again.";
+        errorEl.textContent = t('hospital_page.unable_to_reach_server_retry', 'Unable to reach the server. Please try again.');
       } finally {
         submitBtn.disabled = false;
       }
@@ -486,6 +497,13 @@
                 <div class="staff-entry-detail">${escapeHtml(s.email || "—")}${s.phone ? " · " + escapeHtml(s.phone) : ""}</div>
                 <div class="staff-entry-detail">${window.i18n ? window.i18n.t("hospital_page.added_on") : "Added"} ${escapeHtml(added)}</div>
                 <span class="staff-entry-userid">${escapeHtml(s.user_id)}</span>
+                ${role === "doctor" ? `
+                <div class="staff-fee-row">
+                  <label for="fee_${escapeHtml(s.user_id)}">Telemedicine fee (₹)</label>
+                  <input type="number" min="0" step="1" id="fee_${escapeHtml(s.user_id)}" class="staff-fee-input" value="${escapeHtml(details.consultationFee || "")}" placeholder="Not set" />
+                  <button type="button" class="staff-fee-save-btn" data-user-id="${escapeHtml(s.user_id)}">Save</button>
+                  <span class="staff-fee-status" data-status-for="${escapeHtml(s.user_id)}"></span>
+                </div>` : ""}
               </div>`;
           })
           .join("");
@@ -497,6 +515,37 @@
           </div>`;
       })
       .join("");
+
+    container.querySelectorAll(".staff-fee-save-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const userId = btn.dataset.userId;
+        const input = document.getElementById(`fee_${userId}`);
+        const statusEl = container.querySelector(`[data-status-for="${userId}"]`);
+        const fee = input.value.trim();
+        if (!fee || Number(fee) <= 0) {
+          statusEl.textContent = t('hospital_page.enter_fee_valid', 'Enter a fee > 0.');
+          statusEl.className = "staff-fee-status error";
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/hospital/staff/${encodeURIComponent(userId)}/fee`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ consultationFee: Number(fee) }),
+          });
+          const data = await res.json();
+          statusEl.textContent = data.success ? t('common.saved', 'Saved.') : data.message || t('hospital_page.could_not_save', 'Could not save.');
+          statusEl.className = "staff-fee-status" + (data.success ? "" : " error");
+        } catch {
+          statusEl.textContent = t('hospital_page.unable_to_reach_server', 'Unable to reach the server.');
+          statusEl.className = "staff-fee-status error";
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
   }
 
   async function initDepartments() {
@@ -527,7 +576,7 @@
 
       tbody.querySelectorAll(".delete-dept-btn").forEach((btn) => {
         btn.addEventListener("click", async () => {
-          if (!confirm("Remove this department? Doctors assigned to it will become unassigned.")) return;
+          if (!confirm(t('hospital_page.confirm_remove_department', 'Remove this department? Doctors assigned to it will become unassigned.'))) return;
           await fetch(`/api/departments/${btn.dataset.id}`, { method: "DELETE", credentials: "same-origin" });
           loadDepartments();
         });
@@ -540,7 +589,7 @@
       errorEl.textContent = "";
       const name = input.value.trim();
       if (!name) {
-        errorEl.textContent = "Department name is required.";
+        errorEl.textContent = t('hospital_page.department_name_required', 'Department name is required.');
         return;
       }
       const res = await fetch("/api/departments", {
@@ -551,7 +600,7 @@
       });
       const data = await res.json();
       if (!data.success) {
-        errorEl.textContent = data.message || "Could not add department.";
+        errorEl.textContent = data.message || t('hospital_page.could_not_add_department', 'Could not add department.');
         return;
       }
       input.value = "";
@@ -599,7 +648,7 @@
 
     modeSelect.addEventListener("change", async () => {
       const hint = document.getElementById("modeSaveHint");
-      hint.textContent = "Saving...";
+      hint.textContent = t('common.saving', 'Saving...');
       const res = await fetch("/api/hospital/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -607,7 +656,7 @@
         body: JSON.stringify({ nurseAssignmentMode: modeSelect.value }),
       });
       const data = await res.json();
-      hint.textContent = data.success ? "Saved." : data.message || "Could not save.";
+      hint.textContent = data.success ? t('common.saved', 'Saved.') : data.message || t('hospital_page.could_not_save', 'Could not save.');
       document.getElementById("teamsSection").hidden = modeSelect.value !== "doctor_team";
       if (data.success) loadTeams();
     });
@@ -651,7 +700,7 @@
       const nurseUserId = document.getElementById("rosterNurseSelect").value;
       const wardId = document.getElementById("rosterWardSelect").value;
       if (!nurseUserId || !wardId) {
-        errorEl.textContent = "A registered nurse and an existing ward are required.";
+        errorEl.textContent = t('hospital_page.nurse_ward_required', 'A registered nurse and an existing ward are required.');
         return;
       }
       const res = await fetch("/api/nurse-roster", {
@@ -667,7 +716,7 @@
       });
       const data = await res.json();
       if (!data.success) {
-        errorEl.textContent = data.message || "Could not add roster entry.";
+        errorEl.textContent = data.message || t('hospital_page.could_not_add_roster', 'Could not add roster entry.');
         return;
       }
       loadRoster();
@@ -710,7 +759,7 @@
       const doctorUserId = document.getElementById("teamDoctorSelect").value;
       const nurseUserId = document.getElementById("teamNurseSelect").value;
       if (!doctorUserId || !nurseUserId) {
-        errorEl.textContent = "A registered doctor and nurse are required.";
+        errorEl.textContent = t('hospital_page.doctor_nurse_required', 'A registered doctor and nurse are required.');
         return;
       }
       const res = await fetch("/api/doctor-nurse-teams", {
@@ -721,7 +770,7 @@
       });
       const data = await res.json();
       if (!data.success) {
-        errorEl.textContent = data.message || "Could not add team.";
+        errorEl.textContent = data.message || t('hospital_page.could_not_add_team', 'Could not add team.');
         return;
       }
       loadTeams();
@@ -756,7 +805,7 @@
       MEDISYS_RT.on("disease_alerts", (payload) => {
         loadOutbreakAlerts();
         if (window.showToast) {
-          showToast(`⚠ Outbreak alert: ${payload.diagnosis} — ${payload.caseCount} recent cases.`, "error");
+          showToast(t('hospital_page.outbreak_toast', '⚠ Outbreak alert: {diagnosis} — {caseCount} recent cases.', { diagnosis: payload.diagnosis, caseCount: payload.caseCount }), "error");
         }
       });
     }

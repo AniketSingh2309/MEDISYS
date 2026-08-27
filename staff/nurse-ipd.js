@@ -9,6 +9,16 @@
     }[c]));
   }
 
+  function t(key, fallback, params) {
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key, params);
+      if (res && res !== key) return res;
+    }
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
+  }
+
   let currentAdmission = null;
 
   async function guardSession() {
@@ -84,7 +94,7 @@
       errorEl.textContent = "";
       const medicineName = document.getElementById("medicineName").value.trim();
       if (!medicineName || !currentAdmission) {
-        errorEl.textContent = "Medicine name is required.";
+        errorEl.textContent = t('nurse.medicine_name_required', 'Medicine name is required.');
         return;
       }
       const res = await fetch(`/api/ipd/admissions/${currentAdmission.id}/mar`, {
@@ -99,7 +109,7 @@
       });
       const data = await res.json();
       if (!data.success) {
-        errorEl.textContent = data.message || "Could not log dose.";
+        errorEl.textContent = data.message || t('nurse.could_not_log_dose', 'Could not log dose.');
         return;
       }
       document.getElementById("medicineName").value = "";
