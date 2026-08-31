@@ -520,6 +520,8 @@
   .btn.primary:hover{background:var(--blood-deep);}
   .btn.critical{background:var(--red); color:#fff; border-color:var(--red);}
   .btn.ghost{background:transparent;}
+  .btn.pay-online-btn{background:#e0e7ff; color:#3730a3; border-color:#c7d2fe;}
+  .btn.pay-online-btn:hover{background:#c7d2fe;}
   .empty{padding:40px 20px; text-align:center; color:var(--ink-mute); font-size:13px;}
 
   .card-form{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:16px;}
@@ -917,6 +919,8 @@
 <script src="../realtime-client.js"></script>
 <script src="../portal-ui.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="../razorpay-checkout.js"></script>
 <script src="blood-bank-queue.js"></script>
 </body>
 </html>

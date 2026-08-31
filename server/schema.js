@@ -195,6 +195,33 @@ async function ensureSchema(connection) {
     )
   `);
 
+  // Generic Razorpay order tracking shared by every other "collect payment"
+  // flow in the app (pharmacy invoices, blood bank billing, billing desk
+  // bills) — telemedicine keeps its own dedicated table above since it also
+  // carries booking-specific fields (doctor, slot) that don't apply here.
+  // One row per order; resource_type + resource_id point back at whichever
+  // domain row (pharmacy_invoices.id, blood_billing.id, bills.id) it's for.
+  // The domain row is only ever marked paid after this row's status flips to
+  // 'paid' via a verified signature — see createPaymentOrder/
+  // verifyPaymentOrder in server.js.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS payment_orders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      resource_type VARCHAR(30) NOT NULL,
+      resource_id INT NOT NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      razorpay_order_id VARCHAR(64) NOT NULL,
+      razorpay_payment_id VARCHAR(64) NULL,
+      razorpay_signature VARCHAR(128) NULL,
+      status ENUM('created','paid','failed') NOT NULL DEFAULT 'created',
+      created_by VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      paid_at TIMESTAMP NULL,
+      UNIQUE KEY uniq_razorpay_order (razorpay_order_id)
+    )
+  `);
+
   await connection.query(`
     CREATE TABLE IF NOT EXISTS vitals (
       id INT AUTO_INCREMENT PRIMARY KEY,
