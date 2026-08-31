@@ -616,6 +616,35 @@ async function collectPayment(billId) {
 }
 window.collectPayment = collectPayment;
 
+// Real online payment, as an alternative to collectPayment's manual
+// amount+mode prompts above — the amount can be less than the full balance
+// (a partial online payment), same as the manual flow allows.
+async function collectPaymentOnline(billId) {
+  const bill = bills.find((b) => b.id === billId);
+  if (!bill) return;
+  const amountStr = prompt(`Pay online for ${bill.bill_no} — balance due ${inr(bill.balance_amount)}.\nAmount to charge (₹):`, bill.balance_amount);
+  if (amountStr === null) return;
+  const amount = parseFloat(amountStr);
+  if (!amount || amount <= 0) return toast('Enter a valid amount.', true);
+
+  try {
+    const data = await window.MedisysPayments.payViaRazorpay({
+      createOrderUrl: `/api/billing/bills/${billId}/create-order`,
+      createOrderBody: { amount },
+      verifyUrl: `/api/billing/bills/${billId}/verify-payment`,
+      name: "MEDISYS Billing",
+      description: `Bill ${bill.bill_no} — ${bill.patient_name}`,
+    });
+    toast(`₹${amount.toFixed(2)} collected online — bill is now ${data.status}`);
+    await loadAll();
+    renderBillsTable();
+    renderDashboard();
+  } catch (err) {
+    if (!err.dismissed) toast(err.message, true);
+  }
+}
+window.collectPaymentOnline = collectPaymentOnline;
+
 /* ============================================================
    CLAIMS
 ============================================================ */
@@ -864,7 +893,10 @@ async function openInvoice(billId) {
       <div class="sign-block"><div class="sign-line"></div>${t('billing.billing_desk_signature', 'Billing Desk — ')}${escapeHtml(sessionUser.fullName || sessionUser.userId)}</div>
     </div>
 
-    ${bill.balance_amount > 0 ? `<div style="margin-top:20px;"><button class="btn gold" onclick="collectPayment(${bill.id})">${t('billing.collect_remaining', 'Collect Remaining')} ${inr(bill.balance_amount)}</button></div>` : ''}
+    ${bill.balance_amount > 0 ? `<div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn gold" onclick="collectPayment(${bill.id})">${t('billing.collect_remaining', 'Collect Remaining')} ${inr(bill.balance_amount)}</button>
+      <button class="btn" style="background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe;" onclick="collectPaymentOnline(${bill.id})">${t('billing.pay_online', 'Pay Online (Razorpay)')}</button>
+    </div>` : ''}
   `;
 
   document.getElementById('invoice-wrap').classList.add('open');

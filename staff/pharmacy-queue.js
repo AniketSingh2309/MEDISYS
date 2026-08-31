@@ -1411,6 +1411,28 @@
         const method = selectedRadio ? selectedRadio.value : "Cash";
 
         hidePayModal();
+
+        // Cash/UPI/Card here just record what the pharmacist collected in
+        // person — "Razorpay" is the one method where the app itself takes
+        // the payment, so it's the only one that goes through real Checkout
+        // + server-side signature verification instead of self-reporting.
+        if (method === "Razorpay") {
+          const inv = allInvoices.find((i) => String(i.id) === String(invoiceId));
+          try {
+            await window.MedisysPayments.payViaRazorpay({
+              createOrderUrl: `/api/pharmacy-invoices/${invoiceId}/create-order`,
+              verifyUrl: `/api/pharmacy-invoices/${invoiceId}/verify-payment`,
+              name: "MEDISYS Pharmacy",
+              description: inv ? `Invoice #${inv.invoice_number}` : "Pharmacy invoice",
+            });
+            showToast(t('pharmacy_toast.payment_collected', 'Payment collected! Invoice marked as Paid.'), "success");
+            loadBillingSection();
+          } catch (err) {
+            if (!err.dismissed) showToast(err.message, "error");
+          }
+          return;
+        }
+
         if (invoiceId) {
           await window.__markInvoicePaid(invoiceId, method);
         }

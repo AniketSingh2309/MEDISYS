@@ -240,7 +240,8 @@
     "could_not_record_donation": "Could not record donation.",
     "could_not_add_donor": "Could not add donor.",
     "could_not_check_eligibility": "Could not check eligibility.",
-    "could_not_mark_paid": "Could not mark as paid."
+    "could_not_mark_paid": "Could not mark as paid.",
+    "payment_collected": "Payment collected — marked as Paid."
   },
   "common": {
     "save": "Save",
@@ -1093,6 +1094,7 @@
     "patient_attendant": "Patient / Attendant",
     "billing_desk_signature": "Billing Desk — ",
     "collect_remaining": "Collect Remaining",
+    "pay_online": "Pay Online (Razorpay)",
     "ledger_total_outstanding": "Total Outstanding",
     "ledger_currently_admitted": "Currently Admitted",
     "ledger_billing_desk_charges": "Billing Desk Charges",

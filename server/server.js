@@ -176,6 +176,61 @@ async function checkDiseaseOutbreak(req, hospitalId, diagnosis) {
   return { diagnosis, caseCount, hospitalPatientsNotified, nearbyPatientsNotified };
 }
 
+// ---------- Generic Razorpay payment orders ----------
+//
+// Shared by every "collect payment" flow that isn't telemedicine (pharmacy
+// invoices, blood bank billing, billing desk bills) — see payment_orders in
+// schema.js. Each route below still owns its own domain-specific "mark paid"
+// logic (different tables, different status columns); these two functions
+// just handle the Razorpay order/signature plumbing all of them share.
+async function createPaymentOrder(req, hospitalId, resourceType, resourceId, amount) {
+  const receipt = `${resourceType}_${resourceId}_${Date.now()}`;
+  const order = await razorpay.createOrder(amount, receipt, {
+    hospitalId: String(hospitalId),
+    resourceType,
+    resourceId: String(resourceId),
+  });
+  await pool.query(
+    `INSERT INTO payment_orders (hospital_id, resource_type, resource_id, amount, razorpay_order_id, status, created_by)
+     VALUES (?, ?, ?, ?, ?, 'created', ?)`,
+    [hospitalId, resourceType, resourceId, amount, order.id, req.session.user.userId]
+  );
+  return order;
+}
+
+// Verifies the signature and flips the payment_orders row to paid/failed —
+// does NOT touch the domain table (pharmacy_invoices/blood_billing/bills);
+// the caller does that only after this returns ok:true, exactly mirroring how
+// POST /api/telemedicine/verify-payment only inserts the opd_visits row after
+// its own signature check passes.
+async function verifyPaymentOrder(hospitalId, resourceType, resourceId, razorpayOrderId, razorpayPaymentId, razorpaySignature) {
+  const [rows] = await pool.query(
+    `SELECT * FROM payment_orders
+     WHERE razorpay_order_id = ? AND hospital_id = ? AND resource_type = ? AND resource_id = ? AND status = 'created' LIMIT 1`,
+    [razorpayOrderId, hospitalId, resourceType, resourceId]
+  );
+  if (rows.length === 0) {
+    return { ok: false, status: 404, message: "No pending payment found for this order." };
+  }
+  const order = rows[0];
+
+  const isValid = razorpay.verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+  if (!isValid) {
+    await pool.query(`UPDATE payment_orders SET status = 'failed', razorpay_payment_id = ?, razorpay_signature = ? WHERE id = ?`, [
+      razorpayPaymentId,
+      razorpaySignature,
+      order.id,
+    ]);
+    return { ok: false, status: 400, message: "Payment verification failed. If money was deducted, it will be refunded automatically by Razorpay." };
+  }
+
+  await pool.query(
+    `UPDATE payment_orders SET status = 'paid', razorpay_payment_id = ?, razorpay_signature = ?, paid_at = NOW() WHERE id = ?`,
+    [razorpayPaymentId, razorpaySignature, order.id]
+  );
+  return { ok: true, amount: order.amount };
+}
+
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
@@ -2629,14 +2684,63 @@ app.post("/api/pharmacy-invoices/:id/pay", requireTenantUser, async (req, res) =
     const pType = paymentType && paymentType.trim() ? paymentType.trim() : 'Cash';
 
     await pool.query(
-      `UPDATE medisys_pharmacy.pharmacy_invoices SET payment_status = 'Paid', payment_type = ?, paid_at = NOW() WHERE id = ?`,
-      [pType, req.params.id]
+      `UPDATE medisys_pharmacy.pharmacy_invoices SET payment_status = 'Paid', payment_type = ?, paid_at = NOW() WHERE id = ? AND hospital_id = ?`,
+      [pType, req.params.id, req.session.user.hospitalId]
     );
     broadcast(req, "pharmacy_invoices");
     res.json({ success: true, message: "Payment marked as Paid." });
   } catch (err) {
     console.error("Mark invoice paid error:", err.message);
     res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// Real online payment for a pharmacy invoice — the "Razorpay" tile in the
+// Collect Payment modal (staff/pharmacy-queue.html) used to just call the
+// manual /pay endpoint above with paymentType="Razorpay" with no actual
+// transaction; these two routes make that real.
+app.post("/api/pharmacy-invoices/:id/create-order", requireTenantUser, async (req, res) => {
+  if (!razorpay.isConfigured()) {
+    return res.status(503).json({ success: false, message: "Online payment isn't configured on this server yet." });
+  }
+  try {
+    const { hospitalId } = req.session.user;
+    const [rows] = await pool.query(
+      `SELECT total_amount, payment_status FROM medisys_pharmacy.pharmacy_invoices WHERE id = ? AND hospital_id = ? LIMIT 1`,
+      [req.params.id, hospitalId]
+    );
+    if (rows.length === 0) return res.status(404).json({ success: false, message: "Invoice not found." });
+    if (rows[0].payment_status === "Paid") {
+      return res.status(409).json({ success: false, message: "This invoice is already paid." });
+    }
+
+    const order = await createPaymentOrder(req, hospitalId, "pharmacy_invoice", req.params.id, rows[0].total_amount);
+    res.json({ success: true, orderId: order.id, amount: order.amount, currency: order.currency, keyId: process.env.RAZORPAY_KEY_ID });
+  } catch (err) {
+    console.error("Create pharmacy invoice order error:", err.message);
+    res.status(500).json({ success: false, message: err.message || "Server error. Please try again." });
+  }
+});
+
+app.post("/api/pharmacy-invoices/:id/verify-payment", requireTenantUser, async (req, res) => {
+  const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    return res.status(400).json({ success: false, message: "Incomplete payment response." });
+  }
+  try {
+    const { hospitalId } = req.session.user;
+    const result = await verifyPaymentOrder(hospitalId, "pharmacy_invoice", req.params.id, razorpayOrderId, razorpayPaymentId, razorpaySignature);
+    if (!result.ok) return res.status(result.status).json({ success: false, message: result.message });
+
+    await pool.query(
+      `UPDATE medisys_pharmacy.pharmacy_invoices SET payment_status = 'Paid', payment_type = 'Razorpay', paid_at = NOW() WHERE id = ? AND hospital_id = ?`,
+      [req.params.id, hospitalId]
+    );
+    broadcast(req, "pharmacy_invoices");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Verify pharmacy invoice payment error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
 
@@ -4460,6 +4564,51 @@ app.post("/api/bloodbank/billing/:id/pay", requireBloodBankStaff, async (req, re
   }
 });
 
+// Real online payment for a blood bank bill — same pattern as the pharmacy
+// invoice pair above.
+app.post("/api/bloodbank/billing/:id/create-order", requireBloodBankStaff, async (req, res) => {
+  if (!razorpay.isConfigured()) {
+    return res.status(503).json({ success: false, message: "Online payment isn't configured on this server yet." });
+  }
+  try {
+    const { hospitalId } = req.session.user;
+    const [rows] = await pool.query(`SELECT amount, status FROM blood_billing WHERE id = ? AND hospital_id = ? LIMIT 1`, [
+      req.params.id,
+      hospitalId,
+    ]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: "Billing entry not found." });
+    if (rows[0].status === "paid") return res.status(409).json({ success: false, message: "This bill is already paid." });
+
+    const order = await createPaymentOrder(req, hospitalId, "blood_billing", req.params.id, rows[0].amount);
+    res.json({ success: true, orderId: order.id, amount: order.amount, currency: order.currency, keyId: process.env.RAZORPAY_KEY_ID });
+  } catch (err) {
+    console.error("Create blood billing order error:", err.message);
+    res.status(500).json({ success: false, message: err.message || "Server error. Please try again." });
+  }
+});
+
+app.post("/api/bloodbank/billing/:id/verify-payment", requireBloodBankStaff, async (req, res) => {
+  const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    return res.status(400).json({ success: false, message: "Incomplete payment response." });
+  }
+  try {
+    const { hospitalId } = req.session.user;
+    const result = await verifyPaymentOrder(hospitalId, "blood_billing", req.params.id, razorpayOrderId, razorpayPaymentId, razorpaySignature);
+    if (!result.ok) return res.status(result.status).json({ success: false, message: result.message });
+
+    await pool.query(`UPDATE blood_billing SET status = 'paid', payment_type = 'Razorpay', paid_at = NOW() WHERE id = ? AND hospital_id = ?`, [
+      req.params.id,
+      hospitalId,
+    ]);
+    broadcast(req, "bloodbank_billing");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Verify blood billing payment error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
 // ---------- Billing Desk ----------
 
 function requireBillingStaff(req, res, next) {
@@ -4615,6 +4764,76 @@ app.post("/api/billing/bills/:id/payments", requireBillingStaff, async (req, res
   } catch (err) {
     console.error("Record bill payment error:", err.message);
     res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// Real online payment for a billing desk bill — same shape as the manual
+// /payments route above (supports paying less than the full balance), just
+// gated on a verified Razorpay signature instead of staff self-reporting the
+// amount and mode by hand.
+app.post("/api/billing/bills/:id/create-order", requireBillingStaff, async (req, res) => {
+  if (!razorpay.isConfigured()) {
+    return res.status(503).json({ success: false, message: "Online payment isn't configured on this server yet." });
+  }
+  try {
+    const { hospitalId } = req.session.user;
+    const [[bill]] = await pool.query(`SELECT balance_amount, status FROM bills WHERE id = ? AND hospital_id = ? LIMIT 1`, [
+      req.params.id,
+      hospitalId,
+    ]);
+    if (!bill) return res.status(404).json({ success: false, message: "Bill not found." });
+    if (bill.status === "Paid") return res.status(409).json({ success: false, message: "This bill is already fully paid." });
+
+    const balance = parseFloat(bill.balance_amount);
+    const requested = req.body && req.body.amount !== undefined ? Number(req.body.amount) : balance;
+    if (!Number.isFinite(requested) || requested <= 0 || requested > balance + 0.01) {
+      return res.status(400).json({ success: false, message: `Enter an amount between ₹0.01 and the outstanding balance (₹${balance.toFixed(2)}).` });
+    }
+
+    const order = await createPaymentOrder(req, hospitalId, "bill", req.params.id, requested);
+    res.json({ success: true, orderId: order.id, amount: order.amount, currency: order.currency, keyId: process.env.RAZORPAY_KEY_ID });
+  } catch (err) {
+    console.error("Create bill order error:", err.message);
+    res.status(500).json({ success: false, message: err.message || "Server error. Please try again." });
+  }
+});
+
+app.post("/api/billing/bills/:id/verify-payment", requireBillingStaff, async (req, res) => {
+  const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    return res.status(400).json({ success: false, message: "Incomplete payment response." });
+  }
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const result = await verifyPaymentOrder(hospitalId, "bill", req.params.id, razorpayOrderId, razorpayPaymentId, razorpaySignature);
+    if (!result.ok) return res.status(result.status).json({ success: false, message: result.message });
+
+    const [[bill]] = await pool.query(`SELECT * FROM bills WHERE id = ? AND hospital_id = ? LIMIT 1`, [req.params.id, hospitalId]);
+    if (!bill) return res.status(404).json({ success: false, message: "Bill not found." });
+
+    const amt = parseFloat(result.amount);
+    const newPaid = parseFloat(bill.paid_amount) + amt;
+    const newBalance = Math.max(0, +(parseFloat(bill.total_amount) - newPaid).toFixed(2));
+    const newStatus = newPaid >= parseFloat(bill.total_amount) ? "Paid" : "Partial";
+
+    await pool.query(
+      `INSERT INTO bill_payments (hospital_id, bill_id, amount, mode, reference, created_by) VALUES (?, ?, ?, 'Razorpay', ?, ?)`,
+      [hospitalId, req.params.id, amt, razorpayPaymentId, userId]
+    );
+    await pool.query(`UPDATE bills SET paid_amount = ?, balance_amount = ?, status = ? WHERE id = ? AND hospital_id = ?`, [
+      newPaid,
+      newBalance,
+      newStatus,
+      req.params.id,
+      hospitalId,
+    ]);
+
+    broadcast(req, "billing_bills");
+    broadcast(req, "billing_payments");
+    res.json({ success: true, paidAmount: newPaid, balance: newBalance, status: newStatus });
+  } catch (err) {
+    console.error("Verify bill payment error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });
 

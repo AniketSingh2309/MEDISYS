@@ -774,7 +774,10 @@
         <td>${b.units}</td>
         <td>₹${parseFloat(b.amount).toFixed(2)}</td>
         <td><span class="badge ${isPaid ? "paid" : "pending"}">${isPaid ? "Paid" : "Pending"}</span></td>
-        <td>${isPaid ? "" : `<button class="btn primary pay-btn" data-id="${b.id}" style="flex:none; padding:6px 14px;">Mark Paid</button>`}</td>
+        <td>${isPaid ? "" : `
+          <button class="btn primary pay-btn" data-id="${b.id}" style="flex:none; padding:6px 14px;">Mark Paid (Cash)</button>
+          <button class="btn pay-online-btn" data-id="${b.id}" data-patient="${escapeHtml(b.patient_name)}" data-component="${escapeHtml(b.component)}" style="flex:none; padding:6px 14px; margin-left:6px;">Pay via Razorpay</button>
+        `}</td>
       </tr>`;
     }).join("") : `<tr><td colspan="6"><div class="empty">No billing entries yet.</div></td></tr>`;
 
@@ -784,6 +787,23 @@
         if (!data.success) return toast(data.message || t('blood_bank.could_not_mark_paid', 'Could not mark as paid.'), true);
         await loadAll(); renderAll();
         toast("Marked as Paid");
+      });
+    });
+
+    document.querySelectorAll(".pay-online-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          await window.MedisysPayments.payViaRazorpay({
+            createOrderUrl: `/api/bloodbank/billing/${btn.dataset.id}/create-order`,
+            verifyUrl: `/api/bloodbank/billing/${btn.dataset.id}/verify-payment`,
+            name: "MEDISYS Blood Bank",
+            description: `${btn.dataset.component} for ${btn.dataset.patient}`,
+          });
+          await loadAll(); renderAll();
+          toast(t('blood_bank.payment_collected', 'Payment collected — marked as Paid.'));
+        } catch (err) {
+          if (!err.dismissed) toast(err.message, true);
+        }
       });
     });
   }
