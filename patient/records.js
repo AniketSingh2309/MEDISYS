@@ -1,4 +1,18 @@
 (function () {
+  // Was missing entirely — t(...) is called below (in both PDF download
+  // functions) but this file never defined it, unlike every other page.
+  // Only bites when window.jspdf isn't loaded yet (a real but narrow
+  // ReferenceError), found while adding the prescription-PDF feature.
+  function t(key, fallback, params) {
+    if (window.i18n && typeof window.i18n.t === "function") {
+      const res = window.i18n.t(key, params);
+      if (res && res !== key) return res;
+    }
+    const text = fallback || key;
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
+  }
+
   const DECISION_LABELS = { prescribe: "Prescription", order_tests: "Tests Ordered", admit: "Admission Requested" };
   function formatDecisionLabel(decision) {
     return (
@@ -151,6 +165,117 @@
     doc.save(`${patientUhid}_${order.test_name.replace(/\s+/g, "_")}.pdf`);
   }
 
+  // One PDF per visit/consultation, listing every medicine prescribed at
+  // that visit — built from the saved database record (not live form
+  // state, unlike the doctor's own "Download Consultation PDF"), so it's
+  // exactly what actually got prescribed, even months later.
+  async function downloadPrescriptionPdf(consultation) {
+    if (!window.jspdf) {
+      alert(t("lab_queue.pdf_loading", "PDF library still loading — try again in a moment."));
+      return;
+    }
+    const res = await fetch("/api/patients/me/prescriptions", { credentials: "same-origin" });
+    const data = await res.json();
+    if (!data.success) return;
+    const meds = data.prescriptions.filter((p) => String(p.opd_visit_id) === String(consultation.opd_visit_id));
+    if (meds.length === 0) {
+      alert(t("prescriptions.none_for_visit", "No medicines on file for this visit."));
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 48;
+    let y = 56;
+
+    doc.setFillColor(15, 110, 86);
+    doc.rect(0, 0, pageW, 64, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.text(hospitalName || "MEDISYS", margin, 34);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Prescription", margin, 50);
+    y = 92;
+
+    doc.setTextColor(20, 30, 28);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text("Prescription", margin, y);
+    y += 22;
+    doc.setDrawColor(220, 228, 225);
+    doc.line(margin, y, pageW - margin, y);
+    y += 18;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const rows = [
+      ["Patient", patientName, "UHID", patientUhid],
+      ["Doctor", `Dr. ${consultation.doctor_name || meds[0].doctor_name || "—"}`, "Date", new Date(consultation.created_at).toLocaleString()],
+    ];
+    if (consultation.diagnosis) rows.push(["Diagnosis", consultation.diagnosis, "", ""]);
+    rows.forEach((r) => {
+      doc.setTextColor(139, 154, 150);
+      doc.text(r[0], margin, y);
+      doc.setTextColor(20, 30, 28);
+      doc.text(String(r[1] || "—"), margin + 130, y);
+      if (r[2]) {
+        doc.setTextColor(139, 154, 150);
+        doc.text(r[2], margin + 300, y);
+        doc.setTextColor(20, 30, 28);
+        doc.text(String(r[3] || "—"), margin + 380, y);
+      }
+      y += 18;
+    });
+
+    y += 10;
+    doc.setDrawColor(220, 228, 225);
+    doc.line(margin, y, pageW - margin, y);
+    y += 22;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(20, 30, 28);
+    doc.text("Medicines", margin, y);
+    y += 6;
+
+    const colX = { name: margin, dosage: margin + 190, duration: margin + 330, food: margin + 400 };
+    y += 16;
+    doc.setFontSize(9);
+    doc.setTextColor(139, 154, 150);
+    doc.text("MEDICINE", colX.name, y);
+    doc.text("DOSAGE", colX.dosage, y);
+    doc.text("DURATION", colX.duration, y);
+    doc.text("INSTRUCTION", colX.food, y);
+    y += 8;
+    doc.setDrawColor(220, 228, 225);
+    doc.line(margin, y, pageW - margin, y);
+    y += 16;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    meds.forEach((m) => {
+      if (y > 780) {
+        doc.addPage();
+        y = 60;
+      }
+      doc.setTextColor(20, 30, 28);
+      const nameLines = doc.splitTextToSize(m.medicine_name, 180);
+      doc.text(nameLines, colX.name, y);
+      doc.text(m.dosage || "—", colX.dosage, y);
+      doc.text(`${m.duration || "—"} day(s)`, colX.duration, y);
+      doc.text(m.food_instruction || "—", colX.food, y);
+      y += Math.max(nameLines.length, 1) * 13 + 8;
+    });
+
+    doc.setFontSize(8.5);
+    doc.setTextColor(139, 154, 150);
+    doc.text("Electronically generated — Core5 MEDISYS Patient Portal", margin, 810);
+    doc.save(`${patientUhid}_Prescription_${new Date(consultation.created_at).toISOString().slice(0, 10)}.pdf`);
+  }
+
   async function guardSession() {
     const res = await fetch("/api/session", { credentials: "same-origin" });
     const data = await res.json();
@@ -187,14 +312,25 @@
 
     document.getElementById("consultationsFeed").innerHTML =
       r.consultations
-        .map(
-          (c) => `<div class="chart-feed-item">
-            <strong>${escapeHtml(formatDecisionLabel(c.decision))}</strong> — ${escapeHtml(c.symptoms || "—")}
+        .map((c) => {
+          const hasPrescription = String(c.decision || "").split(",").some((d) => d.trim() === "prescribe");
+          return `<div class="chart-feed-item">
+            <strong>${escapeHtml(formatDecisionLabel(c.decision))}</strong> — ${escapeHtml(c.diagnosis || c.symptoms || "—")}
             ${c.notes ? `<div>${escapeHtml(c.notes)}</div>` : ""}
-            <div class="chart-feed-meta">Dr. ${escapeHtml(c.doctor_name || "—")} &middot; ${escapeHtml(new Date(c.created_at).toLocaleString())}</div>
-          </div>`
-        )
+            <div class="chart-feed-meta">
+              Dr. ${escapeHtml(c.doctor_name || "—")} &middot; ${escapeHtml(new Date(c.created_at).toLocaleString())}
+              ${hasPrescription ? ` &middot; <button type="button" class="wizard-suggest-btn download-prescription-btn" data-visit-id="${escapeHtml(c.opd_visit_id)}" style="padding: 2px 10px; font-size: 11px;">Download Prescription</button>` : ""}
+            </div>
+          </div>`;
+        })
         .join("") || `<p class="wizard-hint">No consultations recorded yet.</p>`;
+
+    document.querySelectorAll(".download-prescription-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const consultation = latestRecords.consultations.find((c) => String(c.opd_visit_id) === btn.dataset.visitId);
+        if (consultation) downloadPrescriptionPdf(consultation);
+      });
+    });
 
     document.getElementById("labFeed").innerHTML =
       r.labOrders
