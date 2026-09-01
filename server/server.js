@@ -1610,7 +1610,7 @@ app.get("/api/patients/me/records", requireRole("patient"), async (req, res) => 
   try {
     const { hospitalId, userId } = req.session.user;
     const [consultations] = await pool.query(
-      `SELECT c.id, c.symptoms, c.notes, c.decision, c.created_at, u.full_name AS doctor_name
+      `SELECT c.id, c.opd_visit_id, c.symptoms, c.notes, c.decision, c.diagnosis, c.created_at, u.full_name AS doctor_name
        FROM consultations c
        LEFT JOIN users u ON u.user_id = c.doctor_user_id
        WHERE c.hospital_id = ? AND c.patient_uhid = ? ORDER BY c.created_at DESC`,
@@ -1964,10 +1964,16 @@ app.post("/api/telemedicine/verify-payment", requireRole("patient"), async (req,
 app.get("/api/patients/me/prescriptions", requireRole("patient"), async (req, res) => {
   try {
     const { hospitalId, userId } = req.session.user;
+    // opd_visit_id/doctor_name added so the patient portal can group these
+    // by visit and generate a per-consultation prescription PDF (see
+    // patient/records.js) — previously there was no way to tell which
+    // medicines came from which visit, or who prescribed them.
     const [rows] = await pool.query(
-      `SELECT po.id, po.medicine_name, po.dosage, po.duration, po.urgency, po.food_instruction, po.status,
-              po.created_at, po.dispensed_at, pi.invoice_number, pi.payment_status
+      `SELECT po.id, po.opd_visit_id, po.ipd_admission_id, po.medicine_name, po.dosage, po.duration,
+              po.urgency, po.food_instruction, po.status, po.created_at, po.dispensed_at,
+              po.doctor_user_id, u.full_name AS doctor_name, pi.invoice_number, pi.payment_status
        FROM medisys_pharmacy.pharmacy_orders po
+       LEFT JOIN users u ON u.user_id = po.doctor_user_id
        LEFT JOIN medisys_pharmacy.pharmacy_invoices pi ON pi.id = po.invoice_id
        WHERE po.hospital_id = ? AND po.patient_uhid = ? ORDER BY po.created_at DESC`,
       [hospitalId, userId]
