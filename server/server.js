@@ -16,6 +16,8 @@ const { assignNurseForAdmission } = require("./nurseAssignment");
 const { initRealtime, broadcast, broadcastGlobal } = require("./realtime");
 const abdmService = require("./abdmService");
 const razorpay = require("./razorpay");
+const importRoutes = require("./importRoutes");
+const { getEntity: getImportEntity } = require("./schemaRegistry");
 
 const UPLOADS_DIR = path.join(__dirname, "uploads", "lab-results");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -252,6 +254,8 @@ app.use(sessionMiddleware);
 // folders (html/css/js/images at the repo root) are meant to be publicly reachable.
 app.use(["/server", "/database"], (req, res) => res.status(404).end());
 app.use(express.static(path.join(__dirname, "..")));
+// CSV/XLSX data import pipeline (hospital admin only) — see server/importRoutes.js.
+app.use("/api/import", importRoutes);
 
 function requireSuperadmin(req, res, next) {
   if (req.session.user && req.session.user.role === "superadmin") {
@@ -273,6 +277,61 @@ function requireTenantUser(req, res, next) {
   }
   return res.status(401).json({ success: false, message: "Session required." });
 }
+
+// Read-only lookup for a hospital's auto-created custom fields (see
+// server/importRoutes.js commit step) — this is what lets a page dynamically
+// append per-hospital extra inputs/columns without any global schema change.
+// A hospital admin may only ever read their own hospital's fields; a
+// hospital that never imported a given field simply gets an empty list back,
+// so nothing extra ever renders for hospitals that don't have that data.
+app.get("/api/hospitals/:id/custom-fields", requireHospitalAdmin, async (req, res) => {
+  if (Number(req.params.id) !== req.session.user.hospitalId) {
+    return res.status(403).json({ success: false, message: "You can only view your own hospital's custom fields." });
+  }
+  const entity = getImportEntity(req.query.entity) ? req.query.entity : null;
+  if (!entity) {
+    return res.status(400).json({ success: false, message: "A valid entity query param is required." });
+  }
+  try {
+    const [rows] = await pool.query(
+      `SELECT field_key, field_label, field_type FROM hospital_custom_fields WHERE hospital_id = ? AND entity = ? ORDER BY field_label`,
+      [req.params.id, entity]
+    );
+    res.json({ success: true, customFields: rows });
+  } catch (err) {
+    console.error("Get hospital custom fields error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// New, dedicated endpoint for the hospital admin's imported-data review screen
+// (hospital/data-import.html) — deliberately not a change to the existing,
+// shared GET /api/patients/search (used by staff pages this feature must not
+// touch). Returns extra_fields alongside the normal columns so that screen
+// can render hospital-scoped custom fields as extra table columns.
+app.get("/api/hospital/patients", requireHospitalAdmin, async (req, res) => {
+  const q = (req.query.q || "").trim();
+  try {
+    const { hospitalId } = req.session.user;
+    const like = `%${q}%`;
+    const [rows] = q
+      ? await pool.query(
+          `SELECT uhid, full_name, dob, gender, phone, category, blood_group, extra_fields, created_at
+           FROM patients WHERE hospital_id = ? AND (full_name LIKE ? OR phone LIKE ? OR uhid LIKE ?)
+           ORDER BY created_at DESC LIMIT 100`,
+          [hospitalId, like, like, like]
+        )
+      : await pool.query(
+          `SELECT uhid, full_name, dob, gender, phone, category, blood_group, extra_fields, created_at
+           FROM patients WHERE hospital_id = ? ORDER BY created_at DESC LIMIT 100`,
+          [hospitalId]
+        );
+    res.json({ success: true, patients: rows });
+  } catch (err) {
+    console.error("List hospital patients error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
 
 function requireReceptionistOrAdmin(req, res, next) {
   const role = req.session.user && req.session.user.role;
@@ -732,6 +791,34 @@ app.patch("/api/hospital/staff/:userId/fee", requireHospitalAdmin, async (req, r
     res.json({ success: true, consultationFee: fee });
   } catch (err) {
     console.error("Set doctor fee error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Bulk password reset from the Existing Staff page — either one selected
+// staff member or every one of them ("Select All"), always with a password
+// the admin types by hand (never auto-generated) so it can be handed to the
+// affected staff directly. Scoped to this admin's own hospital and excludes
+// hospital_admin rows as defense in depth, even though the Existing Staff
+// page never lists them to begin with (see GET /api/hospital/staff above).
+app.post("/api/hospital/staff/reset-password", requireHospitalAdmin, async (req, res) => {
+  const { userIds, newPassword } = req.body || {};
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return res.status(400).json({ success: false, message: "Select at least one staff member." });
+  }
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: "Password must be at least 6 characters." });
+  }
+  try {
+    const { hospitalId } = req.session.user;
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const [result] = await pool.query(
+      `UPDATE users SET password_hash = ? WHERE hospital_id = ? AND role != 'hospital_admin' AND user_id IN (?)`,
+      [passwordHash, hospitalId, userIds]
+    );
+    res.json({ success: true, updatedCount: result.affectedRows, requestedCount: userIds.length });
+  } catch (err) {
+    console.error("Bulk staff password reset error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
   }
 });

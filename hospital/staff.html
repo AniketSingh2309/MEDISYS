@@ -6,6 +6,50 @@
 <title>MEDISYS - Existing Staff</title>
 <link rel="stylesheet" href="../style.css" />
 <link rel="stylesheet" href="../admin/admin.css" />
+<style>
+  /* Scoped to this page — staff selection + bulk password reset. */
+  .staff-bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: var(--surface, #fff);
+    border: 1px solid var(--line, #eef1f6);
+    border-radius: var(--radius-sm, 8px);
+    padding: 12px 16px;
+    margin-bottom: 20px;
+  }
+  .staff-bulk-bar label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    cursor: pointer;
+  }
+  .staff-bulk-count {
+    font-size: 13px;
+    color: var(--ink-mute, #8891a0);
+  }
+  .staff-select-checkbox {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 17px;
+    height: 17px;
+    cursor: pointer;
+  }
+  .staff-entry-card {
+    position: relative;
+  }
+  .staff-entry-card.staff-selected {
+    box-shadow: 0 0 0 2px var(--teal) inset;
+  }
+  #resetPasswordPanel {
+    margin-bottom: 24px;
+  }
+</style>
 </head>
 <body>
 
@@ -27,6 +71,34 @@
     <div id="staffEmptyState" class="portal-card portal-empty" hidden>
       <p data-i18n="hospital_page.no_staff_yet">No staff registered yet.</p>
       <a href="add-staff.html" class="forgot-link" data-i18n="hospital_page.add_first_staff">Add your first staff member &rarr;</a>
+    </div>
+
+    <div class="staff-bulk-bar" id="staffBulkBar" hidden>
+      <label for="staffSelectAll">
+        <input type="checkbox" id="staffSelectAll" />
+        <span data-i18n="hospital_page.select_all_staff">Select all</span>
+      </label>
+      <span class="staff-bulk-count" id="staffSelectedCount"></span>
+      <button type="button" class="wizard-suggest-btn" id="resetPasswordBtn" disabled data-i18n="hospital_page.reset_password_btn">Reset Password</button>
+    </div>
+
+    <div class="portal-card wizard-step" id="resetPasswordPanel" hidden>
+      <h2 data-i18n="hospital_page.reset_password_title">Reset Password</h2>
+      <p class="wizard-hint" id="resetPasswordTargetHint"></p>
+
+      <label for="resetPasswordInput" data-i18n="hospital_page.new_password_label">New password</label>
+      <input type="password" id="resetPasswordInput" autocomplete="new-password" minlength="6" placeholder="Enter new password" data-i18n-placeholder="hospital_page.enter_new_password" />
+
+      <label for="resetPasswordConfirmInput" data-i18n="hospital_page.confirm_password_label">Confirm password</label>
+      <input type="password" id="resetPasswordConfirmInput" autocomplete="new-password" minlength="6" placeholder="Re-enter new password" data-i18n-placeholder="hospital_page.re_enter_new_password" />
+
+      <p class="form-error" id="resetPasswordError" role="alert" aria-live="polite"></p>
+
+      <div class="wizard-nav">
+        <button type="button" class="wizard-back-btn" id="cancelResetPasswordBtn" data-i18n="common.cancel">Cancel</button>
+        <button type="button" class="login-btn wizard-next-btn" id="confirmResetPasswordBtn" data-i18n="hospital_page.reset_password_confirm_btn">Reset Password</button>
+      </div>
+      <p class="wizard-hint" id="resetPasswordResult"></p>
     </div>
 
     <div id="staffGroups"></div>

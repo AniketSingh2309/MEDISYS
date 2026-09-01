@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MEDISYS - Data Import</title>
+<link rel="stylesheet" href="../style.css" />
+<link rel="stylesheet" href="../admin/admin.css" />
+<style>
+  /* Scoped to this page only — the loading bar and bucket panels the
+     auto-detect ("mixed dataset") import flow needs, built from the same
+     tokens (--navy/--teal-dark/--radius-sm/--ink-mute) every other page
+     already uses, since no shared progress-bar component exists yet. */
+  .import-progress-track {
+    height: 8px;
+    border-radius: 999px;
+    background: #e9edf5;
+    overflow: hidden;
+    margin: 10px 0 6px;
+  }
+  .import-progress-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(120deg, var(--navy) 0%, var(--teal-dark) 160%);
+    transition: width 0.35s ease;
+  }
+  .import-progress-fill.indeterminate {
+    width: 40% !important;
+    animation: importProgressSlide 1.1s ease-in-out infinite;
+  }
+  .import-progress-fill.stopped {
+    background: var(--red, #c0392b);
+  }
+  @keyframes importProgressSlide {
+    0% { margin-left: -40%; }
+    100% { margin-left: 100%; }
+  }
+  .bucket-panel {
+    border: 1px solid #e5e9f2;
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .bucket-panel-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .bucket-panel-title {
+    font-weight: 700;
+    font-size: 15px;
+  }
+  .bucket-panel-count {
+    color: var(--ink-mute, #8891a0);
+    font-size: 13px;
+  }
+  .bucket-status-pill {
+    font-size: 12px;
+  }
+  /* Pinned just below the sticky site header (which is 84px tall) so the
+     Import All button — and any mapping error — stays reachable no matter
+     how far down the bucket panels the admin has scrolled to fix something. */
+  .auto-action-bar {
+    position: sticky;
+    top: 84px;
+    z-index: 10;
+    background: var(--surface, #fff);
+    padding: 10px 0 16px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #eef1f6;
+  }
+  .auto-action-bar .form-error:empty,
+  .auto-action-bar #autoImportSummary:empty {
+    display: none;
+  }
+  .mapping-mode-toggle {
+    display: inline-flex;
+    border: 1px solid #d7dee6;
+    border-radius: 999px;
+    padding: 3px;
+    margin-bottom: 14px;
+    gap: 2px;
+  }
+  .mapping-mode-toggle input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .mapping-mode-toggle label {
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink-mute, #8891a0);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .mapping-mode-toggle input[type="radio"]:checked + label {
+    background: var(--navy);
+    color: #fff;
+  }
+  .mapping-mode-hint {
+    display: block;
+    font-size: 12px;
+    color: var(--ink-mute, #8891a0);
+    margin: -8px 0 14px;
+  }
+  #mappingTableBody select:disabled,
+  .bucket-panel select:disabled {
+    background: #f4f6fb;
+    color: var(--ink-mute, #8891a0);
+    cursor: not-allowed;
+  }
+</style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="brand">
+      <img src="../logo.png" alt="Core5 MEDISYS" class="brand-logo" />
+    </div>
+    <div class="portal-header-right">
+      <span class="portal-user" id="portalUser"></span>
+      <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <main class="portal-main">
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="data_import.title">Data Import</h1>
+    <p class="portal-subtitle" data-i18n="data_import.subtitle">Upload a CSV or XLSX file of patient records or your hospital's facility data. Columns that match your existing fields are filled in automatically; anything else becomes a custom field for your hospital only — nothing is ever silently dropped.</p>
+
+    <!-- Step 1: upload -->
+    <div class="portal-card wizard-step" id="uploadSection">
+      <h2 data-i18n="data_import.step1_title">1. Upload a file</h2>
+      <div class="wizard-grid">
+        <div>
+          <label for="importEntitySelect" data-i18n="data_import.what_are_you_importing">What are you importing?</label>
+          <select id="importEntitySelect">
+            <option value="auto" data-i18n="data_import.entity_auto">Auto-detect (mixed dataset — patients, doctors, nurses, etc. all in one file)</option>
+            <option value="patients" data-i18n="data_import.entity_patients">Patient records</option>
+            <option value="hospitals" data-i18n="data_import.entity_hospital">Your hospital's facility data</option>
+          </select>
+        </div>
+        <div>
+          <label for="importSourceName" data-i18n="data_import.source_name_label">Source name <span class="wizard-hint" style="display:inline;">(optional — lets future uploads from the same system reuse this mapping)</span></label>
+          <input type="text" id="importSourceName" placeholder="e.g. Apollo EMR Export" data-i18n-placeholder="data_import.source_name_placeholder" />
+        </div>
+      </div>
+
+      <label for="importFileInput" data-i18n="data_import.choose_file">File (.csv, .xlsx)</label>
+      <input type="file" id="importFileInput" accept=".csv,.xlsx,.xls" />
+
+      <p class="form-error" id="uploadError" role="alert" aria-live="polite"></p>
+
+      <div class="wizard-nav">
+        <button type="button" class="login-btn wizard-next-btn" id="uploadBtn" data-i18n="data_import.analyze_file">Analyze File</button>
+      </div>
+
+      <div id="analyzeProgress" hidden>
+        <div class="import-progress-track"><div class="import-progress-fill indeterminate" id="analyzeProgressFill"></div></div>
+        <p class="wizard-hint" id="analyzeProgressLabel" data-i18n="data_import.analyzing">Sorting and analyzing your data…</p>
+      </div>
+    </div>
+
+    <!-- Auto-detect: sorted-by-type summary + one mapping review per detected type -->
+    <div class="portal-card wizard-step" id="autoSection" hidden>
+      <h2 data-i18n="data_import.auto_step_title">2. Review sorted data</h2>
+      <p class="wizard-hint" id="autoSummaryText"></p>
+
+      <!-- Sticks below the site header while scrolling through the bucket
+           panels below, so fixing a mapping issue never means scrolling all
+           the way back down just to click Import All again. -->
+      <div class="auto-action-bar">
+        <p class="form-error" id="autoError" role="alert" aria-live="polite"></p>
+        <div class="wizard-nav">
+          <button type="button" class="wizard-back-btn" id="cancelAutoBtn" data-i18n="common.cancel">Cancel</button>
+          <button type="button" class="login-btn wizard-next-btn" id="confirmAutoBtn" data-i18n="data_import.import_all">Import All</button>
+        </div>
+        <div id="autoProgress" hidden>
+          <div class="import-progress-track"><div class="import-progress-fill" id="autoProgressFill"></div></div>
+          <p class="wizard-hint" id="autoProgressLabel"></p>
+        </div>
+        <p class="wizard-hint" id="autoImportSummary"></p>
+      </div>
+
+      <div id="autoBucketsContainer"></div>
+    </div>
+
+    <!-- Step 2: field mapping review -->
+    <div class="portal-card wizard-step" id="mappingSection" hidden>
+      <h2 data-i18n="data_import.step2_title">2. Review field matches</h2>
+      <p class="wizard-hint" id="mappingSummaryHint"></p>
+      <p class="form-error" id="singleRowEntityWarning" hidden></p>
+
+      <div class="mapping-mode-toggle" role="radiogroup" aria-label="Mapping mode">
+        <input type="radio" name="mappingMode" id="mappingModeManual" value="manual" checked />
+        <label for="mappingModeManual" data-i18n="data_import.manual_mapping">Manual Mapping</label>
+        <input type="radio" name="mappingMode" id="mappingModeAuto" value="auto" />
+        <label for="mappingModeAuto" data-i18n="data_import.auto_mapping">Auto Mapping</label>
+      </div>
+      <span class="mapping-mode-hint" id="mappingModeHint" data-i18n="data_import.manual_mapping_hint">Review and adjust each column's match before importing.</span>
+
+      <div class="portal-table-wrap" style="overflow-x:auto;">
+        <table class="portal-table" id="mappingTable">
+          <thead>
+            <tr>
+              <th data-i18n="data_import.col_file_header">File column</th>
+              <th data-i18n="data_import.col_sample">Sample value</th>
+              <th data-i18n="data_import.col_match">Match</th>
+              <th data-i18n="data_import.col_maps_to">Maps to</th>
+            </tr>
+          </thead>
+          <tbody id="mappingTableBody"></tbody>
+        </table>
+      </div>
+
+      <p class="form-error" id="mappingError" role="alert" aria-live="polite"></p>
+
+      <div class="wizard-nav">
+        <button type="button" class="wizard-back-btn" id="cancelMappingBtn" data-i18n="common.cancel">Cancel</button>
+        <button type="button" class="login-btn wizard-next-btn" id="confirmMappingBtn" data-i18n="data_import.confirm_and_commit">Confirm &amp; Import</button>
+      </div>
+      <p class="wizard-hint" id="commitConfirmation"></p>
+    </div>
+
+    <!-- Registered custom fields -->
+    <h2 class="portal-section-title" data-i18n="data_import.custom_fields_title">Your Hospital's Custom Fields</h2>
+    <div class="portal-card">
+      <div class="wizard-grid" style="margin-bottom: 14px;">
+        <div>
+          <label for="customFieldsEntitySelect" data-i18n="data_import.view_for_entity">Show custom fields for</label>
+          <select id="customFieldsEntitySelect">
+            <option value="patients" data-i18n="data_import.entity_patients">Patient records</option>
+            <option value="hospitals" data-i18n="data_import.entity_hospital">Your hospital's facility data</option>
+          </select>
+        </div>
+      </div>
+      <table class="portal-table" id="customFieldsTable">
+        <thead><tr><th data-i18n="data_import.col_field_key">File column</th><th data-i18n="data_import.col_field_type">Type</th></tr></thead>
+        <tbody id="customFieldsTableBody"></tbody>
+      </table>
+      <p class="portal-empty" id="customFieldsEmptyState" hidden data-i18n="data_import.no_custom_fields">No custom fields registered yet for this data type — upload a file with columns outside your existing schema to create some.</p>
+    </div>
+
+    <!-- Imported patients, with custom fields as extra columns -->
+    <h2 class="portal-section-title" data-i18n="data_import.patients_title">Patients</h2>
+    <div class="portal-card">
+      <label for="patientSearchInput" data-i18n="data_import.search_patients">Search by name, phone, or UHID</label>
+      <input type="text" id="patientSearchInput" placeholder="e.g. Ramesh, 98765xxxxx, UH-CHG-000001" />
+      <div class="portal-table-wrap" style="overflow-x:auto; margin-top: 14px;">
+        <table class="portal-table" id="patientsTable">
+          <thead id="patientsTableHead"></thead>
+          <tbody id="patientsTableBody"></tbody>
+        </table>
+      </div>
+      <p class="portal-empty" id="patientsEmptyState" hidden data-i18n="data_import.no_patients">No patients found.</p>
+    </div>
+
+    <!-- Import history -->
+    <h2 class="portal-section-title" data-i18n="data_import.history_title">Import History</h2>
+    <div class="portal-card">
+      <table class="portal-table" id="batchesTable">
+        <thead>
+          <tr>
+            <th data-i18n="data_import.col_file">File</th>
+            <th data-i18n="data_import.col_entity">Type</th>
+            <th data-i18n="common.status">Status</th>
+            <th data-i18n="data_import.col_rows">Rows</th>
+            <th data-i18n="common.date">Date</th>
+            <th data-i18n="common.actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="batchesTableBody"></tbody>
+      </table>
+      <p class="portal-empty" id="batchesEmptyState" hidden data-i18n="data_import.no_imports">No imports yet.</p>
+      <p class="wizard-hint" id="batchDeleteMessage" role="status" aria-live="polite"></p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-left">
+      <span class="footer-brand">CORE5 <strong>MEDISYS</strong></span>
+      <small>HOSPITAL PORTAL</small>
+    </div>
+    <div class="footer-right">&copy;2026 Core5. All rights reserved.</div>
+  </footer>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="../realtime-client.js"></script>
+  <script src="../portal-ui.js"></script>
+<script src="data-import.js"></script>
+</body>
+</html>

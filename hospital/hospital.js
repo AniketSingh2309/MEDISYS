@@ -450,6 +450,32 @@
     });
   }
 
+  // Persists across re-renders of #staffGroups (realtime "staff" updates,
+  // language changes) so a checkbox someone already ticked doesn't reset
+  // out from under them mid-selection.
+  const selectedStaffIds = new Set();
+
+  function updateStaffBulkBar() {
+    const bar = document.getElementById("staffBulkBar");
+    if (!bar) return;
+    const checkboxes = document.querySelectorAll(".staff-select-checkbox");
+    const total = checkboxes.length;
+    if (total === 0) {
+      bar.hidden = true;
+      return;
+    }
+    bar.hidden = false;
+    document.getElementById("staffSelectedCount").textContent = t(
+      "hospital_page.staff_selected_count",
+      "{count} selected",
+      { count: selectedStaffIds.size }
+    );
+    document.getElementById("resetPasswordBtn").disabled = selectedStaffIds.size === 0;
+    const selectAll = document.getElementById("staffSelectAll");
+    selectAll.checked = selectedStaffIds.size > 0 && selectedStaffIds.size === total;
+    selectAll.indeterminate = selectedStaffIds.size > 0 && selectedStaffIds.size < total;
+  }
+
   async function initStaffList() {
     const container = document.getElementById("staffGroups");
     if (!container) return;
@@ -489,8 +515,10 @@
             const summaryFn = ROLE_DETAIL_SUMMARY[role];
             const summary = summaryFn ? summaryFn(details) : "";
             const added = new Date(s.created_at).toLocaleDateString();
+            const checked = selectedStaffIds.has(s.user_id);
             return `
-              <div class="staff-entry-card">
+              <div class="staff-entry-card${checked ? " staff-selected" : ""}">
+                <input type="checkbox" class="staff-select-checkbox" data-user-id="${escapeHtml(s.user_id)}" aria-label="${escapeHtml(t('hospital_page.select_staff_member', 'Select {name}', { name: s.full_name }))}" ${checked ? "checked" : ""} />
                 <div class="staff-entry-name">${escapeHtml(s.full_name)}</div>
                 ${role === "doctor" && s.department_name ? `<div class="staff-entry-detail">${escapeHtml(s.department_name)}</div>` : ""}
                 ${summary ? `<div class="staff-entry-detail">${escapeHtml(summary)}</div>` : ""}
@@ -515,6 +543,24 @@
           </div>`;
       })
       .join("");
+
+    // Drop any selected user_id that no longer exists in this render (e.g.
+    // removed elsewhere) so the count/select-all state stays accurate.
+    const stillPresent = new Set([...container.querySelectorAll(".staff-select-checkbox")].map((cb) => cb.dataset.userId));
+    [...selectedStaffIds].forEach((id) => {
+      if (!stillPresent.has(id)) selectedStaffIds.delete(id);
+    });
+
+    container.querySelectorAll(".staff-select-checkbox").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        const id = cb.dataset.userId;
+        if (cb.checked) selectedStaffIds.add(id);
+        else selectedStaffIds.delete(id);
+        cb.closest(".staff-entry-card").classList.toggle("staff-selected", cb.checked);
+        updateStaffBulkBar();
+      });
+    });
+    updateStaffBulkBar();
 
     container.querySelectorAll(".staff-fee-save-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -545,6 +591,106 @@
           btn.disabled = false;
         }
       });
+    });
+  }
+
+  // Wired once — the bulk bar and reset panel live outside #staffGroups, so
+  // unlike the per-card listeners above they survive every re-render.
+  function wireStaffBulkPasswordReset() {
+    const selectAllCb = document.getElementById("staffSelectAll");
+    if (!selectAllCb) return;
+
+    selectAllCb.addEventListener("change", () => {
+      document.querySelectorAll(".staff-select-checkbox").forEach((cb) => {
+        cb.checked = selectAllCb.checked;
+        const id = cb.dataset.userId;
+        if (selectAllCb.checked) selectedStaffIds.add(id);
+        else selectedStaffIds.delete(id);
+        cb.closest(".staff-entry-card").classList.toggle("staff-selected", cb.checked);
+      });
+      updateStaffBulkBar();
+    });
+
+    const panel = document.getElementById("resetPasswordPanel");
+    const errorEl = document.getElementById("resetPasswordError");
+    const resultEl = document.getElementById("resetPasswordResult");
+    const pwdInput = document.getElementById("resetPasswordInput");
+    const confirmInput = document.getElementById("resetPasswordConfirmInput");
+
+    document.getElementById("resetPasswordBtn").addEventListener("click", () => {
+      if (selectedStaffIds.size === 0) return;
+      document.getElementById("resetPasswordTargetHint").textContent = t(
+        "hospital_page.reset_password_target_hint",
+        "This sets a new password for {count} staff member(s). Share it with them directly — they'll need it to log in.",
+        { count: selectedStaffIds.size }
+      );
+      pwdInput.value = "";
+      confirmInput.value = "";
+      errorEl.textContent = "";
+      resultEl.textContent = "";
+      panel.hidden = false;
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      pwdInput.focus();
+    });
+
+    document.getElementById("cancelResetPasswordBtn").addEventListener("click", () => {
+      panel.hidden = true;
+    });
+
+    document.getElementById("confirmResetPasswordBtn").addEventListener("click", async () => {
+      errorEl.textContent = "";
+      const pwd = pwdInput.value;
+      const confirmPwd = confirmInput.value;
+
+      if (!pwd || !confirmPwd) {
+        errorEl.textContent = t("hospital_page.password_required", "Enter and confirm the new password.");
+        return;
+      }
+      if (pwd.length < 6) {
+        errorEl.textContent = t("hospital_page.password_too_short", "Password must be at least 6 characters.");
+        return;
+      }
+      if (pwd !== confirmPwd) {
+        errorEl.textContent = t("hospital_page.passwords_dont_match", "Passwords don't match.");
+        return;
+      }
+      if (selectedStaffIds.size === 0) {
+        errorEl.textContent = t("hospital_page.select_at_least_one_staff", "Select at least one staff member.");
+        return;
+      }
+
+      const btn = document.getElementById("confirmResetPasswordBtn");
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/hospital/staff/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ userIds: [...selectedStaffIds], newPassword: pwd }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          errorEl.textContent = data.message || t("hospital_page.reset_password_failed", "Could not reset password.");
+          return;
+        }
+        resultEl.textContent = t("hospital_page.reset_password_success", "Password reset for {count} staff member(s).", {
+          count: data.updatedCount,
+        });
+        if (window.showToast) showToast(t("hospital_page.reset_password_toast", "Password reset."), "success");
+
+        selectedStaffIds.clear();
+        selectAllCb.checked = false;
+        setTimeout(() => {
+          panel.hidden = true;
+          resultEl.textContent = "";
+        }, 3000);
+
+        initStaffList();
+      } catch (err) {
+        errorEl.textContent = t("common.unable_to_reach_server", "Unable to reach the server. Please try again.");
+      } finally {
+        btn.disabled = false;
+      }
     });
   }
 
@@ -796,6 +942,7 @@
     loadOutbreakAlerts();
     initAddStaff();
     initStaffList();
+    wireStaffBulkPasswordReset();
     initDepartments();
     initNurseAssignment();
 

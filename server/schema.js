@@ -54,11 +54,19 @@ async function ensureSchema(connection) {
     "nurse_assignment_mode",
     "ENUM('ward_based','doctor_team') NOT NULL DEFAULT 'ward_based'"
   );
+  // CSV/XLSX import (see server/importRoutes.js) — values for any uploaded
+  // column that doesn't match a real schema column land here, keyed by their
+  // original file header, instead of ever being dropped.
+  await ensureColumn(connection, "hospitals", "extra_fields", "JSON NULL");
   await ensureColumn(connection, "users", "email", "VARCHAR(150)");
   await ensureColumn(connection, "users", "phone", "VARCHAR(20)");
   await ensureColumn(connection, "users", "details", "JSON");
   await ensureColumn(connection, "users", "department_id", "INT NULL");
   await ensureColumn(connection, "users", "hospital_id", "INT NULL");
+  // Same "which import batch created this row" tracking as patients.imported_from_batch,
+  // so the Data Import page's Delete/Undo can also remove staff it created — see
+  // server/importRoutes.js DELETE /api/import/:batchId.
+  await ensureColumn(connection, "users", "imported_from_batch", "INT NULL");
 
   await dropColumnIfExists(connection, "hospitals", "db_name");
   await dropColumnIfExists(connection, "user_directory", "db_name");
@@ -96,6 +104,113 @@ async function ensureSchema(connection) {
   await ensureColumn(connection, "patients", "abha_address", "VARCHAR(100) NULL");
   await ensureColumn(connection, "patients", "abha_verified", "TINYINT(1) NOT NULL DEFAULT 0");
   await ensureColumn(connection, "patients", "abha_link_status", "VARCHAR(20) NULL");
+  // Same import-overflow column as hospitals.extra_fields above.
+  await ensureColumn(connection, "patients", "extra_fields", "JSON NULL");
+
+  // ---------- CSV/XLSX data import (hospital admin only — see server/importRoutes.js) ----------
+
+  // One row per uploaded file. Nothing here ever touches a real table directly —
+  // every row is staged first (import_staging_rows) and only applied to
+  // patients/hospitals on a deliberate POST /api/import/:batchId/commit.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS import_batches (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      batch_uid VARCHAR(40) NOT NULL UNIQUE,
+      hospital_id INT NOT NULL,
+      source_name VARCHAR(150) NOT NULL,
+      original_filename VARCHAR(255) NOT NULL,
+      target_entity VARCHAR(30) NOT NULL,
+      uploaded_by VARCHAR(50) NOT NULL,
+      status ENUM('uploaded','mapping','ready','committing','committed','failed') NOT NULL DEFAULT 'uploaded',
+      total_rows INT NOT NULL DEFAULT 0,
+      committed_rows INT NOT NULL DEFAULT 0,
+      failed_rows INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      committed_at TIMESTAMP NULL
+    )
+  `);
+
+  // Every row from the uploaded file, completely unmodified, before any
+  // mapping/matching/transform is applied — raw_data is the row exactly as
+  // parsed (PapaParse/SheetJS), header text as keys. status tracks what
+  // happened to THIS row specifically once the batch is committed, since one
+  // batch can partially succeed (a handful of rows can fail Ajv validation
+  // while the rest commit fine).
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS import_staging_rows (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      batch_id INT NOT NULL,
+      row_num INT NOT NULL,
+      raw_data JSON NOT NULL,
+      status ENUM('pending','mapped','error','committed','skipped') NOT NULL DEFAULT 'pending',
+      error_message VARCHAR(500) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // A hospital-scoped custom field, auto-registered the moment a commit
+  // encounters a file column that doesn't match anything in
+  // server/schemaRegistry.js for that entity — see requireOrCreateCustomField
+  // in server/importRoutes.js. Unique per (hospital_id, entity, field_key) so
+  // re-uploading a file with the same unmatched header reuses the same
+  // custom field instead of creating a duplicate registration each time.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS hospital_custom_fields (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      entity VARCHAR(30) NOT NULL,
+      field_key VARCHAR(150) NOT NULL,
+      field_label VARCHAR(150) NOT NULL,
+      field_type ENUM('string','number','date','boolean') NOT NULL DEFAULT 'string',
+      auto_created BOOLEAN NOT NULL DEFAULT TRUE,
+      created_from_batch INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_hospital_entity_field (hospital_id, entity, field_key)
+    )
+  `);
+
+  // What an admin confirmed (or edited) at the mapping step, keyed by
+  // source_name (see import_batches.source_name — a stable label for "this
+  // kind of file from this hospital", e.g. "Apollo EMR Export") so the next
+  // upload of the same kind of file reuses the same mapping automatically
+  // instead of asking again. target_type distinguishes a real column from a
+  // deliberately-ignored field (see the "never silently drop data" rule in
+  // POST /api/import/:batchId/mapping — 'ignored' is only ever set by an
+  // explicit admin action, never a default).
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS import_field_mappings (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      source_name VARCHAR(150) NOT NULL,
+      target_entity VARCHAR(30) NOT NULL,
+      source_field VARCHAR(150) NOT NULL,
+      target_field VARCHAR(150) NULL,
+      target_type ENUM('column','extra_field','ignored') NOT NULL DEFAULT 'extra_field',
+      transform_fn VARCHAR(50) NULL,
+      confirmed_by VARCHAR(50) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_hospital_source_field (hospital_id, source_name, target_entity, source_field)
+    )
+  `);
+
+  // Lets an admin undo a bad import from the Data Import page itself instead
+  // of asking for help — see DELETE /api/import/:batchId in importRoutes.js.
+  // pre_commit_snapshot is only used for the "hospitals" entity (a singleton
+  // row that gets UPDATEd, never inserted, so there's no row to just delete —
+  // this is what the real column values + extra_fields looked like right
+  // before this batch touched them, so undo can restore it exactly).
+  await ensureColumn(connection, "patients", "imported_from_batch", "INT NULL");
+  await ensureColumn(connection, "import_batches", "pre_commit_snapshot", "JSON NULL");
+  await ensureColumn(connection, "import_batches", "reverted_at", "TIMESTAMP NULL");
+  await ensureColumn(connection, "import_batches", "reverted_by", "VARCHAR(50) NULL");
+  // "Auto-detect (mixed dataset)" mode (see server/roleClassifier.js): a batch
+  // with target_entity = 'auto' mixes multiple destinations in one file, so
+  // each STAGING ROW carries its own detected destination instead of the
+  // whole batch sharing one. detection_label keeps the raw value that led to
+  // that classification (e.g. "Billing Staff"), shown in the review UI so an
+  // admin can sanity-check the sort before committing.
+  await ensureColumn(connection, "import_staging_rows", "detected_entity", "VARCHAR(30) NULL");
+  await ensureColumn(connection, "import_staging_rows", "detection_label", "VARCHAR(150) NULL");
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS doctor_schedules (

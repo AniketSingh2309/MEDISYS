@@ -157,6 +157,7 @@
     bill: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17H6V2z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
     add_person: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c0-3.6 2.9-6 5.5-6s5.5 2.4 5.5 6"/><path d="M18 8v6M15 11h6"/></svg>',
     departments: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="7" rx="1.5"/><rect x="14" y="15" width="7" height="7" rx="1.5"/></svg>',
+    data_import: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
     nurse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3.2"/><path d="M5.5 21c0-3.6 2.9-6.2 6.5-6.2S18.5 17.4 18.5 21"/><path d="M12 11.8v3.2M10.4 13.4h3.2"/></svg>',
   };
 
@@ -187,6 +188,7 @@
       { href: '/hospital/staff.html', icon: 'queue', label: 'Existing Staff', i18nKey: 'navigation.existing_staff' },
       { href: '/hospital/departments.html', icon: 'departments', label: 'Departments', i18nKey: 'navigation.departments' },
       { href: '/hospital/nurse-assignment.html', icon: 'nurse', label: 'Nurse Assignment', i18nKey: 'navigation.nurse_assignment' },
+      { href: '/hospital/data-import.html', icon: 'data_import', label: 'Data Import', i18nKey: 'navigation.data_import' },
     ],
     patient: [
       { href: '/patient/records.html', icon: 'records', label: 'Medical Records', i18nKey: 'navigation.medical_records' },
