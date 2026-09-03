@@ -98,6 +98,149 @@
     }
   }
 
+  function T(key, fallback, params) {
+    var text = fallback || key;
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      var res = window.i18n.t(key, params);
+      if (res && res !== key) text = res;
+    }
+    if (!params) return text;
+    return String(text).replace(/\{(\w+)\}/g, function (m, k) {
+      return params[k] !== undefined ? params[k] : m;
+    });
+  }
+
+  // ---- Private message bell (every staff portal header — not hospital_admin,
+  // who sends these from their own dashboard, and not patient, out of scope) ----
+  var STAFF_ROLES_FOR_MESSAGES = ['receptionist', 'nurse', 'doctor', 'pathology_staff', 'pharmacist', 'blood_bank_staff'];
+
+  function bellIconSvg() {
+    return '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>';
+  }
+
+  function renderMessagesPanel(panel, messages) {
+    if (!messages || messages.length === 0) {
+      panel.innerHTML =
+        '<div class="portal-messages-panel-header">' + T('common.messages', 'Messages') + '</div>' +
+        '<div class="portal-messages-empty">' + T('common.no_messages', 'No messages yet.') + '</div>';
+      return;
+    }
+    // Read state is only ever shown, never toggled by clicking a single item
+    // here — opening the bell itself is what marks everything read (see
+    // markAllReadAndClearBadge below). Keeping the "unread" highlight as
+    // rendered (rather than clearing it item-by-item) lets someone still see
+    // which messages were new as of this particular time they opened it.
+    panel.innerHTML =
+      '<div class="portal-messages-panel-header">' + T('common.messages', 'Messages') + '</div>' +
+      messages.map(function (m) {
+        var when = new Date(m.created_at).toLocaleString();
+        return '<div class="portal-message-item' + (m.is_read ? '' : ' unread') + '">' +
+          '<div class="portal-message-from">' + escapeHtmlLocal(m.from_name) + '</div>' +
+          '<div class="portal-message-text">' + escapeHtmlLocal(m.message) + '</div>' +
+          '<div class="portal-message-time">' + escapeHtmlLocal(when) + '</div>' +
+          '</div>';
+      }).join('');
+  }
+
+  function escapeHtmlLocal(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  var messagesBadgeEl = null;
+  function updateMessagesBadge(count) {
+    if (!messagesBadgeEl) return;
+    if (count > 0) {
+      messagesBadgeEl.textContent = count > 9 ? '9+' : String(count);
+      messagesBadgeEl.hidden = false;
+    } else {
+      messagesBadgeEl.hidden = true;
+    }
+  }
+
+  function injectMessagesBell(headerRight, logoutBtn, role) {
+    if (STAFF_ROLES_FOR_MESSAGES.indexOf(role) === -1) return;
+    if (document.getElementById('portalMessagesBtn')) return;
+
+    // A <button> can't properly contain the panel's own clickable items
+    // (invalid nesting, plus click-bubbling would re-toggle the button every
+    // time a message inside it is clicked) — so the button and its dropdown
+    // are siblings inside one positioned wrapper instead.
+    var wrap = document.createElement('span');
+    wrap.className = 'portal-messages-btn';
+    wrap.style.display = 'inline-flex';
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'portalMessagesBtn';
+    btn.title = T('common.messages', 'Messages');
+    btn.setAttribute('aria-label', T('common.messages', 'Messages'));
+    btn.className = logoutBtn && logoutBtn.className ? logoutBtn.className : 'portal-logout-btn';
+    btn.innerHTML = bellIconSvg();
+
+    var badge = document.createElement('span');
+    badge.className = 'portal-messages-badge';
+    badge.hidden = true;
+    btn.appendChild(badge);
+    messagesBadgeEl = badge;
+
+    var panel = document.createElement('div');
+    panel.className = 'portal-messages-panel';
+    panel.hidden = true;
+
+    function loadMessages() {
+      return fetch('/api/staff/messages', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.success) return;
+          renderMessagesPanel(panel, data.messages);
+          updateMessagesBadge(data.messages.filter(function (m) { return !m.is_read; }).length);
+        })
+        .catch(function () {});
+    }
+
+    // Opening the bell IS "seen" — every message gets marked read on the
+    // server the moment the panel opens (not per-item), so the badge clears
+    // immediately and stays cleared after a refresh or a fresh login, since
+    // it's the same is_read column GET /api/staff/messages already reads.
+    // Sequenced after loadMessages() resolves so the render above still
+    // reflects each message's read state as of just before this call, not
+    // after — otherwise everything would already show as read by the time
+    // it's drawn.
+    function markAllReadAndClearBadge() {
+      fetch('/api/staff/messages/read-all', { method: 'POST', credentials: 'same-origin' })
+        .then(function () { updateMessagesBadge(0); })
+        .catch(function () {});
+    }
+
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) loadMessages().then(markAllReadAndClearBadge);
+    });
+    panel.addEventListener('click', function (e) {
+      e.stopPropagation();
+    });
+    document.addEventListener('click', function (e) {
+      if (!panel.hidden && !panel.contains(e.target) && e.target !== btn) panel.hidden = true;
+    });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(panel);
+
+    if (logoutBtn) {
+      logoutBtn.parentElement.insertBefore(wrap, logoutBtn);
+    } else {
+      headerRight.appendChild(wrap);
+    }
+
+    loadMessages();
+    if (window.MEDISYS_RT) {
+      MEDISYS_RT.on('staff_messages', loadMessages);
+    }
+  }
+
   function ensureToastContainer() {
     let el = document.getElementById('toastContainer');
     if (!el) {
@@ -159,6 +302,9 @@
     departments: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="7" rx="1.5"/><rect x="14" y="15" width="7" height="7" rx="1.5"/></svg>',
     data_import: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
     nurse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3.2"/><path d="M5.5 21c0-3.6 2.9-6.2 6.5-6.2S18.5 17.4 18.5 21"/><path d="M12 11.8v3.2M10.4 13.4h3.2"/></svg>',
+    message: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v12H8l-4 4V5z"/></svg>',
+    expense: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>',
+    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V19.5a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.04-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.04H4.5a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.04 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H10.5a1.7 1.7 0 0 0 1.04-1.56V4.5a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V10.5a1.7 1.7 0 0 0 1.56 1.04h.01a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.04z"/></svg>',
   };
 
   var ROLE_NAV_ITEMS = {
@@ -189,6 +335,9 @@
       { href: '/hospital/departments.html', icon: 'departments', label: 'Departments', i18nKey: 'navigation.departments' },
       { href: '/hospital/nurse-assignment.html', icon: 'nurse', label: 'Nurse Assignment', i18nKey: 'navigation.nurse_assignment' },
       { href: '/hospital/data-import.html', icon: 'data_import', label: 'Data Import', i18nKey: 'navigation.data_import' },
+      { href: '/hospital/messages.html', icon: 'message', label: 'Messages', i18nKey: 'navigation.messages' },
+      { href: '/hospital/expenses.html', icon: 'expense', label: 'Expense Log', i18nKey: 'navigation.expense_log' },
+      { href: '/hospital/settings.html', icon: 'settings', label: 'Hospital Settings', i18nKey: 'navigation.hospital_settings' },
     ],
     patient: [
       { href: '/patient/records.html', icon: 'records', label: 'Medical Records', i18nKey: 'navigation.medical_records' },
@@ -265,6 +414,59 @@
       .catch(function () {});
   }
 
+  // Swaps the header logo and footer brand name for this hospital's own
+  // custom branding, if set (see POST /api/hospital/logo and POST
+  // /api/hospital/brand-name) — for that hospital's admin, staff, and
+  // patients only. Falls back to (and reverts back to, if branding is later
+  // removed) the default CORE5 MEDISYS logo/name automatically.
+  function applyHospitalBranding(hospitalId) {
+    if (!hospitalId) return;
+
+    // Logo: test-loaded via a throwaway Image() first so a hospital with no
+    // custom logo (a 404) never flashes a broken-image icon over the real
+    // header logo; only swaps the real <img> once the replacement has
+    // actually finished loading successfully. On a 404 (no/removed custom
+    // logo) it reverts to whatever the page originally shipped with.
+    var logoImg = document.querySelector('.brand-logo');
+    if (logoImg) {
+      if (logoImg.dataset.defaultSrc === undefined) {
+        logoImg.dataset.defaultSrc = logoImg.getAttribute('src');
+      }
+      var candidate = '/api/hospital/' + hospitalId + '/logo?v=' + Date.now();
+      var probe = new Image();
+      probe.onload = function () { logoImg.src = candidate; };
+      probe.onerror = function () { logoImg.src = logoImg.dataset.defaultSrc; };
+      probe.src = candidate;
+    }
+
+    // Footer brand text: replaces "CORE5 MEDISYS" with the hospital's own
+    // name if they've set one. The small label under it ("HOSPITAL PORTAL",
+    // "STAFF PORTAL", etc.) switches to a fixed "Powered by CORE5 MEDISYS"
+    // attribution in that case — this line is never editable by the hospital.
+    var brandEl = document.querySelector('.footer-brand');
+    var labelEl = document.querySelector('.footer-left small');
+    if (brandEl && brandEl.dataset.defaultText === undefined) {
+      brandEl.dataset.defaultText = brandEl.textContent;
+    }
+    if (labelEl && labelEl.dataset.defaultText === undefined) {
+      labelEl.dataset.defaultText = labelEl.textContent;
+    }
+    if (!brandEl && !labelEl) return;
+
+    fetch('/api/hospital/' + hospitalId + '/branding', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var brandName = data && data.brandName;
+        if (brandEl) {
+          brandEl.textContent = brandName || brandEl.dataset.defaultText;
+        }
+        if (labelEl) {
+          labelEl.textContent = brandName ? 'Powered by CORE5 MEDISYS' : labelEl.dataset.defaultText;
+        }
+      })
+      .catch(function () {});
+  }
+
   function initPortalUi() {
     const headerRight = document.querySelector('.portal-header-right') || document.querySelector('.topbar-right');
     const logoutBtn = document.getElementById('logoutBtn');
@@ -273,6 +475,21 @@
       injectRefreshButton(headerRight, logoutBtn);
       injectLanguageSelector(headerRight, logoutBtn);
     }
+    fetch('/api/session', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var role = data.user && data.user.role;
+        if (role && headerRight) injectMessagesBell(headerRight, logoutBtn, role);
+        if (data.user && data.user.hospitalId) {
+          applyHospitalBranding(data.user.hospitalId);
+          if (window.MEDISYS_RT) {
+            MEDISYS_RT.on('hospitals', function () {
+              applyHospitalBranding(data.user.hospitalId);
+            });
+          }
+        }
+      })
+      .catch(function () {});
     injectSidebar();
     if (window.i18n) {
       window.i18n.applyTranslations();

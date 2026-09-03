@@ -13,7 +13,7 @@ const { buildShortCode, generateStaffUserId, generateTempPassword, generateUhid 
 const { ROLE_PREFIXES, ROLE_LABELS, STAFF_ROLES, DESIGNATION_PREFIXES } = require("./roles");
 const { computeAvailableSlots } = require("./slots");
 const { assignNurseForAdmission } = require("./nurseAssignment");
-const { initRealtime, broadcast, broadcastGlobal } = require("./realtime");
+const { initRealtime, broadcast, broadcastGlobal, broadcastToUser } = require("./realtime");
 const abdmService = require("./abdmService");
 const razorpay = require("./razorpay");
 const importRoutes = require("./importRoutes");
@@ -51,6 +51,26 @@ const labImageUpload = multer({
 // Voice dictation clips (doctor consult/rounds) are forwarded to the local
 // AI4Bharat/NeMo service in language/ and never written to disk here.
 const voiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+
+// Per-hospital custom logo — one file per hospital, filename keyed on
+// hospitalId so a re-upload naturally replaces it (see POST
+// /api/hospital/logo, which also deletes the previous file explicitly
+// before this would otherwise leave an orphaned old one with a different
+// timestamp suffix behind).
+const LOGOS_DIR = path.join(__dirname, "uploads", "hospital-logos");
+fs.mkdirSync(LOGOS_DIR, { recursive: true });
+
+const logoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, LOGOS_DIR),
+    filename: (req, file, cb) => {
+      const safeExt = path.extname(file.originalname).slice(0, 10) || ".png";
+      cb(null, `hospital-${req.session.user.hospitalId}-${Date.now()}${safeExt}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype)),
+});
 const VOICE_SERVICE_URL = process.env.VOICE_SERVICE_URL || "http://127.0.0.1:8500";
 
 // Server-local "today" as YYYY-MM-DD using local wall-clock fields (NOT
@@ -564,7 +584,7 @@ app.get("/api/hospitals/:id", requireSuperadmin, async (req, res) => {
 app.get("/api/hospital/me", requireHospitalAdmin, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT name, status, modules, nurse_assignment_mode FROM hospitals WHERE id = ? LIMIT 1",
+      "SELECT name, status, modules, nurse_assignment_mode, logo_path, brand_name FROM hospitals WHERE id = ? LIMIT 1",
       [req.session.user.hospitalId]
     );
 
@@ -572,7 +592,15 @@ app.get("/api/hospital/me", requireHospitalAdmin, async (req, res) => {
       return res.status(404).json({ success: false, message: "Hospital not found." });
     }
 
-    res.json({ success: true, hospital: rows[0] });
+    const hospital = rows[0];
+    res.json({
+      success: true,
+      hospital: {
+        ...hospital,
+        logoUrl: hospital.logo_path ? `/api/hospital/${req.session.user.hospitalId}/logo` : null,
+        brandName: hospital.brand_name || null,
+      },
+    });
   } catch (err) {
     console.error("Get hospital/me error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
@@ -820,6 +848,439 @@ app.post("/api/hospital/staff/reset-password", requireHospitalAdmin, async (req,
   } catch (err) {
     console.error("Bulk staff password reset error:", err.message);
     res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Hospital admin dashboard: live overview ----------
+//
+// Every number here is a real, live query against the exact tables every
+// other feature already writes to — nothing is estimated or hardcoded.
+// Revenue in particular is summed straight from each module's own
+// authoritative "was this actually paid" record (bills.paid_amount already
+// tracks partial cash+online payments; pharmacy_invoices/blood_billing/
+// telemedicine_payments each have their own payment_status/status column) —
+// deliberately NOT from the generic payment_orders table, which would
+// double-count anything paid online since those three modules also log an
+// entry there for the Razorpay transaction itself.
+// month-over-month growth, or "how much of the current total showed up
+// this month" when there's no real previous-period baseline (e.g. total
+// patients before this month was 0) — never a made-up number, just the
+// honest percentage that formula produces, including 0% when nothing changed.
+function pctChange(current, previous) {
+  const cur = Number(current) || 0;
+  const prev = Number(previous) || 0;
+  if (prev === 0) return cur > 0 ? 100 : 0;
+  return Math.round(((cur - prev) / prev) * 100);
+}
+
+app.get("/api/hospital/overview", requireHospitalAdmin, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const today = todayLocalDateStr();
+    // ?date= scopes only the "today" figures (OPD visits, admitted,
+    // discharged, department breakdown) to a different day for review —
+    // revenue/expenses/patient growth stay tied to the real current
+    // calendar month regardless, since "which month is this" isn't
+    // something a single day picker should change.
+    const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || "") ? req.query.date : today;
+    const firstOfMonth = today.slice(0, 8) + "01";
+    const firstOfLastMonthDate = new Date(`${firstOfMonth}T12:00:00Z`);
+    firstOfLastMonthDate.setUTCMonth(firstOfLastMonthDate.getUTCMonth() - 1);
+    const firstOfLastMonth = firstOfLastMonthDate.toISOString().slice(0, 10);
+
+    const [[revenue]] = await pool.query(
+      `SELECT
+         COALESCE((SELECT SUM(paid_amount) FROM bills WHERE hospital_id = ?), 0) AS bills_total,
+         COALESCE((SELECT SUM(paid_amount) FROM bills WHERE hospital_id = ? AND bill_date >= ?), 0) AS bills_month,
+         COALESCE((SELECT SUM(paid_amount) FROM bills WHERE hospital_id = ? AND bill_date >= ? AND bill_date < ?), 0) AS bills_last_month,
+         COALESCE((SELECT SUM(total_amount) FROM medisys_pharmacy.pharmacy_invoices WHERE hospital_id = ? AND payment_status = 'Paid'), 0) AS pharmacy_total,
+         COALESCE((SELECT SUM(total_amount) FROM medisys_pharmacy.pharmacy_invoices WHERE hospital_id = ? AND payment_status = 'Paid' AND paid_at >= ?), 0) AS pharmacy_month,
+         COALESCE((SELECT SUM(total_amount) FROM medisys_pharmacy.pharmacy_invoices WHERE hospital_id = ? AND payment_status = 'Paid' AND paid_at >= ? AND paid_at < ?), 0) AS pharmacy_last_month,
+         COALESCE((SELECT SUM(amount) FROM blood_billing WHERE hospital_id = ? AND status = 'paid'), 0) AS blood_total,
+         COALESCE((SELECT SUM(amount) FROM blood_billing WHERE hospital_id = ? AND status = 'paid' AND paid_at >= ?), 0) AS blood_month,
+         COALESCE((SELECT SUM(amount) FROM blood_billing WHERE hospital_id = ? AND status = 'paid' AND paid_at >= ? AND paid_at < ?), 0) AS blood_last_month,
+         COALESCE((SELECT SUM(amount) FROM telemedicine_payments WHERE hospital_id = ? AND status = 'paid'), 0) AS tele_total,
+         COALESCE((SELECT SUM(amount) FROM telemedicine_payments WHERE hospital_id = ? AND status = 'paid' AND paid_at >= ?), 0) AS tele_month,
+         COALESCE((SELECT SUM(amount) FROM telemedicine_payments WHERE hospital_id = ? AND status = 'paid' AND paid_at >= ? AND paid_at < ?), 0) AS tele_last_month`,
+      [
+        hospitalId, hospitalId, firstOfMonth, hospitalId, firstOfLastMonth, firstOfMonth,
+        hospitalId, hospitalId, firstOfMonth, hospitalId, firstOfLastMonth, firstOfMonth,
+        hospitalId, hospitalId, firstOfMonth, hospitalId, firstOfLastMonth, firstOfMonth,
+        hospitalId, hospitalId, firstOfMonth, hospitalId, firstOfLastMonth, firstOfMonth,
+      ]
+    );
+
+    const [[expenses]] = await pool.query(
+      `SELECT
+         COALESCE(SUM(amount), 0) AS total,
+         COALESCE(SUM(CASE WHEN expense_date >= ? THEN amount ELSE 0 END), 0) AS this_month,
+         COALESCE(SUM(CASE WHEN expense_date >= ? AND expense_date < ? THEN amount ELSE 0 END), 0) AS last_month
+       FROM hospital_expenses WHERE hospital_id = ?`,
+      [firstOfMonth, firstOfLastMonth, firstOfMonth, hospitalId]
+    );
+
+    const [[patients]] = await pool.query(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(CASE WHEN DATE(created_at) = ? THEN 1 ELSE 0 END) AS new_today,
+         SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS new_this_month,
+         SUM(CASE WHEN created_at < ? THEN 1 ELSE 0 END) AS total_before_this_month
+       FROM patients WHERE hospital_id = ?`,
+      [today, firstOfMonth, firstOfMonth, hospitalId]
+    );
+
+    const [[census]] = await pool.query(
+      `SELECT
+         SUM(CASE WHEN status = 'admitted' THEN 1 ELSE 0 END) AS currently_admitted,
+         SUM(CASE WHEN DATE(discharged_at) = ? THEN 1 ELSE 0 END) AS discharged_today,
+         SUM(CASE WHEN discharged_at >= ? THEN 1 ELSE 0 END) AS discharged_this_month,
+         SUM(CASE WHEN DATE(admitted_at) = ? THEN 1 ELSE 0 END) AS admitted_today,
+         SUM(CASE WHEN admitted_at >= ? THEN 1 ELSE 0 END) AS admitted_this_month
+       FROM ipd_admissions WHERE hospital_id = ?`,
+      [selectedDate, firstOfMonth, selectedDate, firstOfMonth, hospitalId]
+    );
+
+    const [[opd]] = await pool.query(`SELECT COUNT(*) AS today_visits FROM opd_visits WHERE hospital_id = ? AND visit_date = ?`, [
+      hospitalId,
+      selectedDate,
+    ]);
+    const [[opdMonth]] = await pool.query(`SELECT COUNT(*) AS this_month_visits FROM opd_visits WHERE hospital_id = ? AND visit_date >= ?`, [
+      hospitalId,
+      firstOfMonth,
+    ]);
+
+    const [[staffCount]] = await pool.query(`SELECT COUNT(*) AS total FROM users WHERE hospital_id = ? AND role != 'hospital_admin'`, [
+      hospitalId,
+    ]);
+
+    const [[bedStats]] = await pool.query(
+      `SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'occupied' THEN 1 ELSE 0 END) AS occupied FROM beds WHERE hospital_id = ?`,
+      [hospitalId]
+    );
+
+    // A visit's "department" is its doctor's department — opd_visits has no
+    // department of its own. A doctor with no department set (or a visit
+    // whose doctor account no longer exists) is grouped under "Other
+    // Departments" rather than dropped from the chart.
+    const [deptRows] = await pool.query(
+      `SELECT COALESCE(d.name, 'Other Departments') AS name, COUNT(*) AS count
+       FROM opd_visits v
+       LEFT JOIN users u ON u.user_id = v.doctor_user_id
+       LEFT JOIN departments d ON d.id = u.department_id
+       WHERE v.hospital_id = ? AND v.visit_date = ?
+       GROUP BY COALESCE(d.name, 'Other Departments')
+       ORDER BY count DESC`,
+      [hospitalId, selectedDate]
+    );
+
+    const revenueTotal =
+      Number(revenue.bills_total) + Number(revenue.pharmacy_total) + Number(revenue.blood_total) + Number(revenue.tele_total);
+    const revenueMonth =
+      Number(revenue.bills_month) + Number(revenue.pharmacy_month) + Number(revenue.blood_month) + Number(revenue.tele_month);
+    const revenueLastMonth =
+      Number(revenue.bills_last_month) + Number(revenue.pharmacy_last_month) + Number(revenue.blood_last_month) + Number(revenue.tele_last_month);
+    const expensesTotal = Number(expenses.total);
+    const expensesMonth = Number(expenses.this_month);
+    const expensesLastMonth = Number(expenses.last_month);
+    const netTotal = revenueTotal - expensesTotal;
+    const netMonth = revenueMonth - expensesMonth;
+    const netLastMonth = revenueLastMonth - expensesLastMonth;
+
+    res.json({
+      success: true,
+      date: selectedDate,
+      revenue: {
+        total: revenueTotal,
+        thisMonth: revenueMonth,
+        pctChange: pctChange(revenueMonth, revenueLastMonth),
+        breakdown: {
+          billingDesk: Number(revenue.bills_total),
+          pharmacy: Number(revenue.pharmacy_total),
+          bloodBank: Number(revenue.blood_total),
+          telemedicine: Number(revenue.tele_total),
+        },
+      },
+      expenses: { total: expensesTotal, thisMonth: expensesMonth, pctChange: pctChange(expensesMonth, expensesLastMonth) },
+      net: { total: netTotal, thisMonth: netMonth, pctChange: pctChange(netMonth, netLastMonth) },
+      patients: {
+        total: patients.total || 0,
+        newToday: Number(patients.new_today) || 0,
+        newThisMonth: Number(patients.new_this_month) || 0,
+        pctChange: pctChange(patients.total, patients.total_before_this_month),
+      },
+      census: {
+        currentlyAdmitted: Number(census.currently_admitted) || 0,
+        dischargedToday: Number(census.discharged_today) || 0,
+        dischargedThisMonth: Number(census.discharged_this_month) || 0,
+        admittedToday: Number(census.admitted_today) || 0,
+        admittedThisMonth: Number(census.admitted_this_month) || 0,
+      },
+      opdVisitsToday: opd.today_visits || 0,
+      opdVisitsThisMonth: opdMonth.this_month_visits || 0,
+      totalStaff: staffCount.total || 0,
+      beds: {
+        total: bedStats.total || 0,
+        occupied: Number(bedStats.occupied) || 0,
+        available: (bedStats.total || 0) - (Number(bedStats.occupied) || 0),
+        occupancyPct: bedStats.total > 0 ? Math.round((Number(bedStats.occupied) / bedStats.total) * 100) : 0,
+      },
+      departmentBreakdown: deptRows.map((d) => ({ name: d.name, count: d.count })),
+    });
+  } catch (err) {
+    console.error("Hospital overview error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Hospital admin dashboard: expense log ----------
+
+app.get("/api/hospital/expenses", requireHospitalAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, category, amount, note, expense_date, created_by, created_at
+       FROM hospital_expenses WHERE hospital_id = ? ORDER BY expense_date DESC, id DESC LIMIT 50`,
+      [req.session.user.hospitalId]
+    );
+    res.json({ success: true, expenses: rows });
+  } catch (err) {
+    console.error("List hospital expenses error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.post("/api/hospital/expenses", requireHospitalAdmin, async (req, res) => {
+  const { category, amount, note, expenseDate } = req.body || {};
+  const numericAmount = Number(amount);
+  if (!category || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return res.status(400).json({ success: false, message: "A category and an amount greater than 0 are required." });
+  }
+  try {
+    const { hospitalId, userId } = req.session.user;
+    const date = expenseDate || todayLocalDateStr();
+    const [result] = await pool.query(
+      `INSERT INTO hospital_expenses (hospital_id, category, amount, note, expense_date, created_by) VALUES (?, ?, ?, ?, ?, ?)`,
+      [hospitalId, category, numericAmount, note || null, date, userId]
+    );
+    broadcast(req, "hospital_expenses");
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    console.error("Add hospital expense error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.delete("/api/hospital/expenses/:id", requireHospitalAdmin, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const [result] = await pool.query(`DELETE FROM hospital_expenses WHERE id = ? AND hospital_id = ?`, [req.params.id, hospitalId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Expense entry not found." });
+    }
+    broadcast(req, "hospital_expenses");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete hospital expense error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Private messages: hospital admin -> one staff member ----------
+//
+// One-way by design (matches what was asked for): the admin composes and
+// sends, the recipient sees it appear live in their own portal (via the
+// message bell in portal-ui.js, fed by the same "user:<userId>" Socket.IO
+// room every other real-time feature already uses) and can mark it read.
+
+app.post("/api/hospital/messages", requireHospitalAdmin, async (req, res) => {
+  const { toUserId, message } = req.body || {};
+  const text = (message || "").trim();
+  if (!toUserId || !text) {
+    return res.status(400).json({ success: false, message: "Choose a staff member and write a message." });
+  }
+  try {
+    const { hospitalId, userId, fullName } = req.session.user;
+    const [staffRows] = await pool.query(
+      `SELECT user_id FROM users WHERE user_id = ? AND hospital_id = ? AND role != 'hospital_admin' LIMIT 1`,
+      [toUserId, hospitalId]
+    );
+    if (staffRows.length === 0) {
+      return res.status(404).json({ success: false, message: "Staff member not found." });
+    }
+    const [result] = await pool.query(
+      `INSERT INTO staff_messages (hospital_id, from_user_id, from_name, to_user_id, message) VALUES (?, ?, ?, ?, ?)`,
+      [hospitalId, userId, fullName || userId, toUserId, text]
+    );
+    broadcastToUser(toUserId, "staff_messages");
+    broadcast(req, "staff_messages_sent");
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    console.error("Send staff message error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.get("/api/hospital/messages", requireHospitalAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT m.id, m.to_user_id, u.full_name AS to_name, u.role AS to_role, m.message, m.is_read, m.created_at
+       FROM staff_messages m LEFT JOIN users u ON u.user_id = m.to_user_id
+       WHERE m.hospital_id = ? ORDER BY m.created_at DESC LIMIT 100`,
+      [req.session.user.hospitalId]
+    );
+    res.json({ success: true, messages: rows });
+  } catch (err) {
+    console.error("List sent staff messages error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Any logged-in staff member's own inbox — deliberately not role-restricted
+// beyond requireTenantUser (same bar as most read-only staff endpoints in
+// this file) since every staff role can receive one of these.
+app.get("/api/staff/messages", requireTenantUser, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, from_name, message, is_read, created_at FROM staff_messages WHERE to_user_id = ? ORDER BY created_at DESC LIMIT 50`,
+      [req.session.user.userId]
+    );
+    res.json({ success: true, messages: rows });
+  } catch (err) {
+    console.error("List own staff messages error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.post("/api/staff/messages/:id/read", requireTenantUser, async (req, res) => {
+  try {
+    const [result] = await pool.query(`UPDATE staff_messages SET is_read = TRUE WHERE id = ? AND to_user_id = ?`, [
+      req.params.id,
+      req.session.user.userId,
+    ]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Message not found." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Mark staff message read error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Opening the message bell counts as "seen" — every message in the inbox at
+// that moment is marked read in one call, so the unread badge clears the
+// instant the panel opens rather than needing each message clicked one by
+// one. Persisted in the same is_read column as the per-message route above,
+// so it survives a refresh or a fresh login exactly the same way — there is
+// no separate "seen" state living only in the browser to lose.
+app.post("/api/staff/messages/read-all", requireTenantUser, async (req, res) => {
+  try {
+    await pool.query(`UPDATE staff_messages SET is_read = TRUE WHERE to_user_id = ? AND is_read = FALSE`, [req.session.user.userId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Mark all staff messages read error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// ---------- Per-hospital custom branding (logo) ----------
+//
+// Once set, every portal page for this hospital — staff, hospital admin, and
+// patients created by this hospital — shows this logo instead of the
+// default CORE5 MEDISYS one (see portal-ui.js, which swaps the header <img>
+// for anyone whose session has this hospitalId). Other hospitals and
+// superadmin are unaffected: the logo URL is keyed on hospitalId, and a
+// session with a different (or no) hospitalId never resolves to this one.
+
+app.post("/api/hospital/logo", requireHospitalAdmin, logoUpload.single("logo"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: "Choose an image file to upload." });
+  }
+  try {
+    const { hospitalId } = req.session.user;
+    const [[existing]] = await pool.query(`SELECT logo_path FROM hospitals WHERE id = ? LIMIT 1`, [hospitalId]);
+    await pool.query(`UPDATE hospitals SET logo_path = ? WHERE id = ?`, [req.file.filename, hospitalId]);
+
+    // Best-effort cleanup of the previous file — never lets a failure here
+    // fail the request, since the new logo is already saved and pointed to.
+    if (existing && existing.logo_path) {
+      fs.unlink(path.join(LOGOS_DIR, existing.logo_path), () => {});
+    }
+
+    broadcast(req, "hospitals");
+    res.json({ success: true, logoUrl: `/api/hospital/${hospitalId}/logo?v=${Date.now()}` });
+  } catch (err) {
+    console.error("Upload hospital logo error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+app.delete("/api/hospital/logo", requireHospitalAdmin, async (req, res) => {
+  try {
+    const { hospitalId } = req.session.user;
+    const [[existing]] = await pool.query(`SELECT logo_path FROM hospitals WHERE id = ? LIMIT 1`, [hospitalId]);
+    await pool.query(`UPDATE hospitals SET logo_path = NULL WHERE id = ?`, [hospitalId]);
+    if (existing && existing.logo_path) {
+      fs.unlink(path.join(LOGOS_DIR, existing.logo_path), () => {});
+    }
+    broadcast(req, "hospitals");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Remove hospital logo error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Deliberately public (no session guard) — a logo image is never sensitive,
+// and every page that might show it (including the pre-login index.html,
+// in principle) needs to be able to request it by plain <img src>, the same
+// way /logo.png itself is a public static file.
+app.get("/api/hospital/:id/logo", async (req, res) => {
+  try {
+    const [[row]] = await pool.query(`SELECT logo_path FROM hospitals WHERE id = ? LIMIT 1`, [req.params.id]);
+    if (!row || !row.logo_path) {
+      return res.status(404).end();
+    }
+    res.sendFile(path.join(LOGOS_DIR, row.logo_path), (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
+  } catch (err) {
+    console.error("Serve hospital logo error:", err.message);
+    res.status(500).end();
+  }
+});
+
+// Custom footer/header display name — replaces "CORE5 MEDISYS" in the big
+// brand text for this hospital only. Sending an empty/blank name resets to
+// the default. The "Powered by CORE5 MEDISYS" attribution line is fixed in
+// portal-ui.js itself and is never affected by this — hospitals can rename
+// their own brand text, but the CORE5 MEDISYS attribution always stays.
+app.post("/api/hospital/brand-name", requireHospitalAdmin, async (req, res) => {
+  const raw = typeof req.body?.brandName === "string" ? req.body.brandName.trim() : "";
+  if (raw.length > 80) {
+    return res.status(400).json({ success: false, message: "Keep the name under 80 characters." });
+  }
+  try {
+    const { hospitalId } = req.session.user;
+    await pool.query("UPDATE hospitals SET brand_name = ? WHERE id = ?", [raw || null, hospitalId]);
+    broadcast(req, "hospitals");
+    res.json({ success: true, brandName: raw || null });
+  } catch (err) {
+    console.error("Update hospital brand name error:", err.message);
+    res.status(500).json({ success: false, message: "Server error. Please try again." });
+  }
+});
+
+// Deliberately public (no session guard), same reasoning as the logo route
+// above — a display name isn't sensitive, and every portal page for staff
+// and patients (not just the hospital admin) needs to read it by hospitalId
+// alone to swap the footer text, the same way it swaps the header logo.
+app.get("/api/hospital/:id/branding", async (req, res) => {
+  try {
+    const [[row]] = await pool.query(`SELECT brand_name FROM hospitals WHERE id = ? LIMIT 1`, [req.params.id]);
+    res.json({ success: true, brandName: row && row.brand_name ? row.brand_name : null });
+  } catch (err) {
+    console.error("Get hospital branding error:", err.message);
+    res.status(500).json({ success: false, brandName: null });
   }
 });
 

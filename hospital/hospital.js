@@ -265,6 +265,568 @@
       .join("");
   }
 
+  // ---------- Hospital Overview: live stats, no dummy numbers ----------
+  // Every figure comes straight from GET /api/hospital/overview, which
+  // itself is a real, live aggregate over bills/pharmacy_invoices/
+  // blood_billing/telemedicine_payments/patients/ipd_admissions/opd_visits/
+  // users — see server/server.js. Refreshed on load and again whenever any
+  // of those resources change elsewhere in the app (realtime, wired below).
+
+  function formatCurrency(amount) {
+    return "₹" + (Number(amount) || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  }
+
+  const DONUT_COLORS = ["#2e7d5b", "#4a5fd1", "#d99a2b", "#c0392b", "#8891a0", "#6a4fd1", "#0d5c50"];
+  let lastOverviewData = null; // for Download Report — exports exactly what's on screen, nothing re-fetched
+
+  function pctBadge(el, pct) {
+    if (!el) return;
+    const cls = pct > 0 ? "up" : pct < 0 ? "down" : "flat";
+    const arrow = pct > 0 ? "↑" : pct < 0 ? "↓" : "•";
+    el.className = "stat-pct-badge " + cls;
+    el.textContent = `${arrow} ${Math.abs(pct)}%`;
+  }
+
+  function renderDonutChart(breakdown) {
+    const chart = document.getElementById("donutChart");
+    const legend = document.getElementById("donutLegend");
+    const totalEl = document.getElementById("donutTotal");
+    if (!chart || !legend) return;
+
+    const total = breakdown.reduce((sum, d) => sum + Number(d.count), 0);
+    totalEl.textContent = total.toLocaleString("en-IN");
+
+    if (total === 0) {
+      chart.style.background = "#eef1f6";
+      legend.innerHTML = `<li class="donut-empty">${escapeHtml(t("hospital_page.no_opd_data", "No OPD visits for this date yet."))}</li>`;
+      return;
+    }
+
+    let cursor = 0;
+    const stops = breakdown.map((d, i) => {
+      const pct = (Number(d.count) / total) * 100;
+      const color = DONUT_COLORS[i % DONUT_COLORS.length];
+      const segment = `${color} ${cursor}% ${cursor + pct}%`;
+      cursor += pct;
+      return { segment, color, pct };
+    });
+    chart.style.background = `conic-gradient(${stops.map((s) => s.segment).join(", ")})`;
+
+    legend.innerHTML = breakdown
+      .map((d, i) => {
+        const pct = Math.round((Number(d.count) / total) * 100);
+        return `<li>
+          <span class="donut-legend-dot" style="background:${DONUT_COLORS[i % DONUT_COLORS.length]}"></span>
+          <span class="donut-legend-name">${escapeHtml(d.name)}</span>
+          <span class="donut-legend-count">${d.count}</span>
+          <span class="donut-legend-pct">${pct}%</span>
+        </li>`;
+      })
+      .join("");
+  }
+
+  function downloadOverviewReport() {
+    if (!lastOverviewData) return;
+    const d = lastOverviewData;
+    const rows = [
+      ["Metric", "Value"],
+      ["Date", d.date],
+      ["Total Revenue", d.revenue.total],
+      ["Revenue This Month", d.revenue.thisMonth],
+      ["  - Billing Desk", d.revenue.breakdown.billingDesk],
+      ["  - Pharmacy", d.revenue.breakdown.pharmacy],
+      ["  - Blood Bank", d.revenue.breakdown.bloodBank],
+      ["  - Telemedicine", d.revenue.breakdown.telemedicine],
+      ["Total Expenses", d.expenses.total],
+      ["Expenses This Month", d.expenses.thisMonth],
+      ["Net (Revenue - Expenses)", d.net.total],
+      ["Net This Month", d.net.thisMonth],
+      ["Total Patients", d.patients.total],
+      ["New Patients Today", d.patients.newToday],
+      ["New Patients This Month", d.patients.newThisMonth],
+      ["OPD Visits (selected date)", d.opdVisitsToday],
+      ["OPD Visits This Month", d.opdVisitsThisMonth],
+      ["Admitted Today", d.census.admittedToday],
+      ["Currently Admitted", d.census.currentlyAdmitted],
+      ["Discharged (selected date)", d.census.dischargedToday],
+      ["Discharged This Month", d.census.dischargedThisMonth],
+      ["Total Beds", d.beds.total],
+      ["Occupied Beds", d.beds.occupied],
+      ["Available Beds", d.beds.available],
+      ["Occupancy Rate (%)", d.beds.occupancyPct],
+      ["Total Staff", d.totalStaff],
+    ];
+    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hospital-report-${d.date}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function loadOverview() {
+    const grid = document.getElementById("overviewGrid");
+    if (!grid) return;
+    try {
+      const datePicker = document.getElementById("overviewDatePicker");
+      const selectedDate = datePicker && datePicker.value ? datePicker.value : "";
+      const res = await fetch(`/api/hospital/overview${selectedDate ? "?date=" + selectedDate : ""}`, { credentials: "same-origin" });
+      const data = await res.json();
+      if (!data.success) return;
+      lastOverviewData = data;
+      if (datePicker && !datePicker.value) datePicker.value = data.date;
+
+      document.getElementById("statTotalRevenue").textContent = formatCurrency(data.revenue.total);
+      document.getElementById("statRevenueThisMonth").textContent = t("hospital_page.this_month_amount", "{amount} this month", {
+        amount: formatCurrency(data.revenue.thisMonth),
+      });
+      pctBadge(document.getElementById("statRevenuePct"), data.revenue.pctChange);
+
+      document.getElementById("statTotalExpenses").textContent = formatCurrency(data.expenses.total);
+      document.getElementById("statExpensesThisMonth").textContent = t("hospital_page.this_month_amount", "{amount} this month", {
+        amount: formatCurrency(data.expenses.thisMonth),
+      });
+      pctBadge(document.getElementById("statExpensesPct"), data.expenses.pctChange);
+
+      document.getElementById("statNetRevenue").textContent = formatCurrency(data.net.total);
+      document.getElementById("statNetThisMonth").textContent = t("hospital_page.this_month_amount", "{amount} this month", {
+        amount: formatCurrency(data.net.thisMonth),
+      });
+      pctBadge(document.getElementById("statNetPct"), data.net.pctChange);
+
+      document.getElementById("statTotalPatients").textContent = (data.patients.total || 0).toLocaleString("en-IN");
+      document.getElementById("statNewPatients").textContent = t(
+        "hospital_page.new_patients_sub",
+        "+{today} today · +{month} this month",
+        { today: data.patients.newToday, month: data.patients.newThisMonth }
+      );
+      pctBadge(document.getElementById("statPatientsPct"), data.patients.pctChange);
+
+      // Patient Flow funnel
+      document.getElementById("flowOpdToday").textContent = (data.opdVisitsToday || 0).toLocaleString("en-IN");
+      document.getElementById("flowOpdMonth").textContent = t("hospital_page.this_month_count", "{count} this month", {
+        count: data.opdVisitsThisMonth,
+      });
+      document.getElementById("flowAdmittedToday").textContent = (data.census.admittedToday || 0).toLocaleString("en-IN");
+      document.getElementById("flowAdmittedMonth").textContent = t("hospital_page.this_month_count", "{count} this month", {
+        count: data.census.admittedThisMonth,
+      });
+      document.getElementById("flowCurrentlyAdmitted").textContent = (data.census.currentlyAdmitted || 0).toLocaleString("en-IN");
+      document.getElementById("flowDischargedMonth").textContent = t("hospital_page.discharged_sub", "{count} discharged this month", {
+        count: data.census.dischargedThisMonth,
+      });
+      document.getElementById("flowDischargedToday").textContent = (data.census.dischargedToday || 0).toLocaleString("en-IN");
+      document.getElementById("flowDischargedTodayMonth").textContent = t("hospital_page.this_month_count", "{count} this month", {
+        count: data.census.dischargedThisMonth,
+      });
+
+      // Department donut
+      const deptTitle = document.getElementById("deptChartTitle");
+      if (deptTitle) {
+        deptTitle.textContent = t("hospital_page.dept_opd_title_dated", "Department-wise OPD ({date})", { date: data.date });
+      }
+      renderDonutChart(data.departmentBreakdown || []);
+
+      // Second row of mini cards
+      document.getElementById("miniOpdToday").textContent = (data.opdVisitsToday || 0).toLocaleString("en-IN");
+      document.getElementById("miniOpdMonth").textContent = t("hospital_page.this_month_count", "{count} this month", {
+        count: data.opdVisitsThisMonth,
+      });
+      document.getElementById("miniCurrentlyAdmitted").textContent = (data.census.currentlyAdmitted || 0).toLocaleString("en-IN");
+      document.getElementById("miniDischargedMonth").textContent = t("hospital_page.discharged_sub", "{count} discharged this month", {
+        count: data.census.dischargedThisMonth,
+      });
+      document.getElementById("miniDischargedToday").textContent = (data.census.dischargedToday || 0).toLocaleString("en-IN");
+      document.getElementById("miniDischargedTodayMonth").textContent = t("hospital_page.this_month_count", "{count} this month", {
+        count: data.census.dischargedThisMonth,
+      });
+      document.getElementById("miniTotalBeds").textContent = (data.beds.total || 0).toLocaleString("en-IN");
+      document.getElementById("miniAvailableBeds").textContent = t("hospital_page.beds_available", "{count} available", {
+        count: data.beds.available,
+      });
+      document.getElementById("miniOccupancyRate").textContent = `${data.beds.occupancyPct}%`;
+      document.getElementById("miniOccupiedBeds").textContent = t("hospital_page.beds_occupied", "{count} occupied", {
+        count: data.beds.occupied,
+      });
+      document.getElementById("miniTotalStaff").textContent = (data.totalStaff || 0).toLocaleString("en-IN");
+      document.getElementById("miniStaffSub").textContent = t("hospital_page.total_staff_sub", "{count} staff on record", {
+        count: data.totalStaff,
+      });
+
+      const updatedHint = document.getElementById("overviewUpdatedHint");
+      if (updatedHint) {
+        updatedHint.textContent = t("hospital_page.overview_updated", "Live — last updated {time}", {
+          time: new Date().toLocaleTimeString(),
+        });
+      }
+    } catch (err) {
+      // Leave the cards showing their last successfully loaded values.
+    }
+  }
+
+  function wireOverviewControls() {
+    const datePicker = document.getElementById("overviewDatePicker");
+    const downloadBtn = document.getElementById("downloadReportBtn");
+    if (datePicker) datePicker.addEventListener("change", loadOverview);
+    if (downloadBtn) downloadBtn.addEventListener("click", downloadOverviewReport);
+  }
+
+  // ---------- Hospital Settings: custom logo ----------
+
+  async function loadLogoPreview() {
+    const box = document.getElementById("logoPreviewBox");
+    if (!box) return;
+    const img = document.getElementById("logoPreviewImg");
+    const emptyState = document.getElementById("logoPreviewEmpty");
+    const removeBtn = document.getElementById("removeLogoBtn");
+    try {
+      const res = await fetch("/api/hospital/me", { credentials: "same-origin" });
+      const data = await res.json();
+      if (!data.success) return;
+      if (data.hospital.logoUrl) {
+        img.src = data.hospital.logoUrl + "?v=" + Date.now();
+        img.hidden = false;
+        emptyState.hidden = true;
+        if (removeBtn) removeBtn.hidden = false;
+      } else {
+        img.hidden = true;
+        emptyState.hidden = false;
+        if (removeBtn) removeBtn.hidden = true;
+      }
+    } catch (err) {
+      // Leave whatever was last shown.
+    }
+  }
+
+  function wireHospitalLogoSettings() {
+    const uploadBtn = document.getElementById("uploadLogoBtn");
+    if (!uploadBtn) return;
+    loadLogoPreview();
+
+    uploadBtn.addEventListener("click", async () => {
+      const errorEl = document.getElementById("logoError");
+      const resultEl = document.getElementById("logoResult");
+      errorEl.textContent = "";
+      resultEl.textContent = "";
+      const fileInput = document.getElementById("logoFileInput");
+      const file = fileInput.files[0];
+      if (!file) {
+        errorEl.textContent = t("hospital_page.choose_logo_first", "Choose an image file first.");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("logo", file);
+
+      uploadBtn.disabled = true;
+      try {
+        const res = await fetch("/api/hospital/logo", { method: "POST", credentials: "same-origin", body: formData });
+        const data = await res.json();
+        if (!data.success) {
+          errorEl.textContent = data.message || t("hospital_page.logo_upload_failed", "Could not upload this logo.");
+          return;
+        }
+        fileInput.value = "";
+        resultEl.textContent = t("hospital_page.logo_upload_success", "Logo updated — your staff and patients will see it now.");
+        if (window.showToast) showToast(t("hospital_page.logo_upload_success", "Logo updated — your staff and patients will see it now."), "success");
+        loadLogoPreview();
+      } catch (err) {
+        errorEl.textContent = t("common.unable_to_reach_server", "Unable to reach the server. Please try again.");
+      } finally {
+        uploadBtn.disabled = false;
+      }
+    });
+
+    const removeBtn = document.getElementById("removeLogoBtn");
+    if (removeBtn) {
+      removeBtn.addEventListener("click", async () => {
+        if (!confirm(t("hospital_page.confirm_remove_logo", "Remove your custom logo? Everyone will see the default CORE5 MEDISYS logo again."))) return;
+        const errorEl = document.getElementById("logoError");
+        errorEl.textContent = "";
+        removeBtn.disabled = true;
+        try {
+          const res = await fetch("/api/hospital/logo", { method: "DELETE", credentials: "same-origin" });
+          const data = await res.json();
+          if (!data.success) {
+            errorEl.textContent = data.message || t("hospital_page.logo_remove_failed", "Could not remove this logo.");
+            return;
+          }
+          if (window.showToast) showToast(t("hospital_page.logo_removed_toast", "Logo removed."), "success");
+          loadLogoPreview();
+        } catch (err) {
+          errorEl.textContent = t("common.unable_to_reach_server", "Unable to reach the server. Please try again.");
+        } finally {
+          removeBtn.disabled = false;
+        }
+      });
+    }
+  }
+
+  // ---------- Hospital Settings: footer brand name ----------
+
+  async function loadBrandNameStatus() {
+    const input = document.getElementById("brandNameInput");
+    if (!input) return;
+    const hint = document.getElementById("brandNameCurrentHint");
+    const resetBtn = document.getElementById("resetBrandNameBtn");
+    try {
+      const res = await fetch("/api/hospital/me", { credentials: "same-origin" });
+      const data = await res.json();
+      if (!data.success) return;
+      const brandName = data.hospital.brandName;
+      input.value = brandName || "";
+      if (hint) {
+        hint.textContent = brandName
+          ? t("hospital_page.brand_name_current", "Currently showing: {name}", { name: brandName })
+          : t("hospital_page.brand_name_using_default", "Currently showing the default: CORE5 MEDISYS.");
+      }
+      if (resetBtn) resetBtn.hidden = !brandName;
+    } catch (err) {
+      // Leave whatever was last shown.
+    }
+  }
+
+  function wireHospitalBrandName() {
+    const saveBtn = document.getElementById("saveBrandNameBtn");
+    if (!saveBtn) return;
+    loadBrandNameStatus();
+
+    saveBtn.addEventListener("click", async () => {
+      const errorEl = document.getElementById("brandNameError");
+      const resultEl = document.getElementById("brandNameResult");
+      errorEl.textContent = "";
+      resultEl.textContent = "";
+      const input = document.getElementById("brandNameInput");
+      const brandName = input.value.trim();
+      if (!brandName) {
+        errorEl.textContent = t("hospital_page.brand_name_required", "Type a name, or use Reset to Default.");
+        return;
+      }
+
+      saveBtn.disabled = true;
+      try {
+        const res = await fetch("/api/hospital/brand-name", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brandName }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          errorEl.textContent = data.message || t("hospital_page.brand_name_save_failed", "Could not save this name.");
+          return;
+        }
+        resultEl.textContent = t("hospital_page.brand_name_save_success", "Footer updated — your staff and patients will see it now.");
+        if (window.showToast) showToast(t("hospital_page.brand_name_save_success", "Footer updated — your staff and patients will see it now."), "success");
+        loadBrandNameStatus();
+      } catch (err) {
+        errorEl.textContent = t("common.unable_to_reach_server", "Unable to reach the server. Please try again.");
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    const resetBtn = document.getElementById("resetBrandNameBtn");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", async () => {
+        const errorEl = document.getElementById("brandNameError");
+        const resultEl = document.getElementById("brandNameResult");
+        errorEl.textContent = "";
+        resultEl.textContent = "";
+        resetBtn.disabled = true;
+        try {
+          const res = await fetch("/api/hospital/brand-name", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brandName: "" }),
+          });
+          const data = await res.json();
+          if (!data.success) {
+            errorEl.textContent = data.message || t("hospital_page.brand_name_reset_failed", "Could not reset this name.");
+            return;
+          }
+          if (window.showToast) showToast(t("hospital_page.brand_name_reset_success", "Reset to the default CORE5 MEDISYS branding."), "success");
+          loadBrandNameStatus();
+        } catch (err) {
+          errorEl.textContent = t("common.unable_to_reach_server", "Unable to reach the server. Please try again.");
+        } finally {
+          resetBtn.disabled = false;
+        }
+      });
+    }
+  }
+
+  // ---------- Message a Staff Member ----------
+
+  async function loadStaffOptionsForMessaging() {
+    const select = document.getElementById("messageStaffSelect");
+    if (!select) return;
+    const res = await fetch("/api/hospital/staff", { credentials: "same-origin" });
+    const data = await res.json();
+    if (!data.success) return;
+    select.innerHTML = data.staff
+      .map((s) => `<option value="${escapeHtml(s.user_id)}">${escapeHtml(s.full_name)} — ${escapeHtml(getRoleLabel(s.role))} (${escapeHtml(s.user_id)})</option>`)
+      .join("");
+  }
+
+  async function loadSentMessages() {
+    const body = document.getElementById("sentMessagesTableBody");
+    const emptyState = document.getElementById("sentMessagesEmptyState");
+    if (!body) return;
+    const res = await fetch("/api/hospital/messages", { credentials: "same-origin" });
+    const data = await res.json();
+    if (!data.success || data.messages.length === 0) {
+      body.innerHTML = "";
+      if (emptyState) emptyState.hidden = false;
+      return;
+    }
+    if (emptyState) emptyState.hidden = true;
+    body.innerHTML = data.messages
+      .map(
+        (m) => `<tr>
+          <td>${escapeHtml(m.to_name || m.to_user_id)}</td>
+          <td>${escapeHtml(m.message)}</td>
+          <td><span class="queue-status ${m.is_read ? "completed" : "waiting"}">${m.is_read ? escapeHtml(t("hospital_page.read_label", "Read")) : escapeHtml(t("hospital_page.unread_label", "Unread"))}</span></td>
+          <td>${escapeHtml(new Date(m.created_at).toLocaleString())}</td>
+        </tr>`
+      )
+      .join("");
+  }
+
+  function wireStaffMessaging() {
+    const btn = document.getElementById("sendStaffMessageBtn");
+    if (!btn) return;
+    loadStaffOptionsForMessaging();
+    loadSentMessages();
+
+    btn.addEventListener("click", async () => {
+      const errorEl = document.getElementById("messageStaffError");
+      const resultEl = document.getElementById("messageStaffResult");
+      errorEl.textContent = "";
+      resultEl.textContent = "";
+      const toUserId = document.getElementById("messageStaffSelect").value;
+      const message = document.getElementById("messageStaffText").value.trim();
+      if (!toUserId) {
+        errorEl.textContent = t("hospital_page.choose_recipient", "Choose a staff member.");
+        return;
+      }
+      if (!message) {
+        errorEl.textContent = t("hospital_page.write_message", "Write a message first.");
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/hospital/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ toUserId, message }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          errorEl.textContent = data.message || t("hospital_page.message_send_failed", "Could not send this message.");
+          return;
+        }
+        document.getElementById("messageStaffText").value = "";
+        resultEl.textContent = t("hospital_page.message_sent_confirm", "Message sent.");
+        if (window.showToast) showToast(t("hospital_page.message_sent_confirm", "Message sent."), "success");
+        loadSentMessages();
+      } catch (err) {
+        errorEl.textContent = t("common.unable_to_reach_server", "Unable to reach the server. Please try again.");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
+  // ---------- Expense Log ----------
+
+  async function loadExpenses() {
+    const body = document.getElementById("expensesTableBody");
+    const emptyState = document.getElementById("expensesEmptyState");
+    if (!body) return;
+    const res = await fetch("/api/hospital/expenses", { credentials: "same-origin" });
+    const data = await res.json();
+    if (!data.success || data.expenses.length === 0) {
+      body.innerHTML = "";
+      if (emptyState) emptyState.hidden = false;
+      return;
+    }
+    if (emptyState) emptyState.hidden = true;
+    body.innerHTML = data.expenses
+      .map(
+        (e) => `<tr>
+          <td>${escapeHtml(e.category)}</td>
+          <td>${formatCurrency(e.amount)}</td>
+          <td>${escapeHtml(e.note || "—")}</td>
+          <td>${escapeHtml(new Date(e.expense_date).toLocaleDateString())}</td>
+          <td><button type="button" class="icon-btn-delete delete-expense-btn" data-id="${e.id}">${escapeHtml(t("common.delete", "Delete"))}</button></td>
+        </tr>`
+      )
+      .join("");
+
+    body.querySelectorAll(".delete-expense-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm(t("hospital_page.confirm_delete_expense", "Delete this expense entry?"))) return;
+        const res2 = await fetch(`/api/hospital/expenses/${btn.dataset.id}`, { method: "DELETE", credentials: "same-origin" });
+        const data2 = await res2.json();
+        if (data2.success) {
+          loadExpenses();
+          loadOverview();
+        }
+      });
+    });
+  }
+
+  function wireExpenseLog() {
+    const btn = document.getElementById("addExpenseBtn");
+    if (!btn) return;
+    const dateInput = document.getElementById("expenseDate");
+    if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
+    loadExpenses();
+
+    btn.addEventListener("click", async () => {
+      const errorEl = document.getElementById("expenseError");
+      errorEl.textContent = "";
+      const category = document.getElementById("expenseCategory").value.trim();
+      const amount = document.getElementById("expenseAmount").value;
+      const note = document.getElementById("expenseNote").value.trim();
+      const expenseDate = document.getElementById("expenseDate").value;
+      if (!category || !amount || Number(amount) <= 0) {
+        errorEl.textContent = t("hospital_page.expense_invalid", "Enter a category and an amount greater than 0.");
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/hospital/expenses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ category, amount: Number(amount), note, expenseDate }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          errorEl.textContent = data.message || t("hospital_page.expense_add_failed", "Could not add this expense.");
+          return;
+        }
+        document.getElementById("expenseCategory").value = "";
+        document.getElementById("expenseAmount").value = "";
+        document.getElementById("expenseNote").value = "";
+        if (window.showToast) showToast(t("hospital_page.expense_added_toast", "Expense added."), "success");
+        loadExpenses();
+        loadOverview();
+      } catch (err) {
+        errorEl.textContent = t("common.unable_to_reach_server", "Unable to reach the server. Please try again.");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
   async function loadStaffCount() {
     const hint = document.getElementById("staffCountHint");
     if (!hint) return;
@@ -940,6 +1502,12 @@
     loadHospital();
     loadStaffCount();
     loadOutbreakAlerts();
+    wireOverviewControls();
+    loadOverview();
+    wireHospitalLogoSettings();
+    wireHospitalBrandName();
+    wireStaffMessaging();
+    wireExpenseLog();
     initAddStaff();
     initStaffList();
     wireStaffBulkPasswordReset();
@@ -948,6 +1516,7 @@
 
     if (window.MEDISYS_RT) {
       MEDISYS_RT.on("staff", loadStaffCount);
+      MEDISYS_RT.on("staff", loadOverview);
       MEDISYS_RT.on("hospitals", loadHospital);
       MEDISYS_RT.on("disease_alerts", (payload) => {
         loadOutbreakAlerts();
@@ -955,6 +1524,14 @@
           showToast(t('hospital_page.outbreak_toast', '⚠ Outbreak alert: {diagnosis} — {caseCount} recent cases.', { diagnosis: payload.diagnosis, caseCount: payload.caseCount }), "error");
         }
       });
+      // The dashboard should feel genuinely live — refresh the overview
+      // stat cards whenever anything that feeds them changes anywhere else
+      // in the app, not just on page load.
+      ["patients", "ipd_admissions", "opd_queue", "billing_payments", "pharmacy_invoices", "bloodbank_billing", "hospital_expenses"].forEach(
+        (resource) => MEDISYS_RT.on(resource, loadOverview)
+      );
+      MEDISYS_RT.on("hospital_expenses", loadExpenses);
+      MEDISYS_RT.on("staff_messages_sent", loadSentMessages);
     }
 
     window.addEventListener("i18n:languageChanged", () => {

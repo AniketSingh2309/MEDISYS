@@ -85,4 +85,17 @@ function broadcastGlobal(resource, extra) {
   });
 }
 
-module.exports = { initRealtime, broadcast, broadcastGlobal };
+// Broadcast to one specific person's own room, regardless of who else is in
+// their hospital — for anything that's private to a single user rather than
+// hospital-wide (currently just staff_messages: a hospital admin's message
+// to one staff member shouldn't wake up every other socket in that hospital).
+function broadcastToUser(userId, resource, extra) {
+  if (!io || !userId) return;
+  io.to(`user:${userId}`).emit("data:changed", {
+    resource,
+    at: Date.now(),
+    ...(extra || {}),
+  });
+}
+
+module.exports = { initRealtime, broadcast, broadcastGlobal, broadcastToUser };

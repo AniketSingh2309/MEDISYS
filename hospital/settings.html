@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MEDISYS - Hospital Settings</title>
+<link rel="stylesheet" href="../style.css" />
+<link rel="stylesheet" href="../admin/admin.css" />
+<style>
+  /* Scoped to this page — logo preview box. */
+  .logo-preview-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .logo-preview-box {
+    width: 160px;
+    height: 80px;
+    border: 1px dashed #d7dee6;
+    border-radius: var(--radius-sm, 8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f7f9fb;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .logo-preview-box img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .logo-preview-empty {
+    font-size: 12px;
+    color: var(--ink-mute, #8891a0);
+    text-align: center;
+    padding: 0 10px;
+  }
+</style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="brand">
+      <img src="../logo.png" alt="Core5 MEDISYS" class="brand-logo" />
+    </div>
+    <div class="portal-header-right">
+      <span class="portal-user" id="portalUser"></span>
+      <button type="button" class="portal-logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <main class="portal-main">
+    <a href="dashboard.html" class="forgot-link portal-back-link" data-i18n="registration.back_to_dashboard">&larr; Back to Dashboard</a>
+    <h1 data-i18n="hospital_page.settings_title">Hospital Settings</h1>
+    <p class="portal-subtitle" data-i18n="hospital_page.settings_subtitle">Manage how your hospital's portal looks for your staff and patients.</p>
+
+    <h2 class="portal-section-title" data-i18n="hospital_page.logo_section_title">Hospital Logo</h2>
+    <div class="portal-card wizard-step">
+      <p class="wizard-hint" data-i18n="hospital_page.logo_hint">Once set, this replaces the CORE5 MEDISYS logo in the header for your hospital only — every staff member's portal and every patient your hospital registers will see it. Other hospitals are never affected.</p>
+
+      <div class="logo-preview-row">
+        <div class="logo-preview-box" id="logoPreviewBox">
+          <span class="logo-preview-empty" id="logoPreviewEmpty" data-i18n="hospital_page.no_logo_set">No custom logo set — using the default CORE5 MEDISYS logo.</span>
+          <img id="logoPreviewImg" alt="Current hospital logo" hidden />
+        </div>
+        <div>
+          <label for="logoFileInput" data-i18n="hospital_page.choose_logo_file">Choose an image</label>
+          <input type="file" id="logoFileInput" accept="image/*" />
+          <p class="wizard-hint" data-i18n="hospital_page.logo_ratio_hint">Recommended: a square logo (1:1, e.g. 512×512px) or a landscape logo close to 2:1 (e.g. 700×350px, the same shape as the default logo) — PNG with a transparent background works best. Max 5MB.</p>
+        </div>
+      </div>
+
+      <p class="form-error" id="logoError" role="alert" aria-live="polite"></p>
+      <div class="wizard-nav">
+        <button type="button" class="wizard-back-btn" id="removeLogoBtn" hidden data-i18n="hospital_page.remove_logo_btn">Remove Logo</button>
+        <button type="button" class="login-btn wizard-next-btn" id="uploadLogoBtn" data-i18n="hospital_page.upload_logo_btn">Upload Logo</button>
+      </div>
+      <p class="wizard-hint" id="logoResult"></p>
+    </div>
+
+    <h2 class="portal-section-title" data-i18n="hospital_page.brand_section_title">Footer Branding</h2>
+    <div class="portal-card wizard-step">
+      <p class="wizard-hint" data-i18n="hospital_page.brand_hint">Once set, this replaces "CORE5 MEDISYS" in the footer with your own hospital name — for your hospital only, everywhere your staff and patients see it. The "Powered by CORE5 MEDISYS" credit stays and can't be changed.</p>
+
+      <label for="brandNameInput" data-i18n="hospital_page.brand_name_label">Hospital display name</label>
+      <input type="text" id="brandNameInput" maxlength="80" placeholder="e.g. Sunrise General Hospital" data-i18n-placeholder="hospital_page.brand_name_placeholder" />
+      <p class="wizard-hint" id="brandNameCurrentHint"></p>
+
+      <p class="form-error" id="brandNameError" role="alert" aria-live="polite"></p>
+      <div class="wizard-nav">
+        <button type="button" class="wizard-back-btn" id="resetBrandNameBtn" hidden data-i18n="hospital_page.reset_brand_name_btn">Reset to Default</button>
+        <button type="button" class="login-btn wizard-next-btn" id="saveBrandNameBtn" data-i18n="hospital_page.save_brand_name_btn">Save Name</button>
+      </div>
+      <p class="wizard-hint" id="brandNameResult"></p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-left">
+      <span class="footer-brand">CORE5 <strong>MEDISYS</strong></span>
+      <small>HOSPITAL PORTAL</small>
+    </div>
+    <div class="footer-right">&copy;2026 Core5. All rights reserved.</div>
+  </footer>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="../realtime-client.js"></script>
+  <script src="../portal-ui.js"></script>
+<script src="hospital.js"></script>
+</body>
+</html>

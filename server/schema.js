@@ -58,6 +58,16 @@ async function ensureSchema(connection) {
   // column that doesn't match a real schema column land here, keyed by their
   // original file header, instead of ever being dropped.
   await ensureColumn(connection, "hospitals", "extra_fields", "JSON NULL");
+  // Filename only (not a full path) — the actual file lives in
+  // server/uploads/hospital-logos/, served by GET /api/hospital/:id/logo.
+  // NULL means "no custom logo" — every portal page falls back to the
+  // default CORE5 MEDISYS logo automatically (see portal-ui.js).
+  await ensureColumn(connection, "hospitals", "logo_path", "VARCHAR(255) NULL");
+  // Custom footer/header display name shown in place of "CORE5 MEDISYS" for
+  // this hospital only. NULL means "use the default CORE5 MEDISYS branding"
+  // (see portal-ui.js). The "Powered by CORE5 MEDISYS" attribution line
+  // stays fixed regardless — this only ever renames the big brand text.
+  await ensureColumn(connection, "hospitals", "brand_name", "VARCHAR(80) NULL");
   await ensureColumn(connection, "users", "email", "VARCHAR(150)");
   await ensureColumn(connection, "users", "phone", "VARCHAR(20)");
   await ensureColumn(connection, "users", "details", "JSON");
@@ -217,6 +227,44 @@ async function ensureSchema(connection) {
   // admin can sanity-check the sort before committing.
   await ensureColumn(connection, "import_staging_rows", "detected_entity", "VARCHAR(30) NULL");
   await ensureColumn(connection, "import_staging_rows", "detection_label", "VARCHAR(150) NULL");
+
+  // ---------- Hospital admin dashboard: expenses + staff messaging ----------
+
+  // Manually logged by the hospital admin — there's no automatic source for
+  // "money spent" anywhere else in the app (unlike revenue, which is derived
+  // live from bills/pharmacy_invoices/blood_billing/telemedicine_payments —
+  // see GET /api/hospital/overview), so this is deliberately a real ledger
+  // the admin maintains themselves rather than an inferred/estimated figure.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS hospital_expenses (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      category VARCHAR(100) NOT NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      note VARCHAR(255) NULL,
+      expense_date DATE NOT NULL,
+      created_by VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // One-way private messages, hospital admin -> a specific staff member (see
+  // POST /api/hospital/messages). Delivered live over the same Socket.IO
+  // "user:<userId>" room every other real-time feature in this app already
+  // joins (see server/realtime.js) — a staff member sees it appear in their
+  // own portal without refreshing, via the message bell in portal-ui.js.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS staff_messages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      hospital_id INT NOT NULL,
+      from_user_id VARCHAR(50) NOT NULL,
+      from_name VARCHAR(150) NOT NULL,
+      to_user_id VARCHAR(50) NOT NULL,
+      message TEXT NOT NULL,
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS doctor_schedules (
