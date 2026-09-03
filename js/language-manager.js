@@ -260,6 +260,18 @@
           aEl.setAttribute('aria-label', LanguageManager.t(aKey));
         }
       }
+
+      // 5. data-i18n-label — for elements whose visible text lives in a
+      // `label` attribute rather than textContent (e.g. <optgroup label="...">
+      // inside a <select>, which can't hold child text nodes at all).
+      var labelAttrElements = container.querySelectorAll('[data-i18n-label]');
+      for (var m = 0; m < labelAttrElements.length; m++) {
+        var lEl = labelAttrElements[m];
+        var lKey = lEl.getAttribute('data-i18n-label');
+        if (lKey) {
+          lEl.setAttribute('label', LanguageManager.t(lKey));
+        }
+      }
     }
   };
 

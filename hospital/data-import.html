@@ -143,7 +143,49 @@
             <option value="auto" data-i18n="data_import.entity_auto">Auto-detect (mixed dataset — patients, doctors, nurses, etc. all in one file)</option>
             <option value="patients" data-i18n="data_import.entity_patients">Patient records</option>
             <option value="hospitals" data-i18n="data_import.entity_hospital">Your hospital's facility data</option>
+            <optgroup label="Staff" data-i18n-label="data_import.optgroup_staff">
+              <option value="doctor" data-i18n="data_import.entity_doctor">Doctor</option>
+              <option value="nurse" data-i18n="data_import.entity_nurse">Nurse</option>
+              <option value="pharmacist" data-i18n="data_import.entity_pharmacist">Pharmacist</option>
+              <option value="pathology_staff" data-i18n="data_import.entity_pathology_staff">Pathologist / Lab Staff</option>
+              <option value="receptionist" data-i18n="data_import.entity_receptionist">OPD / Receptionist</option>
+              <option value="billing_staff" data-i18n="data_import.entity_billing_staff">Billing Staff</option>
+              <option value="blood_bank_staff" data-i18n="data_import.entity_blood_bank_staff">Blood Bank Staff</option>
+            </optgroup>
+            <optgroup label="Facility setup" data-i18n-label="data_import.optgroup_facility">
+              <option value="departments" data-i18n="data_import.entity_departments">Departments</option>
+              <option value="wards" data-i18n="data_import.entity_wards">Wards</option>
+              <option value="beds" data-i18n="data_import.entity_beds">Beds</option>
+              <option value="test_catalog" data-i18n="data_import.entity_test_catalog">Test Catalog</option>
+              <option value="billing_tariff" data-i18n="data_import.entity_billing_tariff">Billing Tariff</option>
+              <option value="doctor_schedules" data-i18n="data_import.entity_doctor_schedules">Doctor Schedules</option>
+              <option value="pharmacy_stock" data-i18n="data_import.entity_pharmacy_stock">Pharmacy Stock</option>
+              <option value="blood_donors" data-i18n="data_import.entity_blood_donors">Blood Donors</option>
+            </optgroup>
+            <optgroup label="Clinical records" data-i18n-label="data_import.optgroup_clinical">
+              <option value="opd_visits" data-i18n="data_import.entity_opd_visits">OPD Visits</option>
+              <option value="consultations" data-i18n="data_import.entity_consultations">Consultations</option>
+              <option value="ipd_admissions" data-i18n="data_import.entity_ipd_admissions">IPD Admissions</option>
+              <option value="ipd_notes" data-i18n="data_import.entity_ipd_notes">IPD Notes</option>
+              <option value="doctor_orders" data-i18n="data_import.entity_doctor_orders">Doctor Orders</option>
+              <option value="medication_administration" data-i18n="data_import.entity_medication_administration">Medication Administration</option>
+              <option value="lab_orders" data-i18n="data_import.entity_lab_orders">Lab Orders</option>
+              <option value="lab_order_images" data-i18n="data_import.entity_lab_order_images">Lab Order Images</option>
+              <option value="vitals" data-i18n="data_import.entity_vitals">Vitals</option>
+              <option value="pharmacy_orders" data-i18n="data_import.entity_pharmacy_orders">Prescriptions / Pharmacy Orders</option>
+              <option value="blood_inventory_units" data-i18n="data_import.entity_blood_inventory_units">Blood Inventory Units</option>
+              <option value="blood_patient_donations" data-i18n="data_import.entity_blood_patient_donations">Blood Patient Donations</option>
+              <option value="blood_requests" data-i18n="data_import.entity_blood_requests">Blood Requests</option>
+            </optgroup>
+            <optgroup label="Billing" data-i18n-label="data_import.optgroup_billing">
+              <option value="bills" data-i18n="data_import.entity_bills">Bills</option>
+              <option value="bill_items" data-i18n="data_import.entity_bill_items">Bill Items</option>
+              <option value="bill_payments" data-i18n="data_import.entity_bill_payments">Bill Payments</option>
+              <option value="patient_charges" data-i18n="data_import.entity_patient_charges">Patient Charges</option>
+              <option value="blood_billing" data-i18n="data_import.entity_blood_billing">Blood Billing</option>
+            </optgroup>
           </select>
+          <p class="wizard-hint" data-i18n="data_import.entity_pick_hint">Picking a specific type here always skips both the mixed-dataset sorting AND the multi-table-file detection below — use this when you know exactly which table a file belongs to (e.g. a plain billing tariff export), especially if a "category"/"type" column in it isn't actually about people or table names and Auto-detect might misread it.</p>
         </div>
         <div>
           <label for="importSourceName" data-i18n="data_import.source_name_label">Source name <span class="wizard-hint" style="display:inline;">(optional — lets future uploads from the same system reuse this mapping)</span></label>
@@ -164,12 +206,22 @@
         <div class="import-progress-track"><div class="import-progress-fill indeterminate" id="analyzeProgressFill"></div></div>
         <p class="wizard-hint" id="analyzeProgressLabel" data-i18n="data_import.analyzing">Sorting and analyzing your data…</p>
       </div>
+
+      <hr style="border: none; border-top: 1px solid #eef1f6; margin: 22px 0;" />
+
+      <label for="importFolderInput" data-i18n="data_import.choose_folder">Or import a whole folder</label>
+      <p class="wizard-hint" style="margin: 0 0 10px;" data-i18n="data_import.choose_folder_hint">
+        Pick a folder and every CSV/XLSX file inside it is queued and imported one at a time — you still review each file's field matches (or sorted groups, for Auto-detect) before it commits, same as a single upload, just without re-choosing the file each time.
+      </p>
+      <input type="file" id="importFolderInput" webkitdirectory directory multiple />
+      <p class="wizard-hint" id="folderQueueStatus" style="margin-top: 8px;"></p>
     </div>
 
     <!-- Auto-detect: sorted-by-type summary + one mapping review per detected type -->
     <div class="portal-card wizard-step" id="autoSection" hidden>
       <h2 data-i18n="data_import.auto_step_title">2. Review sorted data</h2>
       <p class="wizard-hint" id="autoSummaryText"></p>
+      <p class="wizard-hint" id="autoSkippedNote" hidden></p>
 
       <!-- Sticks below the site header while scrolling through the bucket
            panels below, so fixing a mapping issue never means scrolling all
@@ -194,6 +246,7 @@
     <div class="portal-card wizard-step" id="mappingSection" hidden>
       <h2 data-i18n="data_import.step2_title">2. Review field matches</h2>
       <p class="wizard-hint" id="mappingSummaryHint"></p>
+      <p class="wizard-hint" id="autoDetectBanner" hidden></p>
       <p class="form-error" id="singleRowEntityWarning" hidden></p>
 
       <div class="mapping-mode-toggle" role="radiogroup" aria-label="Mapping mode">

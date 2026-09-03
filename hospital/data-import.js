@@ -23,6 +23,15 @@
   let currentBatch = null; // { batchId, targetEntity, fields, knownFields }
   let currentAutoBatch = null; // { batchId, totalRows, roleColumn, roleBreakdown, buckets: [...] }
 
+  // Folder-upload queue — files waiting to be analyzed after the current one
+  // finishes. Each file still goes through the full review step (mapping
+  // table, or the auto-detect bucket review) before it commits; the queue
+  // only automates "pick the next file," not "skip reviewing it." See
+  // advanceFolderQueue(), called from both commit-success paths below.
+  let folderQueue = [];
+  let folderQueueTotal = 0;
+  let folderQueueDone = 0;
+
   // Every entity an auto-detected row can be sorted into — used to label the
   // Import History table and to populate the "Import these as" picker for a
   // row the classifier wasn't confident about. Mirrors server/roles.js.
@@ -35,10 +44,43 @@
     { value: "receptionist", label: "OPD / Receptionist" },
     { value: "billing_staff", label: "Billing Staff" },
     { value: "blood_bank_staff", label: "Blood Bank Staff" },
+    // Everything below is only ever assigned via the entity picker at upload
+    // time or manual reclassification — the mixed-dataset ("auto") role
+    // classifier never sorts a row into one of these on its own, since none
+    // of them are people. Kept here purely for readable labels in Import
+    // History and the "Import these as" picker instead of falling back to
+    // the raw entity key (see entityLabelFor below).
+    { value: "departments", label: "Departments" },
+    { value: "wards", label: "Wards" },
+    { value: "beds", label: "Beds" },
+    { value: "test_catalog", label: "Test Catalog" },
+    { value: "billing_tariff", label: "Billing Tariff" },
+    { value: "doctor_schedules", label: "Doctor Schedules" },
+    { value: "pharmacy_stock", label: "Pharmacy Stock" },
+    { value: "blood_donors", label: "Blood Donors" },
+    { value: "opd_visits", label: "OPD Visits" },
+    { value: "consultations", label: "Consultations" },
+    { value: "ipd_admissions", label: "IPD Admissions" },
+    { value: "ipd_notes", label: "IPD Notes" },
+    { value: "doctor_orders", label: "Doctor Orders" },
+    { value: "medication_administration", label: "Medication Administration" },
+    { value: "lab_orders", label: "Lab Orders" },
+    { value: "lab_order_images", label: "Lab Order Images" },
+    { value: "vitals", label: "Vitals" },
+    { value: "pharmacy_orders", label: "Prescriptions / Pharmacy Orders" },
+    { value: "blood_inventory_units", label: "Blood Inventory Units" },
+    { value: "blood_patient_donations", label: "Blood Patient Donations" },
+    { value: "blood_requests", label: "Blood Requests" },
+    { value: "bills", label: "Bills" },
+    { value: "bill_items", label: "Bill Items" },
+    { value: "bill_payments", label: "Bill Payments" },
+    { value: "patient_charges", label: "Patient Charges" },
+    { value: "blood_billing", label: "Blood Billing" },
   ];
 
   function entityLabelFor(entity) {
     if (entity === "auto") return t("data_import.entity_auto_short", "Mixed dataset");
+    if (entity === "multi") return t("data_import.entity_multi_short", "Multi-table dataset");
     if (entity === "unclassified") return t("data_import.unclassified_title", "Unclassified");
     const found = ENTITY_OPTIONS.find((e) => e.value === entity);
     return found ? found.label : entity;
@@ -65,50 +107,137 @@
 
   // ---------- Step 1: upload ----------
 
-  function wireUpload() {
-    document.getElementById("uploadBtn").addEventListener("click", async () => {
-      const errorEl = document.getElementById("uploadError");
-      errorEl.textContent = "";
+  // Shared by the manual "Analyze File" button and the folder-queue
+  // auto-advance — one file in, same upload+analyze call, same result
+  // handling either way, so a queued file behaves identically to one chosen
+  // by hand.
+  async function analyzeFile(file, { entity, sourceName }) {
+    const errorEl = document.getElementById("uploadError");
+    errorEl.textContent = "";
 
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("entity", entity);
+    if (sourceName) formData.append("sourceName", sourceName);
+
+    const btn = document.getElementById("uploadBtn");
+    const progressWrap = document.getElementById("analyzeProgress");
+    btn.disabled = true;
+    progressWrap.hidden = false;
+    try {
+      const res = await fetch("/api/import/upload", { method: "POST", credentials: "same-origin", body: formData });
+      const data = await res.json();
+      if (!data.success) {
+        errorEl.textContent = data.message || t("data_import.upload_failed", "Could not analyze this file.");
+        // A file that fails to even analyze (e.g. unreadable/empty) shouldn't
+        // stall the rest of a folder queue — skip it and move on.
+        advanceFolderQueue();
+        return;
+      }
+      if (data.targetEntity === "auto" || data.targetEntity === "multi") {
+        renderAutoSummary(data);
+      } else {
+        currentBatch = data;
+        renderMappingTable(data);
+      }
+    } catch (err) {
+      errorEl.textContent = t("common.unable_to_reach_server", "Unable to reach the server. Please try again.");
+      advanceFolderQueue();
+    } finally {
+      btn.disabled = false;
+      progressWrap.hidden = true;
+    }
+  }
+
+  function wireUpload() {
+    document.getElementById("uploadBtn").addEventListener("click", () => {
       const fileInput = document.getElementById("importFileInput");
       const file = fileInput.files[0];
       if (!file) {
-        errorEl.textContent = t("data_import.choose_file_first", "Choose a file first.");
+        document.getElementById("uploadError").textContent = t("data_import.choose_file_first", "Choose a file first.");
+        return;
+      }
+      const entity = document.getElementById("importEntitySelect").value;
+      const sourceName = document.getElementById("importSourceName").value.trim();
+      analyzeFile(file, { entity, sourceName });
+    });
+  }
+
+  // ---------- Folder upload: queue every CSV/XLSX found, one file at a time ----------
+
+  const IMPORTABLE_EXTENSIONS = [".csv", ".xlsx", ".xls"];
+
+  function updateFolderQueueStatus(text) {
+    const el = document.getElementById("folderQueueStatus");
+    if (el) el.textContent = text;
+  }
+
+  function wireFolderUpload() {
+    document.getElementById("importFolderInput").addEventListener("change", (e) => {
+      const allFiles = Array.from(e.target.files || []);
+      const importable = allFiles.filter((f) => IMPORTABLE_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext)));
+      if (importable.length === 0) {
+        updateFolderQueueStatus(
+          allFiles.length > 0
+            ? t("data_import.folder_no_importable", "That folder has {count} file(s), but none are .csv/.xlsx/.xls.", { count: allFiles.length })
+            : t("data_import.folder_empty", "That folder appears to be empty.")
+        );
         return;
       }
 
+      folderQueue = importable.slice(1);
+      folderQueueTotal = importable.length;
+      folderQueueDone = 0;
+
       const entity = document.getElementById("importEntitySelect").value;
-      const sourceName = document.getElementById("importSourceName").value.trim();
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("entity", entity);
-      if (sourceName) formData.append("sourceName", sourceName);
-
-      const btn = document.getElementById("uploadBtn");
-      const progressWrap = document.getElementById("analyzeProgress");
-      btn.disabled = true;
-      progressWrap.hidden = false;
-      try {
-        const res = await fetch("/api/import/upload", { method: "POST", credentials: "same-origin", body: formData });
-        const data = await res.json();
-        if (!data.success) {
-          errorEl.textContent = data.message || t("data_import.upload_failed", "Could not analyze this file.");
-          return;
-        }
-        if (data.targetEntity === "auto") {
-          renderAutoSummary(data);
-        } else {
-          currentBatch = data;
-          renderMappingTable(data);
-        }
-      } catch (err) {
-        errorEl.textContent = t("common.unable_to_reach_server", "Unable to reach the server. Please try again.");
-      } finally {
-        btn.disabled = false;
-        progressWrap.hidden = true;
-      }
+      updateFolderQueueStatus(
+        t("data_import.folder_queue_starting", 'Found {count} file(s) — starting with "{name}" (1 of {total}).', {
+          count: importable.length,
+          name: importable[0].name,
+          total: importable.length,
+        })
+      );
+      // Each file gets ITS OWN source name (its filename), not the shared
+      // "Source name" field above — different files in a folder are likely
+      // different systems/structures, and reusing one source name across
+      // them risks the exact mapping-collision bug fixed elsewhere in this
+      // tool (a header that means one thing in file A getting silently
+      // reused as "already mapped" for an unrelated column in file B).
+      analyzeFile(importable[0], { entity, sourceName: importable[0].name });
     });
+  }
+
+  // Called after a batch finishes committing (both the single-entity and
+  // auto-detect success paths) — if there's more in the folder queue, starts
+  // the next file the same way the first one started; otherwise leaves the
+  // page in its normal single-upload state.
+  function advanceFolderQueue() {
+    if (folderQueueTotal === 0) return; // no queue active — a plain single-file upload, nothing to do
+    folderQueueDone++;
+    if (folderQueue.length === 0) {
+      if (folderQueueTotal > 0) {
+        updateFolderQueueStatus(
+          t("data_import.folder_queue_complete", "Folder import complete — processed {done} of {total} file(s).", {
+            done: folderQueueDone,
+            total: folderQueueTotal,
+          })
+        );
+      }
+      folderQueueTotal = 0;
+      folderQueueDone = 0;
+      document.getElementById("importFolderInput").value = "";
+      return;
+    }
+    const next = folderQueue.shift();
+    const entity = document.getElementById("importEntitySelect").value;
+    updateFolderQueueStatus(
+      t("data_import.folder_queue_progress", 'Importing "{name}" ({current} of {total})…', {
+        name: next.name,
+        current: folderQueueDone + 1,
+        total: folderQueueTotal,
+      })
+    );
+    analyzeFile(next, { entity, sourceName: next.name });
   }
 
   // ---------- Step 2: mapping review ----------
@@ -140,6 +269,24 @@
       { count: batch.totalRows, fieldCount: batch.fields.length }
     );
 
+    // Auto-detect ("Auto-detect" mode picked, but the file's own header set
+    // confidently matched exactly ONE known table — see detectSingleEntityByFit
+    // in server/importRoutes.js) skipped the mixed-dataset sorter entirely and
+    // picked this batch's target entity on its own. Says WHY, and how to
+    // undo it: Cancel below returns to the upload step with the entity
+    // dropdown still available to pick the right one by hand.
+    const autoBannerEl = document.getElementById("autoDetectBanner");
+    if (batch.autoDetected) {
+      autoBannerEl.textContent =
+        (batch.autoDetectReason || t("data_import.auto_entity_detected_fallback", "Detected automatically.")) +
+        " " +
+        t("data_import.auto_entity_wrong_hint", 'Not right? Click Cancel below, then pick the correct type from "What are you importing?" and re-upload.');
+      autoBannerEl.hidden = false;
+    } else {
+      autoBannerEl.hidden = true;
+      autoBannerEl.textContent = "";
+    }
+
     const warningEl = document.getElementById("singleRowEntityWarning");
     if (batch.singleRowEntityWarning) {
       warningEl.textContent = t(
@@ -154,29 +301,57 @@
     }
 
     const body = document.getElementById("mappingTableBody");
-    body.innerHTML = batch.fields
-      .map((f, i) => {
-        const badge = MATCH_BADGE[f.matchType] || MATCH_BADGE.unmatched;
-        const isCustom = f.targetType === "extra_field";
-        const isIgnored = f.targetType === "ignored";
-        const sample = (f.sampleValues || []).filter((v) => v !== null && v !== undefined && String(v).trim() !== "")[0];
-        return `<tr>
-          <td><strong>${escapeHtml(f.sourceHeader)}</strong></td>
-          <td class="mono-cell" style="color:var(--ink-mute, #8891a0);">${escapeHtml(sample ?? "—")}</td>
-          <td><span class="queue-status ${badge.cls}">${escapeHtml(badge.label())}</span></td>
-          <td>
-            <select data-row="${i}" data-source-field="${escapeHtml(f.sourceHeader)}">
-              ${fieldSelectOptions(batch.knownFields, isCustom || isIgnored ? null : f.targetField, isCustom, isIgnored)}
-            </select>
-          </td>
-        </tr>`;
-      })
-      .join("");
+    body.innerHTML = batch.fields.map((f, i) => mapsToRowHtml(f, batch.knownFields, `data-row="${i}"`)).join("");
+    wireMapsToOverrideButtons(body);
 
     // A fresh upload always starts in Manual Mapping — Auto Mapping is a
     // deliberate choice made per review, not a remembered preference.
     document.getElementById("mappingModeManual").checked = true;
     applyMappingMode("manual", body, document.getElementById("mappingModeHint"));
+  }
+
+  // Shared by the single-entity mapping table and every auto/multi-entity
+  // bucket's own mapping table (renderBucketMappingRows) — one row's worth
+  // of "File column | Sample value | Match | Maps to".
+  //
+  // A "New field" (Match = nothing matched at all) already has the only
+  // safe, correct answer pre-selected: "＋ New custom field". There's no
+  // judgment call to make for it — unlike a "Matched"/"Suggested" column,
+  // which genuinely benefits from a second look — so its dropdown starts
+  // locked (disabled) regardless of the Manual/Auto Mapping toggle, making
+  // "you don't need to map this by hand" literal instead of just
+  // technically true. "Change" un-locks that ONE row for the rare case an
+  // admin wants to ignore it instead, or believes it actually belongs to a
+  // known field the system missed.
+  function mapsToRowHtml(f, knownFields, selectAttrs) {
+    const badge = MATCH_BADGE[f.matchType] || MATCH_BADGE.unmatched;
+    const isCustom = f.targetType === "extra_field";
+    const isIgnored = f.targetType === "ignored";
+    const isUnmatched = f.matchType === "unmatched";
+    const sample = (f.sampleValues || []).filter((v) => v !== null && v !== undefined && String(v).trim() !== "")[0];
+    return `<tr>
+      <td><strong>${escapeHtml(f.sourceHeader)}</strong></td>
+      <td class="mono-cell" style="color:var(--ink-mute, #8891a0);">${escapeHtml(sample ?? "—")}</td>
+      <td><span class="queue-status ${badge.cls}">${escapeHtml(badge.label())}</span></td>
+      <td>
+        <select ${selectAttrs} data-source-field="${escapeHtml(f.sourceHeader)}" ${isUnmatched ? 'disabled data-unmatched="true"' : ""}>
+          ${fieldSelectOptions(knownFields, isCustom || isIgnored ? null : f.targetField, isCustom, isIgnored)}
+        </select>
+        ${isUnmatched ? `<button type="button" class="maps-to-change-btn" style="margin-left:6px;background:none;border:none;color:var(--teal-dark);text-decoration:underline;cursor:pointer;font-size:12px;padding:0;">${escapeHtml(t("data_import.maps_to_change_link", "Change"))}</button>` : ""}
+      </td>
+    </tr>`;
+  }
+
+  function wireMapsToOverrideButtons(container) {
+    container.querySelectorAll(".maps-to-change-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const select = btn.previousElementSibling;
+        delete select.dataset.unmatched;
+        select.disabled = false;
+        select.focus();
+        btn.remove();
+      });
+    });
   }
 
   // "Manual Mapping" leaves every "Maps to" dropdown editable, exactly as
@@ -186,7 +361,15 @@
   // whether the admin can override it before importing).
   function applyMappingMode(mode, tbody, hintEl) {
     const isAuto = mode === "auto";
-    tbody.querySelectorAll("select").forEach((select) => (select.disabled = isAuto));
+    tbody.querySelectorAll("select").forEach((select) => {
+      // A "New field" dropdown (see mapsToRowHtml) stays locked in BOTH
+      // modes — there's no judgment call to review for it, unlike a
+      // "Matched"/"Suggested" column. Only the explicit "Change" link next
+      // to it (wireMapsToOverrideButtons) unlocks that one row, by clearing
+      // this same marker — after that it behaves like any normal field.
+      if (select.dataset.unmatched === "true") return;
+      select.disabled = isAuto;
+    });
     if (hintEl) {
       hintEl.textContent = isAuto
         ? t("data_import.auto_mapping_hint", "The system will use its best match for every column automatically — nothing to review.")
@@ -208,6 +391,10 @@
       document.getElementById("mappingSection").hidden = true;
       document.getElementById("uploadSection").hidden = false;
       document.getElementById("importFileInput").value = "";
+      // Cancelling a queued file skips it and moves on to the next one in
+      // the folder, rather than leaving the rest of the queue stuck waiting
+      // forever on a file nobody's going to confirm.
+      advanceFolderQueue();
     });
 
     document.getElementById("confirmMappingBtn").addEventListener("click", async () => {
@@ -292,6 +479,7 @@
           document.getElementById("uploadSection").hidden = false;
           document.getElementById("importFileInput").value = "";
           document.getElementById("commitConfirmation").textContent = "";
+          advanceFolderQueue();
         }, 4000);
 
         loadBatches();
@@ -312,24 +500,7 @@
   }
 
   function renderBucketMappingRows(bucket) {
-    return bucket.fields
-      .map((f) => {
-        const badge = MATCH_BADGE[f.matchType] || MATCH_BADGE.unmatched;
-        const isCustom = f.targetType === "extra_field";
-        const isIgnored = f.targetType === "ignored";
-        const sample = (f.sampleValues || []).filter((v) => v !== null && v !== undefined && String(v).trim() !== "")[0];
-        return `<tr>
-          <td><strong>${escapeHtml(f.sourceHeader)}</strong></td>
-          <td class="mono-cell" style="color:var(--ink-mute, #8891a0);">${escapeHtml(sample ?? "—")}</td>
-          <td><span class="queue-status ${badge.cls}">${escapeHtml(badge.label())}</span></td>
-          <td>
-            <select data-source-field="${escapeHtml(f.sourceHeader)}">
-              ${fieldSelectOptions(bucket.knownFields, isCustom || isIgnored ? null : f.targetField, isCustom, isIgnored)}
-            </select>
-          </td>
-        </tr>`;
-      })
-      .join("");
+    return bucket.fields.map((f) => mapsToRowHtml(f, bucket.knownFields, "")).join("");
   }
 
   function renderAutoBuckets() {
@@ -368,6 +539,7 @@
             <span class="bucket-panel-title">${escapeHtml(bucket.entityLabel)}</span>
             <span class="bucket-panel-count">${bucket.rowCount} ${escapeHtml(t("data_import.rows_label", "rows"))} · <span class="queue-status bucket-status-pill ${isReady ? "completed" : "in-consultation"}">${escapeHtml(isReady ? t("data_import.match_matched", "Matched") : t("data_import.needs_review", "Needs review"))}</span></span>
           </div>
+          ${bucket.fitWarning ? `<p class="wizard-hint" style="color:var(--warn-ink, #b45309);">${escapeHtml(bucket.fitWarning)}</p>` : ""}
           <div class="mapping-mode-toggle" role="radiogroup" aria-label="Mapping mode">
             <input type="radio" name="mappingMode_${idx}" id="mappingModeManual_${idx}" value="manual" checked />
             <label for="mappingModeManual_${idx}">${escapeHtml(t("data_import.manual_mapping", "Manual Mapping"))}</label>
@@ -392,12 +564,26 @@
       })
       .join("");
 
+    wireMapsToOverrideButtons(container);
+
     container.querySelectorAll(".assign-unclassified-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const panel = btn.closest(".bucket-panel");
         const idx = Number(panel.dataset.bucketIndex);
         const select = panel.querySelector(".unclassified-entity-select");
-        if (!select.value) return;
+        if (!select.value) {
+          // Used to just silently do nothing here — indistinguishable from a
+          // broken button if the admin clicked Assign before picking
+          // something from the dropdown (an easy thing to do, since it's
+          // right above and defaults to "Choose one…"). Now it says why.
+          document.getElementById("autoError").textContent = t(
+            "data_import.choose_unclassified_type_first",
+            'Pick a record type from "Import these as" above before clicking Assign.'
+          );
+          select.focus();
+          return;
+        }
+        document.getElementById("autoError").textContent = "";
         reclassifyBucket(idx, select.value, false);
       });
     });
@@ -483,6 +669,28 @@
       { total: data.totalRows, roleColumn: data.roleColumn, breakdown: parts.join(", ") }
     );
 
+    // Rows from a table the app already repopulates automatically as a side
+    // effect of importing something else (e.g. user_directory, rebuilt by
+    // every patient/staff row this same file imports) — recognized, not
+    // "unclassified", just nothing left for the admin to decide. Never
+    // silently invisible: this note is the "where did those rows go" answer.
+    const skippedEl = document.getElementById("autoSkippedNote");
+    const skippedEntries = Object.entries(data.autoSkipped || {}).filter(([, count]) => count > 0);
+    if (skippedEntries.length > 0) {
+      skippedEl.textContent = t(
+        "data_import.auto_skipped_note",
+        "{count} row(s) skipped automatically ({breakdown}) — this data is already kept up to date automatically whenever the records that reference it are imported, so there's nothing to review for them.",
+        {
+          count: skippedEntries.reduce((sum, [, c]) => sum + c, 0),
+          breakdown: skippedEntries.map(([table, count]) => `${count} ${table}`).join(", "),
+        }
+      );
+      skippedEl.hidden = false;
+    } else {
+      skippedEl.hidden = true;
+      skippedEl.textContent = "";
+    }
+
     document.getElementById("autoImportSummary").textContent = "";
     document.getElementById("autoProgress").hidden = true;
     document.getElementById("autoError").textContent = "";
@@ -495,6 +703,9 @@
       document.getElementById("autoSection").hidden = true;
       document.getElementById("uploadSection").hidden = false;
       document.getElementById("importFileInput").value = "";
+      // Same reasoning as the mapping-review Cancel — skip this queued file
+      // rather than stall the rest of the folder.
+      advanceFolderQueue();
     });
 
     document.getElementById("confirmAutoBtn").addEventListener("click", async () => {
@@ -677,6 +888,7 @@
           document.getElementById("importFileInput").value = "";
           document.getElementById("autoImportSummary").textContent = "";
           document.getElementById("autoProgress").hidden = true;
+          advanceFolderQueue();
         }, 7000);
 
         loadBatches();
@@ -795,28 +1007,38 @@
         const reverted = !!b.reverted_at;
         const statusCls = reverted ? "waiting" : b.status === "committed" ? "completed" : b.status === "failed" ? "waiting" : "in-consultation";
         const statusLabel = reverted ? t("data_import.status_reverted", "Deleted") : STATUS_LABEL[b.status] || b.status;
-        const canDelete = b.status === "committed" && !reverted;
+        // Any status can be deleted now — a batch that never reached
+        // "committed" (failed to auto-detect, errored mid-staging, or was
+        // just abandoned at the mapping step) has nothing real to undo, so
+        // it's always safe to remove; a committed one still goes through the
+        // real per-entity undo below, same as before, unless already reverted.
+        const canDelete = b.status !== "committed" || !reverted;
         return `<tr>
           <td>${escapeHtml(b.original_filename)}</td>
           <td>${escapeHtml(entityLabelFor(b.target_entity))}</td>
           <td><span class="queue-status ${statusCls}">${escapeHtml(statusLabel)}</span></td>
           <td>${escapeHtml(rowsLabel)}</td>
           <td>${escapeHtml(new Date(b.created_at).toLocaleString())}</td>
-          <td>${canDelete ? `<button type="button" class="icon-btn-delete" data-batch-id="${b.id}" data-entity="${escapeHtml(b.target_entity)}">${escapeHtml(t("data_import.delete_batch_btn", "Delete"))}</button>` : "—"}</td>
+          <td>${canDelete ? `<button type="button" class="icon-btn-delete" data-batch-id="${b.id}" data-entity="${escapeHtml(b.target_entity)}" data-status="${escapeHtml(b.status)}">${escapeHtml(t("data_import.delete_batch_btn", "Delete"))}</button>` : "—"}</td>
         </tr>`;
       })
       .join("");
 
     body.querySelectorAll("[data-batch-id]").forEach((btn) => {
-      btn.addEventListener("click", () => deleteBatch(btn.dataset.batchId, btn.dataset.entity));
+      btn.addEventListener("click", () => deleteBatch(btn.dataset.batchId, btn.dataset.entity, btn.dataset.status));
     });
   }
 
-  async function deleteBatch(batchId, entity) {
-    const confirmMsg = entity === "hospitals"
+  async function deleteBatch(batchId, entity, status) {
+    const isDiscard = status !== "committed";
+    const confirmMsg = isDiscard
+      ? t("data_import.confirm_discard_batch", "Remove this incomplete/failed import from your history? Nothing was ever committed from it, so there's nothing to undo — this just clears the entry.")
+      : entity === "hospitals"
       ? t("data_import.confirm_delete_hospital_batch", "Undo this import? Your hospital's facility record will be restored to what it was right before this import ran.")
       : entity === "auto"
       ? t("data_import.confirm_delete_auto_batch", "Delete every record this import created (patients, doctors, nurses, or any other staff)? This can't be undone — you'll need to re-upload the file to get this data back.")
+      : entity === "multi"
+      ? t("data_import.confirm_delete_multi_batch", "Delete every row this import created, across every table it touched? The upload itself stays in your history and can be re-committed afterward if you fix and re-confirm its mapping.")
       : t("data_import.confirm_delete_patients_batch", "Delete every patient this import created? This can't be undone — you'll need to re-upload the file to get this data back.");
     if (!confirm(confirmMsg)) return;
 
@@ -829,7 +1051,9 @@
         messageEl.textContent = data.message || t("data_import.delete_failed", "Could not delete this import.");
         return;
       }
-      messageEl.textContent = entity === "hospitals"
+      messageEl.textContent = isDiscard
+        ? t("data_import.discard_success", "Removed from your import history.")
+        : entity === "hospitals"
         ? t("data_import.delete_success_hospital", "Facility record restored.")
         : entity === "auto"
         ? t("data_import.delete_success_auto", "{count} record(s) deleted ({patients} patient(s), {staff} staff).", {
@@ -837,6 +1061,8 @@
             patients: data.deletedPatients,
             staff: data.deletedStaff,
           })
+        : entity === "multi"
+        ? t("data_import.delete_success_multi", "{count} row(s) deleted across every table this import touched. It can be re-committed from the batch history if needed.", { count: data.deletedRows })
         : t("data_import.delete_success_patients", "{count} patient(s) deleted.", { count: data.deletedRows });
       if (window.showToast) showToast(t("data_import.delete_success_toast", "Import deleted."), "success");
 
@@ -853,6 +1079,7 @@
     if (!user) return;
     wireLogout();
     wireUpload();
+    wireFolderUpload();
     wireMappingActions();
     wireMappingModeToggle();
     wireAutoActions();

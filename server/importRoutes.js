@@ -21,11 +21,20 @@ const Fuse = require("fuse.js");
 const Ajv = require("ajv");
 const pool = require("./db");
 const bcrypt = require("bcrypt");
-const { getEntity, listEntities } = require("./schemaRegistry");
+const { getEntity, listEntities, MULTI_ENTITY_TABLE_NAME_MAP, MULTI_ENTITY_TIERS, MULTI_ENTITY_AUTO_SKIP_TABLES } = require("./schemaRegistry");
 const { applyTransform, looksLikeDate, looksLikeNumber, looksLikeBoolean } = require("./importTransforms");
 const { generateUhid, generateTempPassword, generateStaffUserId } = require("./credentials");
 const { ROLE_PREFIXES, ROLE_LABELS, DESIGNATION_PREFIXES } = require("./roles");
-const { detectRoleColumn, classifyRow, CLASSIFIABLE_ENTITIES } = require("./roleClassifier");
+const { detectRoleColumn, detectBestRoleColumnForRows, classifyRow, CLASSIFIABLE_ENTITIES } = require("./roleClassifier");
+
+// A batch behaves like "auto" (bucketed, per-entity mapping+commit calls,
+// reclassify-eligible) whether it was sorted by the role-column classifier
+// ("auto") or by an exact table_name column ("multi") — see
+// detectMultiEntityBatch below. Centralized here so every route that special-
+// cases "auto" doesn't have to separately remember to also check "multi".
+function isBucketedBatch(targetEntity) {
+  return targetEntity === "auto" || targetEntity === "multi";
+}
 
 const router = express.Router();
 const ajv = new Ajv({ allErrors: true, strict: false });
@@ -78,6 +87,7 @@ function buildFuseIndex(entityDef) {
     key: f.key,
     label: f.label,
     haystack: [f.key, f.label, ...(f.aliases || [])].join(" "),
+    isIdLike: !!f.ref || /_id$/i.test(f.key) || f.key === "id",
   }));
   return new Fuse(items, { keys: ["haystack"], includeScore: true, threshold: 0.45, ignoreLocation: true });
 }
@@ -88,7 +98,58 @@ function buildFuseIndex(entityDef) {
 function matchHeader(fuseIndex, header) {
   const results = fuseIndex.search(header.trim());
   if (results.length === 0) return { matchType: "unmatched", targetField: null, targetLabel: null, score: null };
-  const best = results[0];
+  // A header that's an exact (case-insensitive) match for a field's own KEY
+  // or LABEL always wins outright, regardless of what Fuse scored it — real
+  // bug found 2026-09-02: Fuse scores a query against an entity's WHOLE
+  // aliases blob, not a plain substring check, so a header that's a literal
+  // exact match for one field (e.g. "phone" for patients.phone) can still
+  // score WORSE than a longer, unrelated field whose alias list happens to
+  // also contain that same word among several others (patients
+  // .emergency_contact_phone's aliases include "emergency phone" — "phone"
+  // scored 0.087 against THAT whole haystack vs 0.124 against phone's own,
+  // shorter one — an inversion that silently put a patient's actual phone
+  // number into their emergency-contact field instead).
+  const h = header.trim().toLowerCase();
+  const exactMatch = results.find((r) => r.item.key.toLowerCase() === h || r.item.label.toLowerCase() === h);
+  if (exactMatch) return { matchType: "matched", targetField: exactMatch.item.key, targetLabel: exactMatch.item.label, score: 0 };
+
+  // An "_id"-suffixed header is a reference/identifier — never a plausible
+  // match for a plain descriptive/quantity field whose own key doesn't ALSO
+  // look like an id (a real `ref` field, or a key ending in "_id"/literally
+  // "id"). Real bug found 2026-09-03: "donor_id" fuzzy-matched
+  // blood_patient_donations' "donor_name" (textually similar, semantically
+  // wrong — a row reference is not a person's name), and "unit_id" matched
+  // "units" (a reference is not a quantity) — both would have silently
+  // written a meaningless number into the wrong kind of field. Filtered out
+  // before picking the best remaining candidate, since raw text similarity
+  // doesn't imply "the same kind of data" — an unmatched "_id" column still
+  // isn't lost, it becomes a custom field like anything else unmatched.
+  const isIdHeader = /_id$/i.test(h) || h === "id";
+  let candidates = isIdHeader ? results.filter((r) => r.item.isIdLike) : results;
+  // Real bug found 2026-09-03: "assigned_unit_id" (which BLOOD UNIT was
+  // issued) was the only isIdLike candidate for blood_requests, so it always
+  // won by elimination and got auto-mapped to "assigned_staff_id" (which
+  // STAFF member is handling the request) — a real but completely
+  // unrelated FK column, silently writing a blood-unit reference into a
+  // staff column. Being the sole isIdLike candidate isn't evidence of a
+  // real semantic match, so id-suffixed headers additionally need every
+  // meaningful word of the header (minus the trailing "_id") to actually
+  // appear somewhere in the candidate's key/label/aliases — "unit" isn't
+  // anywhere in assigned_staff_id's "assigned_staff_id Assigned Staff
+  // assigned staff assigned to", so it's correctly rejected down to
+  // unmatched (a custom field) instead of forced onto the wrong column.
+  if (isIdHeader && candidates.length > 0) {
+    const stemTokens = h.replace(/_id$/, "").split(/[_\s]+/).filter(Boolean);
+    const withWordOverlap = candidates.filter((r) => {
+      const hay = r.item.haystack.toLowerCase();
+      return stemTokens.every((t) => hay.includes(t));
+    });
+    if (withWordOverlap.length > 0) candidates = withWordOverlap;
+    else candidates = [];
+  }
+  if (candidates.length === 0) return { matchType: "unmatched", targetField: null, targetLabel: null, score: null };
+
+  const best = candidates[0];
   const matchType = best.score <= 0.15 ? "matched" : "suggested";
   return { matchType, targetField: best.item.key, targetLabel: best.item.label, score: best.score };
 }
@@ -130,6 +191,12 @@ function getAjvValidator(entityName, entityDef) {
     else if (f.type === "boolean") properties[f.key] = { type: ["boolean", "null"] };
     else if (f.required) properties[f.key] = { type: "string", minLength: 1 };
     else properties[f.key] = { type: ["string", "null"] };
+    // A closed set of valid values (e.g. patient_charges.source_type) fails
+    // staging-time validation with a clear per-row error — same mechanism as
+    // "missing required field" — instead of silently writing a value nothing
+    // downstream can resolve or join against. Only used with `required`
+    // fields so far, so no non-required/null case to also allow here.
+    if (f.enum) properties[f.key].enum = f.enum;
     if (f.required) required.push(f.key);
   });
   const validate = ajv.compile({ type: "object", properties, required, additionalProperties: true });
@@ -142,6 +209,18 @@ function getAjvValidator(entityName, entityDef) {
 // same source_name (so a recurring feed doesn't ask twice), or fuzzy-match
 // it against the entity's schema with Fuse.js. Shared by the plain
 // single-entity upload, each auto-detected bucket, and POST /:batchId/reclassify.
+//
+// Real bug found and fixed 2026-09-02: each header was fuzzy-matched to a
+// target field completely independently, with nothing stopping TWO different
+// headers from both landing on the same target field (e.g. a wide multi-table
+// export had "full_name", "name", AND "department_name" all fuzzy-match onto
+// the patients "full_name" column). At commit time, whichever header sorted
+// last silently overwrote the others — for one real import this put
+// department names into patients' full_name field, and (far worse) blanked
+// out the real name on ~10,000 rows entirely, failing them on "full_name
+// required". Now the best-scoring header wins each target field and every
+// other contender for that field is downgraded to an unmatched/extra_field
+// suggestion instead of silently colliding.
 async function buildFieldReport(hospitalId, sourceName, targetEntity, entityDef, headers, rows) {
   const [savedMappings] = await pool.query(
     `SELECT source_field, target_field, target_type, transform_fn FROM import_field_mappings
@@ -151,9 +230,39 @@ async function buildFieldReport(hospitalId, sourceName, targetEntity, entityDef,
   const savedByField = new Map(savedMappings.map((m) => [m.source_field, m]));
 
   const fuseIndex = buildFuseIndex(entityDef);
-  const fields = headers.map((header) => {
-    const samples = rows.slice(0, 5).map((r) => r[header]);
+  const claimedBySaved = new Set(savedMappings.map((m) => m.target_field).filter(Boolean));
+
+  // Pass 1: propose a match for every header that doesn't already have a
+  // saved (explicitly-confirmed) mapping — saved mappings always win their
+  // target field outright, no contest.
+  const proposals = headers.map((header) => {
     const saved = savedByField.get(header);
+    if (saved) return { header, saved };
+    return { header, match: matchHeader(fuseIndex, header) };
+  });
+
+  // Pass 2: among the fresh (non-saved) proposals, group by target field and
+  // keep only the best one per field — everyone else who fuzzy-matched the
+  // same field loses and falls back to unmatched. "Best" is: an exact
+  // header==field-key match always wins outright, THEN lowest Fuse score —
+  // verified against a real collision where "full_name" and "name" scored
+  // identically for the patients "full_name" field, but only "full_name"
+  // actually held the data (the "name" column was blank on every real
+  // patient row, populated for other record types in the same wide file
+  // instead). A plain score comparison alone would have picked whichever
+  // header happened to sort first in the CSV — the exact-match check is
+  // what makes this deterministic and correct regardless of column order.
+  const winnerByField = new Map(); // targetField -> { header, score, exact }
+  proposals.forEach(({ header, saved, match }) => {
+    if (saved || !match || match.matchType === "unmatched" || claimedBySaved.has(match.targetField)) return;
+    const exact = header.trim().toLowerCase() === String(match.targetField).toLowerCase();
+    const current = winnerByField.get(match.targetField);
+    const isBetter = !current || (exact && !current.exact) || (exact === current.exact && match.score < current.score);
+    if (isBetter) winnerByField.set(match.targetField, { header, score: match.score, exact });
+  });
+
+  const fields = proposals.map(({ header, saved, match }) => {
+    const samples = rows.slice(0, 5).map((r) => r[header]);
     if (saved) {
       return {
         sourceHeader: header,
@@ -164,13 +273,16 @@ async function buildFieldReport(hospitalId, sourceName, targetEntity, entityDef,
         sampleValues: samples,
       };
     }
-    const match = matchHeader(fuseIndex, header);
+    const wonField = match.matchType !== "unmatched" && winnerByField.get(match.targetField)?.header === header;
+    if (match.matchType === "unmatched" || !wonField) {
+      return { sourceHeader: header, matchType: "unmatched", targetField: null, targetLabel: null, targetType: "extra_field", sampleValues: samples };
+    }
     return {
       sourceHeader: header,
       matchType: match.matchType,
       targetField: match.targetField,
       targetLabel: match.targetLabel,
-      targetType: match.matchType === "unmatched" ? "extra_field" : "column",
+      targetType: "column",
       sampleValues: samples,
     };
   });
@@ -181,6 +293,382 @@ async function buildFieldReport(hospitalId, sourceName, targetEntity, entityDef,
     allSavedFromHistory,
     knownFields: entityDef.fields.map((f) => ({ key: f.key, label: f.label, type: f.type, required: !!f.required })),
   };
+}
+
+// ---------- Whole-file entity fit scoring (single-entity auto-detection) ----------
+//
+// Distinct from roleClassifier.js's PER-ROW category-value classification —
+// this looks at the file's HEADER SET as a whole and asks "does this file
+// look like table X?", for every entity in schemaRegistry.js, not just
+// Patient/Staff. Exists because a single-table file with no table_name
+// column (see detectMultiEntityBatch below) and no per-row category column
+// that's actually ABOUT PEOPLE — e.g. billing_tariff.csv, whose only
+// column that happens to match a ROLE_COLUMN_ALIASES name is "category",
+// full of department labels like "OPD"/"Lab"/"Pharmacy" — used to fall
+// straight into roleClassifier.js's patient/staff sorter, which has no
+// concept of a billing tariff and would fuzzy-misread those department
+// labels as staff role names (verified against a real import: 71 billing
+// rows got sorted into fake Patient/Pharmacist/Pathologist/Blood-Bank-Staff
+// buckets, then failed for having no "Full Name" column — there never was
+// one, because the file was never about people). Tried BEFORE the
+// patient/staff classifier for exactly that reason.
+function scoreEntityFit(entityDef, headers) {
+  const requiredFields = entityDef.fields.filter((f) => f.required);
+  // Nothing to score against (e.g. "hospitals", whose fields are all
+  // optional — a hospital admin always has exactly one facility record
+  // regardless of what a file contains) — never a candidate for this.
+  if (requiredFields.length === 0) return null;
+
+  const fuseIndex = buildFuseIndex(entityDef);
+  const requiredKeys = new Set(requiredFields.map((f) => f.key));
+  const matchedRequiredKeys = new Set();
+  const matchedHeaders = []; // every header that confidently matched ANY field, not just required ones — for the admin-facing "why" message
+  for (const header of headers) {
+    const m = matchHeader(fuseIndex, header);
+    // "matched" (score <= 0.15) or "suggested" (<= 0.45) both count here —
+    // deliberately looser than the strict "matched" bar the mapping table
+    // itself uses to auto-fill a dropdown with no admin review. Fuse scores
+    // a query against an entity's WHOLE aliases blob, not a plain substring
+    // check, so even a header that's an exact alias in the list (e.g.
+    // "service_name" literally in billing_tariff.charge_head's aliases)
+    // often lands in "suggested" territory once mixed in among the field's
+    // other aliases — verified against a real file where the strict bar
+    // left charge_head unmatched at 0.168, just over the 0.15 cutoff, and
+    // undercounted an otherwise obvious fit. Any real Fuse hit at all is
+    // "confident enough to count as evidence for the fit score" — the
+    // threshold+margin checks below are what actually decide whether the
+    // score adds up to a safe auto-selection, not this per-field bar.
+    if (m.matchType !== "unmatched") {
+      matchedHeaders.push(header);
+      if (requiredKeys.has(m.targetField)) matchedRequiredKeys.add(m.targetField);
+    }
+  }
+  return {
+    score: matchedRequiredKeys.size / requiredFields.length,
+    matchedRequiredCount: matchedRequiredKeys.size,
+    totalRequired: requiredFields.length,
+    matchedHeaders,
+  };
+}
+
+// At least this fraction of an entity's required fields must have a
+// confident header match before it's even considered a candidate...
+const ENTITY_FIT_THRESHOLD = 0.75;
+// ...AND it must beat the next-best entity by at least this much, or it's
+// treated as ambiguous rather than guessed at. This is what keeps a genuine
+// mixed patients+staff file safe: every staffRole entity shares the same two
+// required fields (full_name, email), so they always tie with each other at
+// the same score on a file that has both columns, and patients (needing only
+// full_name) ties with all of them too whenever full_name is present —
+// exactly the "too close to call" case this margin is built to catch,
+// correctly falling through to the classifier below instead of guessing.
+const ENTITY_FIT_MARGIN = 0.2;
+
+// Scores every registered entity against this header set and returns them
+// sorted best-first (score > 0 only) — the full ranked list, with no
+// threshold/ambiguity decision applied yet. Shared by detectSingleEntityByFit
+// (which DOES apply that decision) and the "couldn't confidently tell what
+// this file is" error response, which shows the admin the top few near-misses
+// instead of a bare "no idea" message.
+function scoreAllEntities(headers) {
+  const scored = [];
+  for (const key of listEntities()) {
+    const def = getEntity(key);
+    const fit = scoreEntityFit(def, headers);
+    if (fit && fit.score > 0) scored.push({ key, def, ...fit });
+  }
+  // Primary: ratio of required fields matched. Tie-break: the ABSOLUTE count
+  // of required fields matched — an entity with 2-of-2 required fields
+  // confidently matched is stronger, more specific evidence than one with
+  // just 1-of-1, even though both ratios are 100%. Verified against a real
+  // ambiguous case: a beds.csv (hospital_id, ward_id, bed_number, status)
+  // where "wards" only requires `name`, and a stray "ward_id" header
+  // coincidentally suggest-matched it at 100%, while "beds" genuinely needing
+  // BOTH ward_id AND bed_number — and getting both, at a much tighter match —
+  // is the obviously better answer; ranking by ratio alone left them tied.
+  scored.sort((a, b) => b.score - a.score || b.matchedRequiredCount - a.matchedRequiredCount);
+  return scored;
+}
+
+// Looks at EVERY registered entity and finds the single best fit for this
+// file's whole header set, if there is one clearly best fit — otherwise null.
+function detectSingleEntityByFit(headers) {
+  const scored = scoreAllEntities(headers);
+  const best = scored[0];
+  if (!best || best.score < ENTITY_FIT_THRESHOLD) return null;
+  const runnerUp = scored[1];
+  if (!runnerUp) return best;
+  const scoreGap = best.score - runnerUp.score;
+  if (scoreGap >= ENTITY_FIT_MARGIN) return best;
+  // The ratio alone doesn't clear the margin — only resolve this as "not
+  // ambiguous after all" if the winner has STRICTLY more required-field
+  // evidence in absolute terms (the beds-vs-wards case above). Deliberately
+  // NOT a further tie-break on total matched headers (including optional
+  // fields) beyond required-field count — that signal is too weak to safely
+  // resolve a tie and risks a confident WRONG guess. Verified against a
+  // second real case: a bills.csv whose only real signal is a "uhid" column,
+  // which trivially ties EVERY entity that requires nothing but
+  // patient_uhid (ipd_admissions, vitals, opd_visits, and more) at 100%/
+  // 1-of-1 each; one of them happening to also weakly match some unrelated
+  // OPTIONAL column doesn't make it the right answer, and guessing here
+  // would be actively worse than asking — this file's actual best fit for
+  // "bills" itself only scored 25%, nowhere near confident.
+  if (best.matchedRequiredCount > runnerUp.matchedRequiredCount) return best;
+  return null;
+}
+
+// Shared by a manually-picked single entity (the bottom of POST /upload) and
+// an auto-detected one (detectSingleEntityByFit, above) — staging, field-
+// mapping, and the batch status update are identical either way; only WHY
+// this targetEntity was chosen differs, and that's surfaced by the caller.
+async function stageSingleEntityBatch(hospitalId, batchId, sourceName, targetEntity, entityDef, parsed) {
+  const stagingValues = parsed.rows.map((row, i) => [batchId, i + 1, JSON.stringify(row), "pending"]);
+  await pool.query(`INSERT INTO import_staging_rows (batch_id, row_num, raw_data, status) VALUES ?`, [stagingValues]);
+
+  const report = await buildFieldReport(hospitalId, sourceName, targetEntity, entityDef, parsed.headers, parsed.rows);
+  await pool.query(`UPDATE import_batches SET status = ? WHERE id = ?`, [report.allSavedFromHistory ? "ready" : "mapping", batchId]);
+
+  return {
+    status: report.allSavedFromHistory ? "ready" : "mapping",
+    fields: report.fields,
+    sampleRows: parsed.rows.slice(0, 5),
+    knownFields: report.knownFields,
+    // "hospitals" is a singleton — see the comment at the original call site
+    // below for why more than one row targeting it is almost always a
+    // mistake. Kept here even though detectSingleEntityByFit can never
+    // auto-pick "hospitals" (it has no required fields to score), since a
+    // manual pick still reaches this same function.
+    singleRowEntityWarning: targetEntity === "hospitals" && parsed.rows.length > 1,
+  };
+}
+
+// ---------- Multi-entity single-file import (a "table_name" column spanning
+// every MEDISYS table, e.g. a full-database-export style CSV) ----------
+//
+// Detected inside the existing "auto" upload flow, before the role-column
+// classifier ever runs — see the isAuto branch in POST /upload below. Kept
+// entirely separate from roleClassifier.js's fuzzy matching: table_name is
+// the one reliable signal this kind of file carries, so it's matched exactly,
+// never fuzzily (see detectMultiEntityBatch's own comment for why).
+
+const TABLE_NAME_COLUMN_ALIASES = ["table_name", "table", "source_table", "entity", "entity_name", "record_type", "dataset", "source_table_name"];
+
+function detectTableNameColumn(headers) {
+  if (!headers) return null;
+  return headers.find((h) => TABLE_NAME_COLUMN_ALIASES.includes(h.trim().toLowerCase())) || null;
+}
+
+// Exact (case-insensitive) match only, per the feature spec — a coincidental
+// fuzzy match here would risk hijacking an ordinary single-entity file that
+// happens to have a similarly-named column. Requires at least 2 DISTINCT
+// RECOGNIZED table names to be present — that's the real signal this is a
+// multi-table export, and a single matching value alone is indistinguishable
+// from a normal file that happens to have a column with this name (e.g. a
+// plain patient list with a "record_type" column that just says "patient" on
+// every row — which wouldn't even exact-match the "patients" table name
+// anyway). Deliberately NOT "every distinct value must resolve" — real bug
+// found 2026-09-02: a genuine full-database-export style file has ~44 real
+// tables, but MULTI_ENTITY_TABLE_NAME_MAP only curates ~31 of them (plenty
+// of real ones — nurse_shift_roster, user_directory, disease_alerts,
+// telemedicine_payments, payment_orders, doctor_calendar_availability — were
+// simply never added). Requiring EVERY value to match meant a single row of
+// a table this registry doesn't model yet (or a typo) rejected the WHOLE
+// file, silently falling back to the old category classifier being forced
+// onto an unrelated wide column set — the exact failure mode this feature
+// was built to prevent, just one step removed. Whatever doesn't match a
+// known entity still lands in the existing "Unclassified" bucket per row
+// (see classifyMultiEntityRows/stageMultiEntityBatch), same safety net an
+// unrecognized role/category value already gets on the plain auto-detect
+// path — never silently dropped, just surfaced for the admin to resolve.
+function detectMultiEntityBatch(headers, rows) {
+  const column = detectTableNameColumn(headers);
+  if (!column) return null;
+  const distinctValues = new Set();
+  for (const row of rows) {
+    const raw = row[column];
+    const value = raw === null || raw === undefined ? "" : String(raw).trim().toLowerCase();
+    if (value) distinctValues.add(value);
+  }
+  const matchedValues = [...distinctValues].filter(
+    (v) => v === "users" || MULTI_ENTITY_TABLE_NAME_MAP[v] || MULTI_ENTITY_AUTO_SKIP_TABLES.has(v)
+  );
+  if (matchedValues.length < 2) return null;
+  return { tableNameColumn: column };
+}
+
+// Sentinel entity value for a row whose table_name is in
+// MULTI_ENTITY_AUTO_SKIP_TABLES (schemaRegistry.js) — recognized, but
+// deliberately never staged as a real bucket or counted as "unclassified".
+// Never a real entity key (getEntity() returns null for it, same as any
+// other unknown key), so it can't accidentally collide with a real table.
+const AUTO_SKIP_MARKER = "__auto_skip__";
+
+// Sorts every row by its own table_name value into the registry entity key it
+// commits as. table_name="users" is special-cased through the EXISTING
+// role-column classifier (server/roleClassifier.js) rather than
+// MULTI_ENTITY_TABLE_NAME_MAP, since "users" isn't one entity — which of the
+// 7 staff roles a users row is depends on that row's own role/designation
+// column, exactly like a normal auto-detect mixed-staff file.
+function classifyMultiEntityRows(rows, tableNameColumn, headers) {
+  // Scoped to just the "users" rows (see detectBestRoleColumnForRows's own
+  // comment) — a data-driven pick among plausible role-column-NAME
+  // candidates, tried against the actual row values, instead of a single
+  // name-only guess for the whole file that a wide multi-table export can
+  // easily fool (role/category/type/designation are all real
+  // ROLE_COLUMN_ALIASES, and a wide file very plausibly has several of them
+  // belonging to entirely different tables).
+  const usersRows = rows.filter((row) => {
+    const raw = row[tableNameColumn];
+    return raw !== null && raw !== undefined && String(raw).trim().toLowerCase() === "users";
+  });
+  const roleColumn = usersRows.length > 0 ? detectBestRoleColumnForRows(usersRows, headers) : null;
+  return rows.map((row, i) => {
+    const rawTable = row[tableNameColumn];
+    const tableValue = rawTable === null || rawTable === undefined ? "" : String(rawTable).trim().toLowerCase();
+    if (!tableValue) return { rowNum: i + 1, row, entity: null, label: "" };
+    if (MULTI_ENTITY_AUTO_SKIP_TABLES.has(tableValue)) {
+      return { rowNum: i + 1, row, entity: AUTO_SKIP_MARKER, label: String(rawTable) };
+    }
+    if (tableValue === "users") {
+      const roleResult = roleColumn ? classifyRow(row[roleColumn]) : { entity: null, rawLabel: "" };
+      return { rowNum: i + 1, row, entity: roleResult.entity, label: roleResult.rawLabel || "users" };
+    }
+    const entity = MULTI_ENTITY_TABLE_NAME_MAP[tableValue] || null;
+    return { rowNum: i + 1, row, entity, label: String(rawTable) };
+  });
+}
+
+function labelForEntity(entityKey, def) {
+  if (def.label) return def.label;
+  if (def.role) return ROLE_LABELS[entityKey] || entityKey;
+  if (entityKey === "patients") return "Patient records";
+  return entityKey;
+}
+
+// Stages every row (same import_staging_rows shape as a normal auto-detect
+// batch), then builds one bucket per entity actually present in the file, in
+// DEPENDENCY-TIER order (server/schemaRegistry.js MULTI_ENTITY_TIERS) rather
+// than file/upload order — this ordering is what the frontend's existing
+// bucket-commit loop (wireAutoActions in hospital/data-import.js) walks
+// through, so hospitals/departments commit before patients/users, which
+// commit before wards/beds/opd_visits, and so on, all the way through bills
+// and payments — with zero frontend changes needed, since a "multi" batch
+// produces the exact same { buckets: [...] } shape an "auto" batch always has.
+async function stageMultiEntityBatch(hospitalId, batchId, sourceName, parsed, multi) {
+  await pool.query(`UPDATE import_batches SET target_entity = 'multi' WHERE id = ?`, [batchId]);
+
+  const classified = classifyMultiEntityRows(parsed.rows, multi.tableNameColumn, parsed.headers);
+  const stagingValues = classified.map((c) => [
+    batchId,
+    c.rowNum,
+    JSON.stringify(c.row),
+    // Auto-skip rows are marked 'skipped' immediately, same status an
+    // admin's explicit Skip action already produces — there's no decision
+    // left to make for them (see MULTI_ENTITY_AUTO_SKIP_TABLES), so they
+    // never sit in "Unclassified" waiting on one.
+    c.entity === AUTO_SKIP_MARKER ? "skipped" : "pending",
+    c.entity,
+    c.label ? String(c.label).slice(0, 150) : null,
+  ]);
+  await pool.query(
+    `INSERT INTO import_staging_rows (batch_id, row_num, raw_data, status, detected_entity, detection_label) VALUES ?`,
+    [stagingValues]
+  );
+
+  const presentEntities = new Set(classified.map((c) => c.entity).filter(Boolean));
+  const orderedEntities = [];
+  const STAFF_ONLY = CLASSIFIABLE_ENTITIES.filter((e) => e !== "patients");
+  for (const tier of MULTI_ENTITY_TIERS) {
+    for (const key of tier) {
+      if (key === "users") {
+        STAFF_ONLY.forEach((role) => {
+          if (presentEntities.has(role) && !orderedEntities.includes(role)) orderedEntities.push(role);
+        });
+      } else if (presentEntities.has(key) && !orderedEntities.includes(key)) {
+        orderedEntities.push(key);
+      }
+    }
+  }
+
+  const buckets = [];
+  for (const entityKey of orderedEntities) {
+    const rowsForEntity = classified.filter((c) => c.entity === entityKey).map((c) => c.row);
+    if (rowsForEntity.length === 0) continue;
+    const def = getEntity(entityKey);
+    if (!def) continue;
+    // Keep only this group's own relevant columns — a wide multi-table export
+    // has every OTHER table's columns blank for these rows; passing those
+    // through would just invite pointless custom-field registrations for
+    // columns this entity never actually uses (see commitEntityRows).
+    // Also drop the multi-entity FORMAT's own structural columns
+    // (table_name, id) — real bug found 2026-09-02: these are never blank
+    // for a row (table_name always holds this bucket's own entity name, id
+    // usually holds the CSV's own row number), so they always passed the
+    // "relevant" filter above and got offered up for real field mapping like
+    // any other column — table_name itself fuzzy-matched onto
+    // patients.emergency_contact_name in one real case. Both are already
+    // consumed directly from raw_data (classifyMultiEntityRows reads
+    // table_name; registerCrossTierId reads "id") independent of this
+    // mapping step, so excluding them here only removes noise, never data.
+    const relevantHeaders = parsed.headers
+      .filter((h) => h !== multi.tableNameColumn && h.trim().toLowerCase() !== "id")
+      .filter((h) => rowsForEntity.some((r) => r[h] !== null && r[h] !== undefined && String(r[h]).trim() !== ""));
+    const report = await buildFieldReport(hospitalId, sourceName, entityKey, def, relevantHeaders, rowsForEntity);
+    // table_name remains the authoritative signal for WHICH bucket a row
+    // lands in — this never changes that. It's a sanity check surfaced to
+    // the admin: if this bucket's own required fields barely show up among
+    // its own relevant columns, that's worth a second look (e.g. a renamed
+    // or truncated column) before committing, even though the row-to-bucket
+    // assignment itself is exact, not a guess.
+    const fit = scoreEntityFit(def, relevantHeaders);
+    buckets.push({
+      entity: entityKey,
+      entityLabel: labelForEntity(entityKey, def),
+      rowCount: rowsForEntity.length,
+      status: report.allSavedFromHistory ? "ready" : "mapping",
+      fields: report.fields,
+      sampleRows: rowsForEntity.slice(0, 5),
+      knownFields: report.knownFields,
+      fitScore: fit ? fit.score : null,
+      fitWarning:
+        fit && fit.score < ENTITY_FIT_THRESHOLD
+          ? `Only ${fit.matchedRequiredCount} of ${fit.totalRequired} required field(s) for ${labelForEntity(entityKey, def)} were confidently matched in this file's columns — double-check the mapping below before importing.`
+          : null,
+    });
+  }
+
+  const unclassifiedRows = classified.filter((c) => !c.entity);
+  if (unclassifiedRows.length > 0) {
+    buckets.push({
+      entity: null,
+      entityLabel: "Unclassified",
+      rowCount: unclassifiedRows.length,
+      status: "needs_entity",
+      needsReclassification: true,
+      detectionLabels: [...new Set(unclassifiedRows.map((c) => c.label).filter(Boolean))].slice(0, 10),
+      sampleRows: unclassifiedRows.slice(0, 5).map((c) => c.row),
+    });
+  }
+
+  const allReady = buckets.every((b) => b.status === "ready");
+  await pool.query(`UPDATE import_batches SET status = ? WHERE id = ?`, [allReady ? "ready" : "mapping", batchId]);
+
+  const tableBreakdown = {};
+  const autoSkipped = {};
+  classified.forEach((c) => {
+    if (c.entity === AUTO_SKIP_MARKER) {
+      // Shown separately (autoSkipped, below) rather than folded into
+      // tableBreakdown — entityLabelFor on the frontend has no label for the
+      // internal AUTO_SKIP_MARKER key, and this isn't really a "kind of
+      // record" breakdown entry the same way a real entity count is.
+      autoSkipped[c.label] = (autoSkipped[c.label] || 0) + 1;
+      return;
+    }
+    const key = c.entity || "unclassified";
+    tableBreakdown[key] = (tableBreakdown[key] || 0) + 1;
+  });
+
+  return { status: allReady ? "ready" : "mapping", tableNameColumn: multi.tableNameColumn, tableBreakdown, autoSkipped, buckets };
 }
 
 // ---------- POST /api/import/upload ----------
@@ -209,26 +697,107 @@ router.post("/upload", requireHospitalAdmin, upload.single("file"), async (req, 
   const { hospitalId, userId } = req.session.user;
   const batchUid = crypto.randomUUID();
 
+  // ---------- Auto-detect: figure out WHICH signal applies BEFORE ever
+  // creating a batch history row ----------
+  //
+  // A file none of the three signals (exact table_name column, whole-file
+  // entity fit, role/category column) can resolve has nothing to stage at
+  // all. This used to still INSERT an "uploaded" row, immediately flip it to
+  // 'failed', and return a 400 whose message was never persisted anywhere —
+  // the admin's only trace of it was a permanent "Failed" row in Import
+  // History with no explanation and no Delete button (canDelete only allows
+  // status='committed'), a dead end. Now nothing is written to
+  // import_batches until we actually know there's something to stage.
+  let multi = null;
+  let singleFit = null;
+  let roleColumn = null;
+  if (isAuto) {
+    // A "table_name" (or similarly-named) column whose values exactly match
+    // known table names — e.g. a full-database-export style CSV — is a much
+    // more reliable signal than the other two, and covers every table in the
+    // app, not just patients/staff. Checked first.
+    multi = detectMultiEntityBatch(parsed.headers, parsed.rows);
+    // Next best signal: does the file's WHOLE header set confidently look
+    // like exactly one known table? See detectSingleEntityByFit's own
+    // comment for why this runs before the patient/staff classifier.
+    if (!multi) singleFit = detectSingleEntityByFit(parsed.headers);
+    if (!multi && !singleFit) roleColumn = detectRoleColumn(parsed.headers);
+
+    if (!multi && !singleFit && !roleColumn) {
+      // Genuinely nothing to go on — either the closest entity-fit
+      // candidates were too ambiguous to safely auto-select (shown here so
+      // the admin understands why, not just "no idea"), or nothing scored
+      // at all AND there's no role/category column either. Either way, the
+      // fix is the same: pick the correct type from the manual dropdown and
+      // re-upload — no batch was created, so there's nothing to clean up.
+      const candidates = scoreAllEntities(parsed.headers).slice(0, 3);
+      const candidateText = candidates
+        .map((c) => `${labelForEntity(c.key, c.def)} (${Math.round(c.score * 100)}%)`)
+        .join(", ");
+      return res.status(422).json({
+        success: false,
+        needsManualEntity: true,
+        message: candidates.length
+          ? `Couldn't confidently tell what kind of data this file is — the closest matches were ${candidateText}, but none was a clear enough fit to auto-select. Pick the correct type from "What are you importing?" and re-upload.`
+          : "Couldn't tell what kind of data this file is, and it has no column that says what kind of record each row is (e.g. \"Role\", \"Type\", \"Designation\"). Pick a specific record type from \"What are you importing?\" and re-upload.",
+        candidates: candidates.map((c) => ({ entity: c.key, label: labelForEntity(c.key, c.def), score: c.score })),
+      });
+    }
+  }
+
+  // Hoisted so the catch below can mark this batch 'failed' if something
+  // throws partway through staging it — otherwise an unexpected error left
+  // the row at whatever status it last reached (usually 'uploaded'), which
+  // is just as much a dead end as the old "no role column" failure was:
+  // canDelete only allows status='committed', so a batch stuck at
+  // 'uploaded'/'mapping' forever had no Delete button either.
+  let batchId;
   try {
     const [batchResult] = await pool.query(
       `INSERT INTO import_batches (batch_uid, hospital_id, source_name, original_filename, target_entity, uploaded_by, status, total_rows)
        VALUES (?, ?, ?, ?, ?, ?, 'uploaded', ?)`,
       [batchUid, hospitalId, sourceName, req.file.originalname, targetEntity, userId, parsed.rows.length]
     );
-    const batchId = batchResult.insertId;
+    batchId = batchResult.insertId;
 
     // ---------- Auto-detect (mixed dataset): sort rows into buckets first ----------
     if (isAuto) {
-      const roleColumn = detectRoleColumn(parsed.headers);
-      if (!roleColumn) {
-        await pool.query(`UPDATE import_batches SET status = 'failed' WHERE id = ?`, [batchId]);
-        return res.status(400).json({
-          success: false,
-          message:
-            "Couldn't find a column that says what kind of record each row is (e.g. \"Role\", \"Type\", \"Designation\"). Add one, or pick a specific record type instead of Auto-detect.",
+      if (multi) {
+        const multiResult = await stageMultiEntityBatch(hospitalId, batchId, sourceName, parsed, multi);
+        return res.json({
+          success: true,
+          batchId,
+          batchUid,
+          targetEntity: "multi",
+          sourceName,
+          status: multiResult.status,
+          totalRows: parsed.rows.length,
+          roleColumn: multiResult.tableNameColumn,
+          roleBreakdown: multiResult.tableBreakdown,
+          autoSkipped: multiResult.autoSkipped,
+          buckets: multiResult.buckets,
         });
       }
 
+      if (singleFit) {
+        await pool.query(`UPDATE import_batches SET target_entity = ? WHERE id = ?`, [singleFit.key, batchId]);
+        const result = await stageSingleEntityBatch(hospitalId, batchId, sourceName, singleFit.key, singleFit.def, parsed);
+        return res.json({
+          success: true,
+          batchId,
+          batchUid,
+          targetEntity: singleFit.key,
+          sourceName,
+          totalRows: parsed.rows.length,
+          autoDetected: true,
+          autoDetectReason: `Detected: ${labelForEntity(singleFit.key, singleFit.def)} — matched ${singleFit.matchedHeaders.join(", ")}`,
+          ...result,
+        });
+      }
+
+      // roleColumn is guaranteed truthy here — the "none of the three
+      // signals resolved" case already returned above before any batch row
+      // was created.
       // Classify every row up front, then stage each one with its detected
       // bucket already attached — this is the "sort it out" step, and it's
       // what a real dataset of "all types of users" needs before anything
@@ -300,34 +869,24 @@ router.post("/upload", requireHospitalAdmin, upload.single("file"), async (req, 
     }
 
     // ---------- Single explicit entity (existing behavior, unchanged) ----------
-    const stagingValues = parsed.rows.map((row, i) => [batchId, i + 1, JSON.stringify(row), "pending"]);
-    await pool.query(`INSERT INTO import_staging_rows (batch_id, row_num, raw_data, status) VALUES ?`, [stagingValues]);
-
-    const report = await buildFieldReport(hospitalId, sourceName, targetEntity, entityDef, parsed.headers, parsed.rows);
-    await pool.query(`UPDATE import_batches SET status = ? WHERE id = ?`, [report.allSavedFromHistory ? "ready" : "mapping", batchId]);
-
-    res.json({
-      success: true,
-      batchId,
-      batchUid,
-      targetEntity,
-      sourceName,
-      status: report.allSavedFromHistory ? "ready" : "mapping",
-      totalRows: parsed.rows.length,
-      fields: report.fields,
-      sampleRows: parsed.rows.slice(0, 5),
-      knownFields: report.knownFields,
-      // "hospitals" is a singleton — your hospital's own one facility record.
-      // A file with more than one row targeting it doesn't add more rows, it
-      // just overwrites that same record once per row, so only the LAST row
-      // survives. Almost always means the wrong entity was picked (this is
-      // exactly what happened with a 74-row "dummy user dataset" that
-      // silently collapsed into one row). Flagged here so the UI can warn
-      // before commit instead of after.
-      singleRowEntityWarning: targetEntity === "hospitals" && parsed.rows.length > 1,
-    });
+    // "hospitals" gets more-than-one-row-is-probably-a-mistake handling —
+    // your hospital's own one facility record: a file with more than one row
+    // targeting it doesn't add more rows, it just overwrites that same
+    // record once per row, so only the LAST row survives. Almost always
+    // means the wrong entity was picked (this is exactly what happened with
+    // a 74-row "dummy user dataset" that silently collapsed into one row) —
+    // see stageSingleEntityBatch's singleRowEntityWarning.
+    const result = await stageSingleEntityBatch(hospitalId, batchId, sourceName, targetEntity, entityDef, parsed);
+    res.json({ success: true, batchId, batchUid, targetEntity, sourceName, totalRows: parsed.rows.length, ...result });
   } catch (err) {
     console.error("Import upload error:", err.message);
+    if (batchId) {
+      try {
+        await pool.query(`UPDATE import_batches SET status = 'failed' WHERE id = ?`, [batchId]);
+      } catch {
+        /* best-effort status update — the 500 below still reports the real failure either way */
+      }
+    }
     res.status(500).json({ success: false, message: "Server error while staging the file. Please try again." });
   }
 });
@@ -349,8 +908,8 @@ router.post("/:batchId/reclassify", requireHospitalAdmin, async (req, res) => {
       hospitalId,
     ]);
     if (!batch) return res.status(404).json({ success: false, message: "Import batch not found." });
-    if (batch.target_entity !== "auto") {
-      return res.status(400).json({ success: false, message: "This action only applies to an auto-detected import." });
+    if (!isBucketedBatch(batch.target_entity)) {
+      return res.status(400).json({ success: false, message: "This action only applies to an auto-detected or multi-table import." });
     }
 
     const [rows] = await pool.query(
@@ -416,11 +975,12 @@ router.post("/:batchId/mapping", requireHospitalAdmin, async (req, res) => {
     ]);
     if (!batch) return res.status(404).json({ success: false, message: "Import batch not found." });
 
-    // An auto-detected batch mixes several destinations in one file, so the
-    // mapping being confirmed here is scoped to ONE bucket at a time — the
-    // request says which. A plain single-entity batch has only ever had one
-    // possible target, so it keeps working exactly as before with no body change.
-    const targetEntity = batch.target_entity === "auto" ? req.body.targetEntity : batch.target_entity;
+    // An auto-detected or multi-table batch mixes several destinations in one
+    // file, so the mapping being confirmed here is scoped to ONE bucket at a
+    // time — the request says which. A plain single-entity batch has only
+    // ever had one possible target, so it keeps working exactly as before
+    // with no body change.
+    const targetEntity = isBucketedBatch(batch.target_entity) ? req.body.targetEntity : batch.target_entity;
     const entityDef = getEntity(targetEntity);
     if (!entityDef) {
       return res.status(400).json({ success: false, message: "A valid targetEntity is required for this batch." });
@@ -433,7 +993,20 @@ router.post("/:batchId/mapping", requireHospitalAdmin, async (req, res) => {
     // the admin discover it as a wall of identical per-row errors afterward.
     const requiredFields = entityDef.fields.filter((f) => f.required);
     const mappedColumnTargets = new Set(mappings.filter((m) => m.targetType === "column" && m.targetField).map((m) => m.targetField));
-    const missingRequired = requiredFields.filter((f) => !mappedColumnTargets.has(f.key));
+    // A required field with a `deriveFrom` (see schemaRegistry.js) doesn't
+    // need its OWN column mapped, as long as at least one of the field(s) it
+    // can derive from is — e.g. nurse_shift_roster.day_of_week is satisfied
+    // by mapping a column to shift_date instead, and lab_orders.patient_uhid
+    // is satisfied by mapping EITHER opd_visit_id OR ipd_admission_id (see
+    // the deriveFrom pass in commitEntityRows, which tries each in order).
+    const missingRequired = requiredFields.filter((f) => {
+      if (mappedColumnTargets.has(f.key)) return false;
+      if (f.deriveFrom) {
+        const attempts = Array.isArray(f.deriveFrom) ? f.deriveFrom : [f.deriveFrom];
+        if (attempts.some((a) => mappedColumnTargets.has(a.siblingField))) return false;
+      }
+      return true;
+    });
     if (missingRequired.length > 0) {
       return res.status(400).json({
         success: false,
@@ -457,12 +1030,12 @@ router.post("/:batchId/mapping", requireHospitalAdmin, async (req, res) => {
       );
     }
 
-    if (batch.target_entity !== "auto") {
+    if (!isBucketedBatch(batch.target_entity)) {
       await pool.query(`UPDATE import_batches SET status = 'ready' WHERE id = ?`, [batch.id]);
       return res.json({ success: true });
     }
 
-    // Auto mode: only flip to "ready" once every detected bucket has a
+    // Auto/multi mode: only flip to "ready" once every detected bucket has a
     // confirmed mapping AND no row is still sitting unclassified — an
     // unresolved "Unclassified" group must be explicitly reclassified or
     // explicitly skipped (see POST /:batchId/reclassify) before commit is
@@ -506,6 +1079,103 @@ class ImportUserError extends Error {}
 // right commit function for this entity, exactly as the single-entity path
 // always has; entityName is what decides "the right function" now instead of
 // it always being batch.target_entity.
+function quoteIdent(name) {
+  return `\`${name}\``;
+}
+function quoteTable(table) {
+  return table.split(".").map(quoteIdent).join(".");
+}
+
+// Resolves a plain numeric-surrogate `ref` field's raw value: if this batch
+// itself created the referenced row earlier in the same file, the id map has
+// it (keyed by whatever the CSV used to identify that row — see
+// registerCrossTierId); otherwise assume the raw value is already a real DB
+// id (e.g. importing into a non-empty database that references rows that
+// existed before this import ran). Never left as a non-numeric string —
+// there's nothing else it could validly be at this point.
+function resolveSurrogateRef(raw, refMap) {
+  if (refMap && refMap.has(raw)) return refMap.get(raw);
+  return /^\d+$/.test(raw) ? Number(raw) : null;
+}
+
+// Resolves a `refKind: "business"` field (a users.user_id-shaped value, e.g.
+// doctor_user_id): if this batch created that staff member earlier in the
+// same file (registered under the CSV's own id column — see
+// registerCrossTierId), resolve to their real generated user_id; otherwise
+// assume the raw value is already a real, pre-existing user_id (the far more
+// common case — referencing a doctor onboarded before this import ran) and
+// pass it straight through unchanged, exactly like a plain business-key field
+// (patient_uhid) already does.
+function resolveBusinessRef(raw, refMap) {
+  return refMap && refMap.has(raw) ? refMap.get(raw) : raw;
+}
+
+// Registers a just-committed row's real id/business-key under every CSV-local
+// identifier a LATER row in the same file might use to reference it: the
+// row's own 1-based position within its entity group (works even when the
+// file has no explicit id column), and, if the row's raw data has an "id"
+// header, that literal value too (the more common real-world case for a
+// database-export-style CSV that already numbers its own rows). Both keys
+// point at the same real value, so either reference style resolves correctly.
+function registerCrossTierId(idMapsRuntime, mapKey, csvPositionCounter, rawData, realValue) {
+  const map = idMapsRuntime[mapKey] || (idMapsRuntime[mapKey] = new Map());
+  map.set(String(csvPositionCounter), realValue);
+  const idHeader = Object.keys(rawData).find((h) => h.trim().toLowerCase() === "id");
+  if (idHeader) {
+    const rawId = rawData[idHeader];
+    if (rawId !== null && rawId !== undefined && String(rawId).trim() !== "") {
+      map.set(String(rawId).trim(), realValue);
+    }
+  }
+}
+
+// Plain INSERT for every entity added by the multi-entity single-file import
+// feature (departments, wards, opd_visits, bills, ... — anything with
+// `kind: "generic"` in schemaRegistry.js). Unlike commitPatientRow/
+// commitStaffRow there's no bespoke business logic: build the column list
+// straight from entityDef.fields, resolving any `ref`/`dynamicRef` field
+// against the cross-tier id map built up as earlier tiers commit (see
+// commitEntityRows), write whatever the admin's header mapping didn't
+// recognize into extra_fields exactly like patients/hospitals already do
+// (never silently dropped), and let the real table's own DEFAULT apply to
+// anything left unset instead of ever inserting an explicit NULL into a
+// NOT-NULL-with-DEFAULT column.
+async function commitGenericRow(connection, hospitalId, entityDef, columnValues, extraFieldValues, idMapsRuntime) {
+  const columns = ["hospital_id"];
+  const params = [hospitalId];
+  for (const field of entityDef.fields) {
+    // A `virtual` field (e.g. nurse_shift_roster.shift_date) exists purely
+    // to receive a column mapping and feed a `deriveFrom` elsewhere (see the
+    // deriveFrom pass in commitEntityRows) — the real table has no such
+    // column, so it's never part of the actual INSERT.
+    if (field.virtual) continue;
+    let value = columnValues[field.key];
+    if (value === undefined || value === "") value = null;
+    if (value !== null && field.dynamicRef) {
+      const siblingRaw = columnValues[field.dynamicRef.siblingField];
+      const refEntity = siblingRaw ? field.dynamicRef.map[String(siblingRaw).trim().toLowerCase()] : null;
+      value = resolveSurrogateRef(String(value).trim(), refEntity ? idMapsRuntime[refEntity] : null);
+    } else if (value !== null && field.ref) {
+      const raw = String(value).trim();
+      const refMap = idMapsRuntime[field.ref];
+      value = field.refKind === "business" ? resolveBusinessRef(raw, refMap) : resolveSurrogateRef(raw, refMap);
+    }
+    if (value === null) continue;
+    columns.push(field.key);
+    params.push(value);
+  }
+  if (Object.keys(extraFieldValues || {}).length) {
+    columns.push("extra_fields");
+    params.push(JSON.stringify(extraFieldValues));
+  }
+  const placeholders = columns.map(() => "?").join(", ");
+  const [result] = await connection.query(
+    `INSERT INTO ${quoteTable(entityDef.table)} (${columns.map(quoteIdent).join(", ")}) VALUES (${placeholders})`,
+    params
+  );
+  return result.insertId;
+}
+
 async function commitEntityRows(hospitalId, userId, batch, entityName, entityDef, stagingRows) {
   const [mappingRows] = await pool.query(
     `SELECT source_field, target_field, target_type, transform_fn FROM import_field_mappings
@@ -570,6 +1240,41 @@ async function commitEntityRows(hospitalId, userId, batch, entityName, entityDef
     fieldsAutoRedirected.push({ fieldKey: header, targetField: fieldDef.key, targetLabel: fieldDef.label, maxLength: fieldDef.maxLength });
   }
 
+  // ---------- Multi-entity cross-tier id map ----------
+  // Meaningful for ANY entity in a target_entity='multi' batch — not just
+  // `kind: "generic"` ones: patients (real numeric patients.id, needed to
+  // resolve patient_charges.source_id when source_type='registration') and
+  // staff (their real generated user_id, needed for a later row's
+  // doctor_user_id/assigned_nurse_id to reference a doctor/nurse created
+  // earlier in the SAME file — see registerCrossTierId) both register into it
+  // too now, under the fixed keys "patients" and "users" respectively. Each
+  // tier commits via its own separate request (the frontend's bucket-commit
+  // loop awaits one before starting the next — see wireAutoActions in
+  // hospital/data-import.js), so the running map is persisted on the batch
+  // row itself (import_batches.multi_entity_id_map) rather than kept in
+  // memory, and rebuilt fresh from it here on every call. Keyed by BOTH the
+  // row's own position within its entity group in the file (1-based) and, if
+  // present, its own explicit "id" column value — covers a CSV that
+  // identifies its rows by an explicit id column and one that doesn't equally.
+  const isGeneric = entityDef.kind === "generic";
+  const isMultiBatch = batch.target_entity === "multi";
+  const idMapsRuntime = {};
+  if (isMultiBatch) {
+    let stored = {};
+    try {
+      stored = batch.multi_entity_id_map
+        ? typeof batch.multi_entity_id_map === "string"
+          ? JSON.parse(batch.multi_entity_id_map)
+          : batch.multi_entity_id_map
+        : {};
+    } catch {
+      stored = {};
+    }
+    for (const [key, obj] of Object.entries(stored || {})) {
+      idMapsRuntime[key] = new Map(Object.entries(obj || {}));
+    }
+  }
+
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -629,7 +1334,9 @@ async function commitEntityRows(hospitalId, userId, batch, entityName, entityDef
     // The "hospitals" entity is a singleton per admin — every row updates the
     // same record, so real-column values from later rows win on conflict and
     // extra_fields accumulate across rows via JSON_MERGE_PATCH.
+    let csvPositionCounter = 0;
     for (const stagingRow of stagingRows) {
+      csvPositionCounter++;
       const rawData = stagingRow.raw_data;
       const columnValues = {};
       const detailsValues = {};
@@ -641,8 +1348,19 @@ async function commitEntityRows(hospitalId, userId, batch, entityName, entityDef
         const mapping = mappingByField.get(header);
         // Ultimate safety net for a header the admin never mapped at all —
         // still never dropped, just parked in extra_fields under its own name.
+        // Skipped when BLANK though: a multi-entity file's staged raw_data
+        // keeps every column from the whole wide file on every row (see
+        // stageMultiEntityBatch), so a row's own entity only ever confirmed a
+        // mapping for its OWN relevant headers — every other table's columns
+        // hit this exact branch, blank, on every single row. Keeping those
+        // would flood extra_fields with dozens of empty-string entries per
+        // row instead of the one real unmatched value (if any) worth keeping —
+        // there's no data to lose by skipping an empty value here.
         if (!mapping) {
-          extraFieldValues[header] = rawData[header];
+          const raw = rawData[header];
+          if (raw !== null && raw !== undefined && String(raw).trim() !== "") {
+            extraFieldValues[header] = raw;
+          }
           continue;
         }
         if (mapping.target_type === "ignored") continue;
@@ -660,6 +1378,59 @@ async function commitEntityRows(hospitalId, userId, batch, entityName, entityDef
         else columnValues[mapping.target_field] = value;
       }
 
+      // Smart auto-derivation: a field can declare `deriveFrom` naming
+      // ANOTHER mapped field to compute its own value from, tried only when
+      // nothing mapped to it directly. `deriveFrom` can be one attempt or an
+      // array of fallback attempts tried in order (e.g. lab_orders.patient_uhid
+      // can come from either its opd_visit_id or its ipd_admission_id,
+      // whichever this row actually has). Two different shapes of "derive":
+      //  - same-row copy/transform (e.g. nurse_shift_roster.day_of_week from
+      //    a shift_date column, when a file tracks shifts by calendar date
+      //    rather than a recurring weekday — real gap found 2026-09-02).
+      //  - cross-table lookup (`lookupTable`/`lookupField`): resolve the
+      //    sibling's own ref (e.g. opd_visit_id) to the real row THIS batch
+      //    (or an earlier one) already committed, then read a column off
+      //    THAT row — e.g. consultations.patient_uhid isn't in the file at
+      //    all, but its opd_visit_id is, and that visit's own patient_uhid
+      //    (already committed — opd_visits is an earlier tier) is exactly
+      //    the value that belongs here. Real gap found 2026-09-03.
+      // Run before validation so a successful derivation counts toward
+      // "required field satisfied", same as a directly-mapped column would.
+      for (const field of entityDef.fields) {
+        if (!field.deriveFrom) continue;
+        const existing = columnValues[field.key];
+        if (existing !== undefined && existing !== null && existing !== "") continue;
+        const attempts = Array.isArray(field.deriveFrom) ? field.deriveFrom : [field.deriveFrom];
+        for (const attempt of attempts) {
+          const sourceValue = columnValues[attempt.siblingField];
+          if (sourceValue === undefined || sourceValue === null || sourceValue === "") continue;
+          if (attempt.lookupTable) {
+            const siblingFieldDef = entityDef.fields.find((sf) => sf.key === attempt.siblingField);
+            const refMap = siblingFieldDef?.ref ? idMapsRuntime[siblingFieldDef.ref] : null;
+            const resolvedId = resolveSurrogateRef(String(sourceValue).trim(), refMap);
+            if (resolvedId === null) continue;
+            try {
+              const [[lookupRow]] = await connection.query(
+                `SELECT ${quoteIdent(attempt.lookupField)} AS value FROM ${quoteTable(attempt.lookupTable)} WHERE id = ? AND hospital_id = ? LIMIT 1`,
+                [resolvedId, hospitalId]
+              );
+              if (lookupRow && lookupRow.value !== null && lookupRow.value !== undefined && lookupRow.value !== "") {
+                columnValues[field.key] = lookupRow.value;
+                break;
+              }
+            } catch {
+              /* try the next fallback attempt, if any — never fail the whole row over a best-effort lookup */
+            }
+            continue;
+          }
+          const derived = applyTransform(attempt.transform, sourceValue);
+          if (derived !== null && derived !== undefined) {
+            columnValues[field.key] = derived;
+            break;
+          }
+        }
+      }
+
       const isValid = validate(columnValues);
       if (!isValid) {
         const message = ajv.errorsText(validate.errors, { separator: "; " });
@@ -674,7 +1445,7 @@ async function commitEntityRows(hospitalId, userId, batch, entityName, entityDef
 
       try {
         if (entityName === "patients") {
-          const { uhidCollisionResolved, doctorLinkResult } = await commitPatientRow(
+          const { uhidCollisionResolved, doctorLinkResult, insertedId } = await commitPatientRow(
             connection,
             hospitalId,
             userId,
@@ -687,10 +1458,20 @@ async function commitEntityRows(hospitalId, userId, batch, entityName, entityDef
           if (uhidCollisionResolved) uhidCollisionsResolved++;
           if (doctorLinkResult === "created") doctorLinksCreated++;
           else if (doctorLinkResult === "unresolved") doctorLinksUnresolved++;
+          if (isMultiBatch) registerCrossTierId(idMapsRuntime, "patients", csvPositionCounter, rawData, insertedId);
         } else if (entityName === "hospitals") {
           await commitHospitalRow(connection, hospitalId, columnValues, extraFieldValues);
+        } else if (isGeneric) {
+          const insertedId = await commitGenericRow(connection, hospitalId, entityDef, columnValues, extraFieldValues, idMapsRuntime);
+          if (isMultiBatch) registerCrossTierId(idMapsRuntime, entityName, csvPositionCounter, rawData, insertedId);
         } else {
-          await commitStaffRow(connection, hospitalId, batch.id, entityName, hospitalShortCode, columnValues, detailsValues, specialValues, extraFieldValues, departmentCache);
+          const staffUserId = await commitStaffRow(connection, hospitalId, batch.id, entityName, hospitalShortCode, columnValues, detailsValues, specialValues, extraFieldValues, departmentCache);
+          // Shared "users" key regardless of role — a doctor bucket and a
+          // nurse bucket committing separately (their own requests) both feed
+          // the SAME map, since a downstream row's doctor_user_id and another
+          // row's assigned_nurse_id both need to search across every staff
+          // role this file created, not just one.
+          if (isMultiBatch) registerCrossTierId(idMapsRuntime, "users", csvPositionCounter, rawData, staffUserId);
         }
         await connection.query(`UPDATE import_staging_rows SET status = 'committed' WHERE id = ?`, [stagingRow.id]);
         committedCount++;
@@ -705,6 +1486,24 @@ async function commitEntityRows(hospitalId, userId, batch, entityName, entityDef
     }
 
     await connection.commit();
+
+    // Persist this tier's newly-created ids for the NEXT tier's request to
+    // pick up (see the id-map rebuild above) — best-effort: if this write
+    // fails, later tiers just fall back to treating a raw ref value as
+    // already a real DB id instead of hard-failing a commit that otherwise
+    // fully succeeded.
+    if (isMultiBatch) {
+      try {
+        const serializable = {};
+        for (const [key, map] of Object.entries(idMapsRuntime)) {
+          serializable[key] = Object.fromEntries(map.entries());
+        }
+        await pool.query(`UPDATE import_batches SET multi_entity_id_map = ? WHERE id = ?`, [JSON.stringify(serializable), batch.id]);
+      } catch (mapErr) {
+        console.error("Failed to persist multi-entity id map:", mapErr.message);
+      }
+    }
+
     return {
       committedCount,
       failedCount,
@@ -745,7 +1544,7 @@ router.post("/:batchId/commit", requireHospitalAdmin, async (req, res) => {
     if (!batch) return res.status(404).json({ success: false, message: "Import batch not found." });
     if (batch.status === "committed") return res.status(409).json({ success: false, message: "This batch is already committed." });
 
-    if (batch.target_entity !== "auto") {
+    if (!isBucketedBatch(batch.target_entity)) {
       const entityDef = getEntity(batch.target_entity);
       const [stagingRows] = await pool.query(`SELECT * FROM import_staging_rows WHERE batch_id = ? ORDER BY row_num ASC`, [batch.id]);
       const result = await commitEntityRows(hospitalId, req.session.user.userId, batch, batch.target_entity, entityDef, stagingRows);
@@ -938,6 +1737,7 @@ async function commitPatientRow(connection, hospitalId, userId, batchId, columnV
     uhid = generateUhid(hospitalRow?.short_code || "HOSP", result.insertId);
     await connection.query(`UPDATE patients SET uhid = ? WHERE id = ?`, [uhid, result.insertId]);
   }
+  const insertedId = result.insertId;
 
   await connection.query(`INSERT INTO user_directory (user_id, hospital_id, account_type) VALUES (?, ?, 'patient')`, [uhid, hospitalId]);
 
@@ -976,7 +1776,7 @@ async function commitPatientRow(connection, hospitalId, userId, batchId, columnV
     }
   }
 
-  return { uhidCollisionResolved, doctorLinkResult };
+  return { uhidCollisionResolved, doctorLinkResult, insertedId };
 }
 
 async function commitHospitalRow(connection, hospitalId, columnValues, extraFieldValues) {
@@ -1065,7 +1865,7 @@ async function commitStaffRow(connection, hospitalId, batchId, role, hospitalSho
         ]
       );
       await connection.query(`INSERT INTO user_directory (user_id, hospital_id) VALUES (?, ?)`, [staffUserId, hospitalId]);
-      return;
+      return staffUserId;
     } catch (err) {
       if (err.code === "ER_DUP_ENTRY" && attempt < 2) {
         lastErr = err;
@@ -1114,8 +1914,34 @@ router.delete("/:batchId", requireHospitalAdmin, async (req, res) => {
       hospitalId,
     ]);
     if (!batch) return res.status(404).json({ success: false, message: "Import batch not found." });
-    if (batch.status !== "committed") {
-      return res.status(400).json({ success: false, message: "Only a committed import can be deleted." });
+
+    // Nothing was ever actually written to a real table for a batch that
+    // never got past commit (uploaded/mapping/ready/committing-stuck/failed)
+    // — committed_rows is always 0, so there's no undo logic needed, just
+    // remove the batch and whatever it staged. This is the general escape
+    // hatch for a batch that failed to auto-detect, errored mid-staging, or
+    // was abandoned at the mapping step: previously the rest of this route
+    // (below) only knew how to undo a REAL commit, so anything short of
+    // that had no Delete option at all and sat in Import History permanently.
+    // Real bug found 2026-09-03: an auto-detect/multi-entity batch sits at
+    // status = 'committing' (never 'committed') until EVERY bucket/tier has
+    // had its turn — but each individual bucket commit already writes real
+    // rows to real tables as it goes. If even one bucket is abandoned
+    // (mapping error, admin gives up on just that group), the batch never
+    // reaches 'committed', so this used to always take the fast "nothing was
+    // ever written" path below — deleting import_staging_rows AND the
+    // import_batches row itself (including multi_entity_id_map) while every
+    // already-committed tier's rows stayed live in the database, now with no
+    // batch record left to ever trace or clean them up through. Falling
+    // through to the full per-entity undo logic instead (same logic used for
+    // status === 'committed') correctly reverses whichever tiers actually
+    // committed, using imported_from_batch / multi_entity_id_map exactly as
+    // it already does for a fully-committed batch — it doesn't require every
+    // tier to have finished.
+    if (batch.status !== "committed" && !(batch.committed_rows > 0)) {
+      await pool.query(`DELETE FROM import_staging_rows WHERE batch_id = ?`, [batch.id]);
+      await pool.query(`DELETE FROM import_batches WHERE id = ?`, [batch.id]);
+      return res.json({ success: true, discarded: true, deletedRows: 0 });
     }
     if (batch.reverted_at) {
       return res.status(409).json({ success: false, message: "This import was already deleted." });
@@ -1142,6 +1968,16 @@ router.delete("/:batchId", requireHospitalAdmin, async (req, res) => {
         });
       }
       if (uhids.length) {
+        // Real bug found 2026-09-03: a patient with a resolved "Assigned
+        // Doctor" gets a genuine opd_visits row too (see commitPatientRow) —
+        // that row was never cleaned up here, left silently orphaned
+        // (referencing a patient_uhid that no longer exists) after undo.
+        // Scoped to source = 'import' so this can never touch a real
+        // walk-in/appointment visit, only ones this same mechanism created.
+        await connection.query(`DELETE FROM opd_visits WHERE hospital_id = ? AND patient_uhid IN (?) AND source = 'import'`, [
+          hospitalId,
+          uhids,
+        ]);
         await connection.query(`DELETE FROM user_directory WHERE hospital_id = ? AND user_id IN (?)`, [hospitalId, uhids]);
       }
       await connection.query(`DELETE FROM patients WHERE hospital_id = ? AND imported_from_batch = ?`, [hospitalId, batch.id]);
@@ -1206,6 +2042,12 @@ router.delete("/:batchId", requireHospitalAdmin, async (req, res) => {
       ]);
       const uhids = patientRows.map((r) => r.uhid).filter(Boolean);
       if (uhids.length) {
+        // Same opd_visits cleanup as the plain "patients" undo above — a
+        // resolved Assigned Doctor creates a real opd_visits row too.
+        await connection.query(`DELETE FROM opd_visits WHERE hospital_id = ? AND patient_uhid IN (?) AND source = 'import'`, [
+          hospitalId,
+          uhids,
+        ]);
         await connection.query(`DELETE FROM user_directory WHERE hospital_id = ? AND user_id IN (?)`, [hospitalId, uhids]);
       }
       await connection.query(`DELETE FROM patients WHERE hospital_id = ? AND imported_from_batch = ?`, [hospitalId, batch.id]);
@@ -1223,6 +2065,140 @@ router.delete("/:batchId", requireHospitalAdmin, async (req, res) => {
       await connection.query(`UPDATE import_batches SET reverted_at = NOW(), reverted_by = ? WHERE id = ?`, [userId, batch.id]);
       await connection.commit();
       return res.json({ success: true, deletedRows: uhids.length + staffUserIds.length, deletedPatients: uhids.length, deletedStaff: staffUserIds.length });
+    }
+
+    if (batch.target_entity === "multi") {
+      // Reverse of the commit order (see MULTI_ENTITY_TIERS in
+      // schemaRegistry.js): tier 7 first, tier 1 last, so a table is always
+      // emptied before anything it depends on — the same reason it's the
+      // commit order forwards. "users"/"patients" are tracked via the
+      // existing imported_from_batch column (same mechanism the "auto"/
+      // "patients" undo branches above already use); every `kind: "generic"`
+      // entity is tracked via the real ids accumulated in
+      // multi_entity_id_map as each tier committed (see registerCrossTierId/
+      // commitEntityRows) — deduped per entity, since the same real id can be
+      // registered under more than one CSV-local key (see registerCrossTierId).
+      // "hospitals" (a singleton UPDATE, never an INSERT) is restored from
+      // its pre_commit_snapshot afterward, same rule as the dedicated
+      // hospitals-entity undo above: only if no newer import has touched it since.
+      let idMap = {};
+      try {
+        idMap = batch.multi_entity_id_map
+          ? typeof batch.multi_entity_id_map === "string"
+            ? JSON.parse(batch.multi_entity_id_map)
+            : batch.multi_entity_id_map
+          : {};
+      } catch {
+        idMap = {};
+      }
+
+      const deletedByEntity = {};
+      const reverseTiers = [...MULTI_ENTITY_TIERS].reverse();
+      for (const tier of reverseTiers) {
+        for (const entityKey of [...tier].reverse()) {
+          if (entityKey === "users") {
+            const [staffRows] = await connection.query(`SELECT user_id FROM users WHERE hospital_id = ? AND imported_from_batch = ?`, [
+              hospitalId,
+              batch.id,
+            ]);
+            const staffUserIds = staffRows.map((r) => r.user_id).filter(Boolean);
+            if (staffUserIds.length) {
+              await connection.query(`DELETE FROM user_directory WHERE hospital_id = ? AND user_id IN (?)`, [hospitalId, staffUserIds]);
+              await connection.query(`DELETE FROM users WHERE hospital_id = ? AND imported_from_batch = ?`, [hospitalId, batch.id]);
+            }
+            deletedByEntity.users = staffUserIds.length;
+            continue;
+          }
+          if (entityKey === "patients") {
+            const [patientRows] = await connection.query(`SELECT uhid FROM patients WHERE hospital_id = ? AND imported_from_batch = ?`, [
+              hospitalId,
+              batch.id,
+            ]);
+            const uhids = patientRows.map((r) => r.uhid).filter(Boolean);
+            if (uhids.length) {
+              // Same opd_visits cleanup as the other two undo paths above —
+              // a resolved Assigned Doctor creates a real opd_visits row
+              // too, separate from anything tracked in multi_entity_id_map
+              // (this comes from commitPatientRow's own doctor-link logic,
+              // not the generic per-entity id map), so it needs its own
+              // explicit cleanup here regardless of whether this same batch
+              // also had its own opd_visits bucket.
+              await connection.query(`DELETE FROM opd_visits WHERE hospital_id = ? AND patient_uhid IN (?) AND source = 'import'`, [
+                hospitalId,
+                uhids,
+              ]);
+              await connection.query(`DELETE FROM user_directory WHERE hospital_id = ? AND user_id IN (?)`, [hospitalId, uhids]);
+              await connection.query(`DELETE FROM patients WHERE hospital_id = ? AND imported_from_batch = ?`, [hospitalId, batch.id]);
+            }
+            deletedByEntity.patients = uhids.length;
+            continue;
+          }
+          if (entityKey === "hospitals") continue; // handled separately below, once every other tier is undone
+
+          const def = getEntity(entityKey);
+          if (!def || def.kind !== "generic") continue;
+          const entityIdMap = idMap[entityKey];
+          if (!entityIdMap) continue;
+          const realIds = [...new Set(Object.values(entityIdMap))].filter((id) => Number.isInteger(id) || /^\d+$/.test(id));
+          if (realIds.length === 0) continue;
+          await connection.query(`DELETE FROM ${quoteTable(def.table)} WHERE hospital_id = ? AND id IN (?)`, [hospitalId, realIds]);
+          deletedByEntity[entityKey] = realIds.length;
+        }
+      }
+
+      let hospitalsRestored = false;
+      if (batch.pre_commit_snapshot) {
+        // Same "only the most recent can be undone" rule as the dedicated
+        // hospitals-entity branch above, generalized to check across EVERY
+        // batch that could have snapshotted the hospitals row (a plain
+        // target_entity='hospitals' batch or a 'multi' batch with a hospitals
+        // bucket), not just this one target_entity value.
+        const [[mostRecent]] = await pool.query(
+          `SELECT id FROM import_batches WHERE hospital_id = ? AND pre_commit_snapshot IS NOT NULL AND status = 'committed' AND reverted_at IS NULL
+           ORDER BY id DESC LIMIT 1`,
+          [hospitalId]
+        );
+        if (mostRecent && mostRecent.id === batch.id) {
+          const snapshot = batch.pre_commit_snapshot;
+          const hospitalsDef = getEntity("hospitals");
+          const setClauses = [];
+          const params = [];
+          hospitalsDef.fields.forEach((f) => {
+            setClauses.push(`${f.key} = ?`);
+            params.push(snapshot[f.key] ?? null);
+          });
+          setClauses.push("extra_fields = ?");
+          params.push(snapshot.extra_fields ? JSON.stringify(snapshot.extra_fields) : null);
+          params.push(hospitalId);
+          await connection.query(`UPDATE hospitals SET ${setClauses.join(", ")} WHERE id = ?`, params);
+          hospitalsRestored = true;
+        }
+      }
+
+      // Reset every staged row this batch committed back to 'pending' (their
+      // real rows no longer exist), and the batch itself back to 'ready' —
+      // not "reverted", since a batch that's back to 'ready' with clean
+      // staging rows is safely re-committable through the exact same
+      // POST /:batchId/commit flow it used the first time, and the DELETE
+      // guard above ("Only a committed import can be deleted") now correctly
+      // refuses a second undo on its own, without needing a separate flag.
+      await connection.query(`UPDATE import_staging_rows SET status = 'pending', error_message = NULL WHERE batch_id = ? AND status = 'committed'`, [
+        batch.id,
+      ]);
+      await connection.query(
+        `UPDATE import_batches SET status = 'ready', committed_rows = 0, failed_rows = 0, committed_at = NULL, multi_entity_id_map = NULL WHERE id = ?`,
+        [batch.id]
+      );
+      await connection.commit();
+
+      const totalDeleted = Object.values(deletedByEntity).reduce((sum, n) => sum + n, 0);
+      return res.json({
+        success: true,
+        deletedRows: totalDeleted,
+        deletedByEntity,
+        hospitalsRestored,
+        canRecommit: true,
+      });
     }
 
     await connection.rollback();

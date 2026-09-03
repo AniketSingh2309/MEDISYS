@@ -81,7 +81,23 @@ function normalizeBoolean(value) {
   return null;
 }
 
-const TRANSFORMS = { trimString, toInt, toFloat, parseDate, normalizeBoolean };
+// Derives a day-of-week integer (0=Sunday..6=Saturday, matching Date.getDay()
+// — the exact convention DAY_LABELS in hospital/hospital.js already indexes
+// by) from a calendar date. Used by a field.deriveFrom transform (see
+// schemaRegistry.js nurse_shift_roster.day_of_week) when a file tracks shifts
+// by specific date rather than a recurring weekday — real gap found
+// 2026-09-02: a genuine export used a "shift_date" column instead of
+// "day_of_week", data the file already fully contains, just not in the
+// exact shape the target column expects. UTC-anchored so the result never
+// shifts by a day depending on the server's local timezone.
+function dateToDayOfWeek(value) {
+  const iso = parseDate(value);
+  if (!iso) return null;
+  const d = new Date(iso + "T00:00:00Z");
+  return Number.isNaN(d.getTime()) ? null : d.getUTCDay();
+}
+
+const TRANSFORMS = { trimString, toInt, toFloat, parseDate, normalizeBoolean, dateToDayOfWeek };
 
 function applyTransform(name, value) {
   const fn = TRANSFORMS[name];
@@ -101,4 +117,4 @@ function looksLikeBoolean(value) {
   return normalizeBoolean(value) !== null;
 }
 
-module.exports = { TRANSFORMS, applyTransform, looksLikeDate, looksLikeNumber, looksLikeBoolean, parseDate, toInt, toFloat, normalizeBoolean, trimString };
+module.exports = { TRANSFORMS, applyTransform, looksLikeDate, looksLikeNumber, looksLikeBoolean, parseDate, toInt, toFloat, normalizeBoolean, trimString, dateToDayOfWeek };

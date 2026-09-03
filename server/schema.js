@@ -203,6 +203,12 @@ async function ensureSchema(connection) {
   await ensureColumn(connection, "import_batches", "pre_commit_snapshot", "JSON NULL");
   await ensureColumn(connection, "import_batches", "reverted_at", "TIMESTAMP NULL");
   await ensureColumn(connection, "import_batches", "reverted_by", "VARCHAR(50) NULL");
+  // Multi-entity single-file import (target_entity = 'multi', see
+  // server/importRoutes.js): the cross-tier "CSV row N of table X" -> real
+  // DB id map, accumulated as each dependency tier commits (its own request),
+  // so the NEXT tier's request can resolve its foreign-key columns against
+  // rows THIS batch itself created earlier in the same file.
+  await ensureColumn(connection, "import_batches", "multi_entity_id_map", "JSON NULL");
   // "Auto-detect (mixed dataset)" mode (see server/roleClassifier.js): a batch
   // with target_entity = 'auto' mixes multiple destinations in one file, so
   // each STAGING ROW carries its own detected destination instead of the
@@ -832,6 +838,28 @@ async function ensureSchema(connection) {
       UNIQUE KEY uniq_patient_charge_source (hospital_id, source_type, source_id)
     )
   `);
+
+  // Same import-overflow column as hospitals.extra_fields/patients.extra_fields
+  // above, retrofitted onto every table added for the multi-entity
+  // single-file import feature (server/schemaRegistry.js `kind: "generic"`
+  // entities) so a header commitGenericRow can't match a real column has
+  // somewhere to land instead of being silently discarded — see
+  // commitGenericRow in server/importRoutes.js. Run down here, after every
+  // CREATE TABLE above (including the cross-database pharmacy ones), since
+  // ensureColumn/ensureColumnInSchema ALTER a table that must already exist.
+  const GENERIC_IMPORT_TABLES = [
+    "departments", "wards", "test_catalog", "billing_tariff", "blood_donors", "beds",
+    "doctor_schedules", "doctor_calendar_availability", "nurse_shift_roster", "doctor_nurse_teams",
+    "opd_visits", "blood_inventory_units", "consultations",
+    "ipd_admissions", "lab_orders", "blood_patient_donations", "blood_requests",
+    "ipd_notes", "doctor_orders", "medication_administration", "lab_order_images",
+    "bills", "blood_billing", "bill_items", "bill_payments", "patient_charges", "vitals",
+  ];
+  for (const table of GENERIC_IMPORT_TABLES) {
+    await ensureColumn(connection, table, "extra_fields", "JSON NULL");
+  }
+  await ensureColumnInSchema(connection, "medisys_pharmacy", "pharmacy_stock", "extra_fields", "JSON NULL");
+  await ensureColumnInSchema(connection, "medisys_pharmacy", "pharmacy_orders", "extra_fields", "JSON NULL");
 
   await seedDefaultUsers(connection);
 }
